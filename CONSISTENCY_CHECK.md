@@ -451,3 +451,39 @@ grep -r "use_gpu" python/*.py
 **總計修正**: 12 處不一致
 **版本**: 2.0.0 (AI 檢測版)
 **最後更新**: 2025年12月24日
+---
+
+## 🆕 第 4 次更新 (2025-12-24) - 雙目 AI 追蹤
+
+### 功能增強：雙目攝像頭獨立 AI 檢測
+
+**更新內容**:
+1. **雙目獨立 AI 檢測**: 左右攝像頭分別執行 YOLOv8 AI 檢測
+2. **智能攝像頭選擇**: 自動選擇信心度最高的檢測結果
+3. **單邊高信心度即有效**: 任一攝像頭檢測到高信心度目標即視為成功
+4. **信心度過濾**: 雷射標記需要信心度 > 0.5
+
+**修改檔案**: mosquito_tracker.py
+
+**主要改進**:
+```python
+# 分別檢測左右攝像頭
+left_detections, _ = self.detector.detect(left_frame)
+right_detections, _ = self.detector.detect(right_frame)
+
+# 自動選擇信心度最高的結果
+if left_best['confidence'] > right_best['confidence']:
+    use_left_camera = True
+else:
+    use_right_camera = True
+
+# 雷射標記需要高信心度
+if confidence > 0.5 and target_in_center:
+    activate_laser()
+```
+
+**優勢**:
+- ✅ 提高檢測可靠性（雙重確認）
+- ✅ 減少誤檢（單邊低信心度不觸發）
+- ✅ 增強追蹤穩定性
+- ✅ 支持遮擋情況（一邊被遮擋仍可檢測）

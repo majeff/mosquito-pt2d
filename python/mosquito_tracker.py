@@ -140,85 +140,122 @@ class MosquitoTracker:
 
         return pan_delta, tilt_delta
 
-    def track_mosquito(self, detections, frame):
+    def track_mosquito(self, left_detections, right_detections, left_frame, right_frame):
         """
-        追蹤蚊子邏輯
+        追蹤蚊子邏輯（雙目 AI 檢測，任一邊檢測到高信心度即可）
 
         Args:
-            detections: 偵測到的目標列表
-            frame: 當前影像幀
+            left_detections: 左攝像頭 AI 偵測結果列表
+            right_detections: 右攝像頭 AI 偵測結果列表
+            left_frame: 左攝像頭影像幀
+            right_frame: 右攝像頭影像幀
         """
         current_time = time.time()
 
-        if detections:
+        # 合併左右攝像頭的 AI 檢測結果（任一邊檢測到高信心度即可）
+        best_detection = None
+        best_confidence = 0
+        use_left_camera = True
+
+        # 從左攝像頭尋找最佳檢測
+        if left_detections:
+            left_best = self.detector.get_largest_detection(left_detections)
+            if left_best and left_best['confidence'] > best_confidence:
+                best_detection = left_best
+                best_confidence = left_best['confidence']
+                use_left_camera = True
+
+        # 從右攝像頭尋找最佳檢測
+        if right_detections:
+            right_best = self.detector.get_largest_detection(right_detections)
+            if right_best and right_best['confidence'] > best_confidence:
+                best_detection = right_best
+                best_confidence = right_best['confidence']
+                use_left_camera = False
+
+        # 選擇使用的幀
+        frame = left_frame if use_left_camera else right_frame
+        camera_side = "左" if use_left_camera else "右"
+
+        if best_detection:
             # 有偵測到目標
             self.last_detection_time = current_time
 
-            # 取得最大的偵測框（假設是蚊子）
-            largest = self.detector.get_largest_detection(detections)
-            if largest:
-                x, y, w, h = largest
-                target_x, target_y = self.detector.get_center(largest)
+            # 解析檢測結果
+            x, y, w, h = best_detection['bbox']
+            target_x, target_y = best_detection['center']
+            confidence = best_detection['confidence']
+            class_name = best_detection.get('class_name', 'unknown')
 
-                    # 開始追蹤
-                if not self.tracking_active:
-                        logger.info("偵測到蚊子，開始追蹤")
-                    self.tracking_active = True
+            # 開始追蹤
+            if not self.tracking_active:
+                logger.info(f"[{camera_side}攝像頭] AI 偵測到蚊子 (信心度: {confidence:.2f})，開始追蹤")
+                self.tracking_active = True
 
-                # 計算角度增量
-                pan_delta, tilt_delta = self.calculate_target_angles(target_x, target_y)
+            # 計算角度增量
+            pan_delta, tilt_delta = self.calculate_target_angles(target_x, target_y)
 
-                # 只有在偏離中心較大時才移動
-                if abs(pan_delta) > 2 or abs(tilt_delta) > 2:
-                    self.controller.move_by(pan_delta, tilt_delta)
-                    logger.debug(f"追蹤移動: Pan={pan_delta}, Tilt={tilt_delta}")
+            # 只有在偏離中心較大時才移動
+            if abs(pan_delta) > 2 or abs(tilt_delta) > 2:
+                self.controller.move_by(pan_delta, tilt_delta)
+                logger.debug(f"[{camera_side}] AI 追蹤移動: Pan={pan_delta}, Tilt={tilt_delta}, 信心度={confidence:.2f}")
 
-                # 在影像上標註目標
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-                cv2.circle(frame, (target_x, target_y), 5, (0, 255, 255), -1)
-                cv2.putText(frame, f"TRACKING ({target_x}, {target_y})",
-                           (target_x - 80, target_y - 15),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            # 在影像上標註目標（標註在使用的攝像頭畫面上）
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+            cv2.circle(frame, (target_x, target_y), 5, (0, 255, 255), -1)
+            cv2.putText(frame, f"[{camera_side}] {class_name} ({target_x}, {target_y})",
+                       (target_x - 100, target_y - 15),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            cv2.putText(frame, f"Conf: {confidence:.2f}",
+                       (target_x - 50, target_y + h + 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-                # 雷射標記：當目標接近中心時啟動雷射
-                if self.enable_laser and self.laser.is_initialized:
-                    current_time = time.time()
-                    # 檢查目標是否在中心區域（±30 像素）
-                    center_threshold = 30
-                    error_x = abs(target_x - self.camera_width // 2)
-                    error_y = abs(target_y - self.camera_height // 2)
+            # 雷射標記：當目標接近中心且信心度足夠高時啟動雷射
+            if self.enable_laser and self.laser.is_initialized:
+                current_time = time.time()
+                # 檢查目標是否在中心區域（±30 像素）且信心度 > 0.5
+                center_threshold = 30
+                confidence_threshold = 0.5
+                error_x = abs(target_x - self.camera_width // 2)
+                error_y = abs(target_y - self.camera_height // 2)
 
-                    if error_x < center_threshold and error_y < center_threshold:
-                        # 目標在中心，啟動雷射標記
-                        if not self.laser_marking and (current_time - self.last_laser_time > self.laser_cooldown):
-                            self.laser.on()
-                            self.laser_marking = True
-                            self.last_laser_time = current_time
-                            logger.info("🎯 雷射標記啟動")
+                if (error_x < center_threshold and error_y < center_threshold
+                    and confidence > confidence_threshold):
+                    # 目標在中心且信心度高，啟動雷射標記
+                    if not self.laser_marking and (current_time - self.last_laser_time > self.laser_cooldown):
+                        self.laser.on()
+                        self.laser_marking = True
+                        self.last_laser_time = current_time
+                        logger.info(f"🎯 雷射標記啟動 [{camera_side}] 信心度: {confidence:.2f}")
 
-                        # 標記中心區域
-                        cv2.circle(frame, (self.camera_width // 2, self.camera_height // 2),
-                                 center_threshold, (0, 255, 0), 2)
-                        cv2.putText(frame, "LASER ON", (target_x - 40, target_y + 25),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                    else:
-                        # 目標偏離中心，關閉雷射
-                        if self.laser_marking:
-                            self.laser.off()
-                            self.laser_marking = False
-                            logger.info("雷射標記關閉")
+                    # 標記中心區域
+                    cv2.circle(frame, (self.camera_width // 2, self.camera_height // 2),
+                             center_threshold, (0, 255, 0), 2)
+                    cv2.putText(frame, f"LASER ON [{camera_side}]", (target_x - 60, target_y + h + 40),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                else:
+                    # 目標偏離中心或信心度不足，關閉雷射
+                    if self.laser_marking:
+                        self.laser.off()
+                        self.laser_marking = False
+                        logger.info("雷射標記關閉（目標偏離或信心度不足）")
+
+            # 返回使用的幀用於顯示
+            return frame
 
         else:
-            # 沒有偵測到目標
+            # 沒有偵測到目標（左右攝像頭都沒有高信心度檢測）
             if self.tracking_active:
-
                 # 關閉雷射
                 if self.enable_laser and self.laser_marking:
                     self.laser.off()
                     self.laser_marking = False
 
-                    logger.info("失去目標，等待下次偵測")
-                    self.tracking_active = False
+                logger.info("AI 失去目標，等待下次偵測")
+                self.tracking_active = False
+
+            # 返回左攝像頭畫面作為預設顯示
+            return left_frame
 
     def run(self):
         """運行主循環"""
@@ -235,28 +272,41 @@ class MosquitoTracker:
 
         try:
             while True:
-                # 讀取攝像頭影像（使用左攝像頭）
-                ret, frame = self.camera.read_left()
+                # 讀取雙目攝像頭影像
+                ret, left_frame, right_frame = self.camera.read()
                 if not ret:
-                    logger.warning("無法讀取影像")
+                    logger.warning("無法讀取雙目影像")
                     continue
 
-                # 執行蚊子偵測
-                detections, mask = self.detector.detect(frame, method='background')
+                # 分別對左右攝像頭執行 AI 檢測
+                left_detections, _ = self.detector.detect(left_frame)
+                right_detections, _ = self.detector.detect(right_frame)
 
-                # 繪製偵測結果
-                result = self.detector.draw_detections(frame, detections)
+                # AI 追蹤蚊子（自動選擇信心度最高的攝像頭）
+                display_frame = self.track_mosquito(left_detections, right_detections,
+                                                    left_frame, right_frame)
 
-                # 追蹤蚊子
-                self.track_mosquito(detections, result)
+                # 繪製 AI 偵測結果在顯示幀上
+                if display_frame is left_frame and left_detections:
+                    result = self.detector.draw_detections(display_frame.copy(), left_detections)
+                elif display_frame is right_frame and right_detections:
+                    result = self.detector.draw_detections(display_frame.copy(), right_detections)
+                else:
+                    result = display_frame.copy()
 
                 # 顯示狀態資訊
-                mode_text = "TRACKING" if self.tracking_active else "SCANNING"
+                mode_text = "AI TRACKING" if self.tracking_active else "AI SCANNING"
                 color = (0, 0, 255) if self.tracking_active else (0, 255, 0)
                 cv2.putText(result, f"Mode: {mode_text}", (10, 30),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-                cv2.putText(result, f"Detections: {len(detections)}", (10, 60),
+                cv2.putText(result, f"左: {len(left_detections)} | 右: {len(right_detections)}", (10, 60),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+                # 獲取當前雲台位置
+                try:
+                    pan, tilt = self.controller.get_position()
+                except:
+                    pan, tilt = 0, 0
 
                 # 顯示雷射狀態
                 if self.enable_laser:
@@ -271,8 +321,10 @@ class MosquitoTracker:
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
                 # 顯示影像
-                cv2.imshow('Mosquito Tracker', result)
-                cv2.imshow('Detection Mask', mask)
+                cv2.imshow('AI Mosquito Tracker (Dual Camera)', result)
+                # 可選：顯示左右攝像頭原始畫面
+                # cv2.imshow('Left Camera', left_frame)
+                # cv2.imshow('Right Camera', right_frame)
 
                 # 鍵盤控制
                 key = cv2.waitKey(1) & 0xFF
