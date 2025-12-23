@@ -94,6 +94,25 @@ void loop() {
         serialProtocol.sendResponse(true, "OK");
         break;
 
+      case CMD_SET_MODE:
+        // 設置工作模式（0=手動, 1=自動掃描）
+        servoController.setMode(cmd.mode);
+        {
+          Serial.print(F("{\"mode\":"));
+          Serial.print(servoController.getMode());
+          Serial.println(F("}"));
+        }
+        break;
+
+      case CMD_GET_MODE:
+        // 查詢工作模式
+        {
+          Serial.print(F("{\"mode\":"));
+          Serial.print(servoController.getMode());
+          Serial.println(F("}"));
+        }
+        break;
+
       default:
         serialProtocol.sendResponse(false, "Unknown command");
         break;

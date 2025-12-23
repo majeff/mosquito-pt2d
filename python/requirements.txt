@@ -1,0 +1,4 @@
+opencv-python>=4.8.0
+pyserial>=3.5
+numpy>=1.24.0
+OrangePi.GPIO>=0.6.0  # Orange Pi 5 GPIO 控制（僅 Orange Pi 需要）

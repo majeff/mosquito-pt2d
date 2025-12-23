@@ -76,6 +76,23 @@ public:
    */
   void calibrate();
 
+  /**
+   * @brief 設置工作模式
+   * @param mode 0=手動, 1=自動掃描
+   */
+  void setMode(int mode);
+
+  /**
+   * @brief 獲取當前工作模式
+   * @return 0=手動, 1=自動掃描
+   */
+  int getMode() const;
+
+  /**
+   * @brief 自動掃描更新（在掃描模式下呼叫）
+   */
+  void updateAutoScan();
+
 private:
   Servo panServo;    // Pan 軸伺服馬達
   Servo tiltServo;   // Tilt 軸伺服馬達
@@ -90,6 +107,13 @@ private:
   unsigned long lastUpdateTime; // 上次更新時間
 
   bool isMoving;         // 是否正在移動
+
+  // 工作模式/掃描狀態
+  int workMode;              // 0=手動, 1=自動掃描
+  bool scanDirection;        // 掃描方向
+  unsigned long lastScanUpdateTime; // 掃描上次更新時間
+  int scanMinPan;            // 掃描最小 Pan
+  int scanMaxPan;            // 掃描最大 Pan
 
   /**
    * @brief 限制角度範圍

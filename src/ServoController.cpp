@@ -10,9 +10,15 @@ ServoController::ServoController()
     currentTiltAngle(TILT_INIT_ANGLE),
     targetPanAngle(PAN_INIT_ANGLE),
     targetTiltAngle(TILT_INIT_ANGLE),
-    moveSpeed(50),
+    moveSpeed(DEFAULT_SPEED),
     lastUpdateTime(0),
-    isMoving(false) {
+    isMoving(false),
+    workMode(MODE_MANUAL),
+    scanDirection(true),
+    lastScanUpdateTime(0) {
+  // 計算掃描邊界
+  scanMinPan = SCAN_CENTER_PAN - SCAN_RANGE / 2;
+  scanMaxPan = SCAN_CENTER_PAN + SCAN_RANGE / 2;
 }
 
 void ServoController::begin() {
@@ -52,8 +58,67 @@ void ServoController::stop() {
   isMoving = false;
 }
 
-void ServoController::setSpeed(int speed) {
-  moveSpeed = constrain(speed, 1, 100);
+void ServoController::calibrate() {
+  // 簡單校準：回到初始位置
+  home();
+  Serial.println(F("Calibration complete"));
+}
+
+int ServoController::constrainAngle(int angle, int minAngle, int maxAngle) {
+  return constrain(angle, minAngle, maxAngle);
+}
+
+void ServoController::setMode(int mode) {
+  workMode = (mode == 1) ? 1 : 0;
+
+  if (workMode == 1) {
+    // 切換到自動掃描模式：固定 Tilt 並開始掃描
+    currentTiltAngle = SCAN_TILT_ANGLE;
+    targetTiltAngle = SCAN_TILT_ANGLE;
+    tiltServo.write(currentTiltAngle);
+
+    // 設置為掃描中心開始
+    currentPanAngle = SCAN_CENTER_PAN;
+    targetPanAngle = SCAN_CENTER_PAN;
+    panServo.write(currentPanAngle);
+
+    scanDirection = true;
+    lastScanUpdateTime = millis();
+  }
+}
+
+int ServoController::getMode() const {
+  return workMode;
+}
+
+void ServoController::updateAutoScan() {
+  if (workMode != 1) return;  // 只在自動掃描模式下執行
+
+  unsigned long currentTime = millis();
+
+  // 檢查是否到達更新間隔
+  if (currentTime - lastScanUpdateTime >= SCAN_UPDATE_INTERVAL) {
+    lastScanUpdateTime = currentTime;
+
+    // 根據方向更新 Pan 角度
+    if (scanDirection) {
+      currentPanAngle += SCAN_SPEED / 10;  // 慢速增加
+      if (currentPanAngle >= scanMaxPan) {
+        currentPanAngle = scanMaxPan;
+        scanDirection = false;  // 改變方向
+      }
+    } else {
+      currentPanAngle -= SCAN_SPEED / 10;  // 慢速減少
+      if (currentPanAngle <= scanMinPan) {
+        currentPanAngle = scanMinPan;
+        scanDirection = true;  // 改變方向
+      }
+    }
+
+    // 限制角度並寫入伺服馬達
+    currentPanAngle = constrainAngle(currentPanAngle, PAN_MIN_ANGLE, PAN_MAX_ANGLE);
+    panServo.write(currentPanAngle);
+  }
 }
 
 int ServoController::getPanAngle() const {
@@ -64,49 +129,20 @@ int ServoController::getTiltAngle() const {
   return currentTiltAngle;
 }
 
+void ServoController::setSpeed(int speed) {
+  moveSpeed = constrain(speed, MIN_SPEED, MAX_SPEED);
+}
+
 void ServoController::update() {
-  unsigned long currentTime = millis();
-
-  // 根據速度控制更新頻率
-  unsigned long updateInterval = map(moveSpeed, 1, 100, 100, 10);
-
-  if (currentTime - lastUpdateTime >= updateInterval) {
-    lastUpdateTime = currentTime;
-
-    if (isMoving) {
-      smoothMove();
-    }
+  // 平滑移動更新
+  if (isMoving) {
+    smoothMove();
   }
-}
 
-void ServoController::calibrate() {
-  // 校準程序：移動到各個極限位置
-  Serial.println(F("Calibrating..."));
-
-  // 移動到中心位置
-  moveTo(90, 90);
-  delay(1000);
-
-  // 測試 Pan 軸
-  moveTo(PAN_MIN_ANGLE, 90);
-  delay(1000);
-  moveTo(PAN_MAX_ANGLE, 90);
-  delay(1000);
-
-  // 測試 Tilt 軸
-  moveTo(90, TILT_MIN_ANGLE);
-  delay(1000);
-  moveTo(90, TILT_MAX_ANGLE);
-  delay(1000);
-
-  // 回到初始位置
-  home();
-
-  Serial.println(F("Calibration complete"));
-}
-
-int ServoController::constrainAngle(int angle, int minAngle, int maxAngle) {
-  return constrain(angle, minAngle, maxAngle);
+  // 掃描模式更新
+  if (workMode == MODE_AUTO_SCAN) {
+    updateAutoScan();
+  }
 }
 
 void ServoController::smoothMove() {

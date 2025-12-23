@@ -20,7 +20,7 @@ SerialProtocol serialProtocol;
 WorkMode currentMode = MODE_MANUAL;
 
 // 自動掃描參數
-const int SCAN_TILT_ANGLE = 20;      // 垂直固定角度
+const int SCAN_TILT_ANGLE = 90;      // 垂直固定角度
 const int SCAN_CENTER_PAN = 135;     // 掃描中心
 const int SCAN_RANGE = 120;          // 掃描範圍（左右各60度）
 const int SCAN_MIN_PAN = SCAN_CENTER_PAN - SCAN_RANGE / 2;  // 75度

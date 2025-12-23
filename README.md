@@ -1,14 +1,15 @@
-# Arduino 2D 雲台控制系統
+# Arduino 2D 雲台控制系統 + 蚊子自動追蹤
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino-red.svg)
 
-一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，通過 UART (TX/RX) 與上位機通訊，實現雙軸伺服馬達的精確控制。
+一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與影像識別技術，實現自動蚊子偵測與追蹤功能。
 
 ## 📋 目錄
 
 - [功能特點](#功能特點)
+- [系統架構](#系統架構)
 - [硬體需求](#硬體需求)
 - [軟體需求](#軟體需求)
 - [安裝說明](#安裝說明)
@@ -20,89 +21,271 @@
 
 ## ✨ 功能特點
 
+### Arduino 雲台控制
+
 - ✅ 雙軸伺服馬達控制（Pan 水平 & Tilt 垂直）
 - ✅ UART 串口通訊（115200 波特率）
-- ✅ **兩種工作模式**：
-  - 🎮 **手動模式**: 完全由上位機控制
-  - 🔄 **自動掃描模式**: 垂直固定 20°，水平慢速掃描 120° (75°-195°)
+- ✅ **工作模式**：
+   - ✅ **初始靜止**: 垂直固定 90°，水平置中，等待偵測
+   - 🎮 **手動追蹤**: 由上位機控制，用於精確追蹤
 - ✅ 支援絕對位置和相對位置移動
 - ✅ 可調速度控制（1-100）
 - ✅ 自動回歸初始位置
 - ✅ 校準功能
-- ✅ 總線舵機反饋：
-  - 📍 位置讀取
-  - 🌡️ 溫度監控
-  - ⚡ 電壓檢測
+- ✅ 總線舵機反饋：位置讀取、溫度監控、電壓檢測
 - ✅ JSON 格式響應
-- ✅ 完整的錯誤處理
+
+### Python 影像追蹤系統
+
+- 🎥 **雙目 USB 攝像頭支援**: 左右攝像頭同步擷取
+- 🦟 **蚊子自動偵測**:
+  - 背景減法 (MOG2)
+  - 幀差法
+  - 形狀與大小篩選
+- 🎯 **智能追蹤**:
+  - 偵測到蚊子 → 自動切換至追蹤模式
+  - 實時計算偏移並控制雲台對準
+  - 失去目標 → 自動切回初始模式(垂直90°, 水平置中)
+- 📊 **視覺化顯示**: 實時顯示偵測結果與追蹤狀態
+- 🔧 **參數可調**: 偵測靈敏度、追蹤增益、超時時間
+
+## 🏗️ 系統架構
+
+```
+┌──────────────────┐
+│  雙目 USB 攝像頭  │
+└────────┬─────────┘
+         │ 影像擷取
+         ▼
+┌──────────────────┐
+│  蚊子偵測器       │ (運動檢測 + 形狀識別)
+│  mosquito_detector│
+└────────┬─────────┘
+         │ 目標座標
+         ▼
+┌──────────────────┐
+│  追蹤控制器       │ (偏差計算 + 控制)
+│  mosquito_tracker │
+└────────┬─────────┘
+         │ 串口命令 (TX/RX)
+         ▼
+┌──────────────────┐
+│  Arduino 雲台     │ (初始靜止 / 手動追蹤)
+│  PT2D Controller  │
+└──────────────────┘
+```
+
+### 工作流程
+
+1. **等待階段**: 雲台保持中央（Pan=中心, Tilt=90°），Python 持續監控影像
+2. **偵測階段**: Python 偵測到運動物體（疑似蚊子）
+3. **追蹤階段**: Python 計算偏移量並控制雲台對準
+4. **失去目標**: 停止移動，返回等待（保持中央不動）
 
 ## 🔧 硬體需求
 
-### 必需組件
+### 主控端
 
 | 組件 | 規格 | 數量 | 備註 |
 |-----|------|------|------|
-| Arduino 開發板 | Uno/Nano/Mega | 1 | **推薦 Mega** (有硬體 Serial1) |
-| **總線舵機** | LX-16A/SCS15/HTS | 2 | **串口舵機，非 PWM** |
-| 2D 雲台支架 | 金屬或塑膠 | 1 | 含舵機安裝位 |
-| 電源供應器 | **6V-8.4V / 2A** | 1 | 推薦 7.4V 鋰電池 |
+| **Orange Pi 5** | 8GB RAM | 1 | 主控制器，運行影像識別 |
+| microSD 卡 | 64GB+ Class 10 | 1 | 系統儲存 |
+| 電源供應器 | 5V/4A USB-C | 1 | Orange Pi 5 供電 |
 
-### 總線舵機特點
+### 視覺系統
 
-- ✅ 串口控制（UART），非 PWM
-- ✅ 可串聯多個舵機（總線）
-- ✅ 支持位置反饋
-- ✅ 精度高（0.24°）
-- ✅ 可設置舵機 ID
-- ✅ Pan 水平 270°，Tilt 垂直 180°
+| 組件 | 規格 | 數量 | 備註 |
+|-----|------|------|------|
+| **雙目攝像頭** | 1080p USB | 2 | 左右攝像頭，視野偵測 |
+
+### 雲台控制系統
+
+| 組件 | 規格 | 數量 | 備註 |
+|-----|------|------|------|
+| Arduino 開發板 | Nano | 1 |  |
+| **2D 雲台支架** | 金屬或塑膠 | 1 | 含舵機安裝位，承載攝像頭 |
+| **總線舵機** | LX-16A/SCS15/HTS | 2 | Pan & Tilt 軸，串口舵機 |
+| 舵機電源 | **6V-8.4V / 2A** | 1 | 推薦 7.4V 鋰電池 |
+
+### 雷射標記系統
+
+| 組件 | 規格 | 數量 | 備註 |
+|-----|------|------|------|
+| **雷射模組** | 1mW 紅光雷射 | 1 | 目標標記用（安全等級） |
+| 杜邦線 | 公對母 | 若干 | GPIO 連接 |
 
 ## 💻 軟體需求
 
-- [PlatformIO IDE](https://platformio.org/) 或 [Arduino IDE](https://www.arduino.cc/en/software)
-- USB 驅動程式（CH340/CP2102 等，視開發板而定）
+### Orange Pi 5 端
 
-### PlatformIO 安裝（推薦）
+- **作業系統**: Ubuntu 22.04 LTS (ARM64) 或 Armbian
+- **Python**: 3.8+ (通常預裝)
+- **必要套件**:
+  - OpenCV (`opencv-python`)
+  - PySerial (`pyserial`)
+  - NumPy (`numpy`)
+  - RPi.GPIO 或 OrangePi.GPIO (GPIO 控制)
 
 ```bash
-# 使用 VS Code 安裝 PlatformIO 擴展
-# 或使用命令行
-pip install platformio
+# Orange Pi 5 安裝
+sudo apt update
+sudo apt install python3-pip python3-opencv
+pip3 install -r python/requirements.txt
+pip3 install OrangePi.GPIO  # GPIO 控制雷射
 ```
+
+### Arduino 端
+
+- [PlatformIO IDE](https://platformio.org/) 或 [Arduino IDE](https://www.arduino.cc/en/software)
+- USB 驅動程式（CH340/CP2102 等）
+
+### 開發端（可選）
+
+- 用於開發與測試，可使用 Windows/Linux PC
+- Python 3.8+
+- 相同的 Python 套件
 
 ## 📦 安裝說明
 
-### 方法 1: 使用 Arduino IDE
+### 1. Arduino 韌體上傳
+
+#### 使用 PlatformIO（推薦）
+
+### 2. Orange Pi 5 系統設置
 
 ```bash
-# 1. 將以下文件放在同一文件夾 arduino-pt2d/
-arduino-pt2d.ino
-BusServoController.h
-BusServoController.cpp
-SerialProtocol.h (從 include/ 複製)
-SerialProtocol.cpp (從 src/ 複製)
-config.h (從 include/ 複製)
+# 更新系統
+sudo apt update && sudo apt upgrade -y
 
-# 2. 打開 arduino-pt2d.ino
-# 3. 選擇開發板和端口
-# 4. 上傳
+# 安裝必要套件
+sudo apt install python3-pip python3-opencv git -y
+
+# 進入專案目錄
+### 4. 硬體連接
+
+參考 [docs/hardware.md](docs/hardware.md)
+
+**關鍵點:**
+- **Orange Pi 5** 為主控制器，運行所有 Python 程式
+- Orange Pi 5 透過 GPIO UART 直連 Arduino Nano（TXD→D0(RX)、RXD←D1(TX, 需電位轉換 5V→3.3V)）
+- 雙目 **1080p 攝像頭**透過 USB 3.0 連接至 Orange Pi 5
+- 總線舵機透過軟串口連接 Arduino（Nano D10/D11 → 舵機總線）
+- **1mW 雷射模組**為兩線（VCC/GND）型：預設以 MOSFET/驅動器由 GPIO 控制供電；
+   若模組為 3.3V 且實測穩態電流 ≤8~10mA，可考慮直連由 GPIO 供電（風險自評估），否則請用 MOSFET
+- 舵機需要獨立供電 (6V-8.4V)
+- 所有 GND 必須共地（Orange Pi、Arduino、舵機、雷射）
+ - 替代連線：若使用 Arduino 的 USB 連接至 Orange Pi，免電位轉換（裝置為 `/dev/ttyUSB*`/`/dev/ttyACM*`）
+ - 控制器板注意：使用「开源6路机器人机械臂舵机控制器板」時，UART 多為 5V TTL；若無 3.3/5V 跳線或電位轉換，請選 USB 連線或在 Arduino TX→Orange Pi RX 路徑加入電位轉換
 ```
 
-**詳細說明**: 參考 [docs/arduino_ide_guide.md](docs/arduino_ide_guide.md)
-PlatformIO（推薦）
+### 3. 測試硬體連接
 
 ```bash
-# 1. 克隆專案
-git clone https://github.com/yourusername/arduino-pt2d.git
-cd arduino-pt2d
+# 測試攝像頭
+python3 stereo_camera.py
 
-# 2. 使用 PlatformIO 編譯
-pio run
+# 測試 Arduino 通訊
+python3 pt2d_controller.py
 
-# 3. 上傳到開發板
-pio run --target upload
+# 測試 GPIO 雷射控制
+python3 test_laser.py  # 我們稍後會建立這個檔案
+```
+#### 使用 Arduino IDE
 
-# 4. 監控串口輸出
-pio device monitor
+參考 [docs/arduino_ide_guide.md](docs/arduino_ide_guide.md)
+
+### 2. Python 環境設置
+
+```bash
+# 進入 Python 目錄
+cd python
+
+# 安裝依賴
+pip install -r requirements.txt
+```
+
+### 3. 硬體連接
+
+參考 [docs/hardware.md](docs/hardware.md)
+
+**關鍵點:**
+- Orange Pi 5 透過 GPIO UART 直連 Arduino（TXD→D0, RXD←D1 經電位轉換）
+- 舵機透過總線連接至 Arduino（Nano D10/D11）
+- 攝像頭透過 USB 連接至 Orange Pi 5
+- 舵機需要獨立供電 (6V-8.4V)
+- 所有 GND 必須共地
+ - 替代連線：Arduino 以 USB 連至 Orange Pi 可免電位轉換；裝置為 `/dev/ttyUSB*`/`/dev/ttyACM*`
+ - 控制器板注意：6路機械臂控制器板 UART 為 5V TTL；若無 3.3/5V 跳線/電位轉換，請選 USB 或加電位轉換
+
+---
+
+## 🚀 使用說明
+
+### 快速啟動
+
+1. **上傳 Arduino 韌體**（參考上方安裝說明）
+
+2. **測試各模組**：
+
+```bash
+# 測試攝像頭
+cd python
+python stereo_camera.py
+
+# 測試蚊子偵測
+python mosquito_detector.py
+
+# 測試 Arduino 通訊
+python pt2d_controller.py
+```
+
+3. **運行追蹤系統**：
+
+```bash
+python mosquito_tracker.py
+```
+
+### 操作指南
+
+運行 `mosquito_tracker.py` 後：
+
+**快捷鍵:**
+- `q`: 退出系統
+- `r`: 重置偵測器
+- `h`: 回到初始位置
+
+**視窗說明:**
+- **Mosquito Tracker**: 主視窗，顯示偵測與追蹤結果
+- **Detection Mask**: 偵測遮罩視窗，用於調試
+
+**狀態指示:**
+- **TRACKING** (紅色): 追蹤模式
+
+### 配置參數
+
+編輯 `python/mosquito_tracker.py`：
+
+```python
+# Arduino 串口
+ARDUINO_PORT = 'COM3'  # Windows
+# 對於 Orange Pi 5（GPIO UART 直連）請使用 /dev/ttyS*，如：
+# ARDUINO_PORT = '/dev/ttyS1'  # Linux（請用 dmesg/ls 確認實際節點）
+
+# 攝像頭 ID
+LEFT_CAMERA_ID = 0
+RIGHT_CAMERA_ID = 1
+
+# 偵測參數
+detector = MosquitoDetector(
+    min_area=20,          # 最小面積
+    max_area=800,         # 最大面積
+    motion_threshold=25   # 運動閾值
+)
+
+# 追蹤參數
+self.pan_gain = 0.15              # Pan 增益
+self.tilt_gain = 0.15             # Tilt 增益
+self.no_detection_timeout = 3.0   # 無偵測超時
 ```
 
 ---
@@ -127,82 +310,139 @@ pio device monitor
 ```
 
 ---
-# 2. 使用 PlatformIO 編譯
-pio run
-
-# 3. 上傳到開發板
-pio run --target upload
-
-# 4. 監控串口輸出
-pio device monitor
-```
-
-### 方法 2: 使用 Arduino IDE
-
-1. 下載本專案
-2. 將 `include/` 中的 `.h` 文件複製到 Arduino 庫目錄
-3. 打開 `src/main.cpp`（重命名為 `.ino`）
-4. 編譯並上傳
 
 ## 🔌 硬體連接
 
+詳細連接圖請參考 [docs/hardware.md](docs/hardware.md)
+
 ### 引腳配置
 
-#### Arduino Mega 2560（推薦）
+#### Orange Pi 5 ↔ Arduino Nano（UART 直連）
 
 ```
-Arduino Pin    |  Component
----------------|------------------
-TX1 (Pin 18)   |  舵機總線 RX (黃線)
-RX1 (Pin 19)   |  舵機總線 TX (綠線)
-USB Serial     |  上位機通訊
-6V-8.4V        |  舵機 VCC (外接電源)
-GND            |  舵機 GND 和電源 GND（共地）
+連接           | 說明
+---------------|--------------------------------------
+Orange Pi TXD  | → Arduino D0 (RX0)
+Orange Pi RXD  | ← Arduino D1 (TX0, 經電位轉換 5V→3.3V)
+共地           | Orange Pi GND ↔ Arduino GND ↔ 舵機電源 GND
+Nano D10 (TX)  | → 舵機總線 RX（黃線）
+Nano D11 (RX)  | ← 舵機總線 TX（綠線）
+6V-8.4V        | → 舵機 VCC（外接電源）
 ```
-
-#### Arduino Uno/Nano
-
-```
-Arduino Pin    |  Component
----------------|------------------
-Pin 10         |  舵機總線 RX (黃線，軟串口)
-Pin 11         |  舵機總線 TX (綠線，軟串口)
-USB Serial     |  上位機通訊
-6V-8.4V        |  舵機 VCC (外接電源)
-GND            |  舵機 GND 和電源 GND（共地）
-```
-
-### 總線舵機串聯
+### 完整系統連接
 
 ```
-Arduino TX1 ──┬──── 舵機1 (ID=1, Pan) ──┬──── 舵機2 (ID=2, Tilt)
-              │                          │
-Arduino RX1 ─總線舵機需要 **6V-8.4V** 供電（推薦 7.4V 鋰電池）
-2. **共地**: 確保 Arduino、舵機、外接電源的 GND 連接在一起
-3. **串口選擇**:
-   - Mega 使用 Serial1（TX1/RX1）
-   - Uno/Nano 使用 SoftwareSerial（需配置）
-4. **舵機 ID**: 預設 Pan=ID1, Tilt=ID2，請先確認舵機 ID 設置
-5. **波特率**: 預設 115200，LX-16A 常用此波特率，SCS 可能需要調整
+[Orange Pi 5]
+   ├─ UART (GPIO) ──> [Arduino Nano] ──(D10/D11)──> [舵機總線] ──> [Pan 舵機 + Tilt 舵機]
+   ├─ USB 3.0 ─────> [左攝像頭 1080p]
+   ├─ USB 3.0 ─────> [右攝像頭 1080p]
+   └─ GPIO Pin 5 ──> [MOSFET Gate]（由 GPIO 控制雷射供電）
+
+[舵機電源 6V-8.4V] ──> [舵機總線 VCC]
+                              └─> GND ──(共地)──> [Arduino GND] ──> [Orange Pi GND]
+
+[兩線雷射（無 EN）]：
+   3.3V (Pin 1) 或 5V (Pin 2/4) ──> 雷射 VCC（經 MOSFET 控制的供電路徑）
+   GPIO Pin 5  ───> MOSFET Gate（串 100Ω，Gate 對地 10k 下拉）
+   GND (Pin 6/9) ─> MOSFET Source 與系統共地；雷射 GND 接 MOSFET Drain（低側開關）
 ```
+
+**系統架構圖**:（見上方「完整系統連接」與引腳配置）
+
+**GPIO 對應 (OrangePi.GPIO 庫)**:
+- 實體 Pin 5 = GPIO 3 = 程式中使用 `GPIO.setmode(GPIO.BOARD)` 後為 Pin 5
+
+注意：
+- 兩線雷射需用 MOSFET 在供電路徑切換；GPIO 僅作邏輯控制，不直接供電。
+- 若雷射為 5V 或電流較大，務必使用 MOSFET/驅動器；請共地並加入 Gate 下拉與保護電阻。
 
 ### ⚠️ 重要注意事項
 
-1. **電源問題**: 伺服馬達耗電較大，建議使用外接 5V 電源，避免 USB 供電不足
-2. **共地**: 確保 Arduino、伺服馬達、外接電源的 GND 連接在一起
-3. **訊號線**: 伺服馬達的信號線（通常為橙色或白色）接到指定的 PWM 引腳
-4. **濾波**: 建議在電源端並聯電容（100μF-1000μF）以減少電壓波動
+1. **獨立供電**: 總線舵機需要 **6V-8.4V** 供電（推薦 7.4V 鋰電池）
+2. **共地**: 確保 Orange Pi、Arduino、舵機、雷射模組所有 GND 連接在一起
+3. **串口選擇**: Nano 上位機通訊使用 D0/D1（硬體 UART），舵機總線使用 D10/D11（SoftwareSerial）
+4. **舵機 ID**: 預設 Pan=ID1, Tilt=ID2，請先確認舵機 ID 設置
+5. **攝像頭**: 雙目 1080p 攝像頭透過 USB 3.0 連接至 Orange Pi 5
+6. **雷射安全**: 使用 1mW 紅光雷射（Class II），避免直視，安裝時注意方向
+7. **USB 供電**: Orange Pi 5 使用 USB-C 5V/4A 供電，確保足夠電流
+8. **散熱**: Orange Pi 5 建議加裝散熱片或風扇
 
-## 📖 使用說明
+---
 
-### 基本操作
+## 📖 通訊協議
 
-1. **連接硬體**: 按照上述連接圖連接所有組件
-2. **上傳程序**: 使用 PlatformIO 或 Arduino IDE 上傳程序
-3. **打開串口監視器**: 設置波特率為 115200
-4. **發送命令**: 通過串口發送控制命令
+### Arduino 命令格式
 
-### 命令示例
+命令格式: `<CMD:param1,param2,...>\n`
+
+| 命令 | 參數 | 說明 | 範例 |
+|------|------|------|------|
+| `MOVE` | pan, tilt | 移動到絕對位置 | `<MOVE:135,90>` |
+| `MOVER` | delta_pan, delta_tilt | 相對移動 | `<MOVER:20,-10>` |
+| `POS` | - | 獲取當前位置 | `<POS>` |
+| `SPEED` | value | 設置速度 (1-100) | `<SPEED:80>` |
+| `HOME` | - | 回到初始位置 | `<HOME>` |
+| `STOP` | - | 停止移動 | `<STOP>` |
+<!-- 掃描模式已移除，MODE/GETMODE 不再提供 -->
+| `CAL` | - | 執行校準 | `<CAL>` |
+
+### 響應格式
+
+JSON 格式: `{"key":"value"}\n`
+
+```json
+// 成功響應
+{"status":"ok","message":"OK"}
+
+// 位置響應
+{"pan":135,"tilt":90}
+
+// 模式響應
+{"mode":1}
+
+// 錯誤響應
+{"status":"error","message":"Unknown command"}
+```
+
+### Python API
+
+詳見 [python/README.md](python/README.md)
+
+---
+
+## 📖 基本操作示例
+
+### 1. Orange Pi 5 系統測試
+
+```bash
+# 測試攝像頭
+cd python
+python3 stereo_camera.py
+
+# 測試 Arduino 通訊
+python3 pt2d_controller.py
+
+# 測試雷射控制（需要 sudo）
+sudo python3 laser_controller.py
+
+# 測試蚊子偵測
+python3 mosquito_detector.py
+```
+
+### 2. 運行完整追蹤系統
+
+```bash
+# 在 Orange Pi 5 上運行
+cd python
+sudo python3 mosquito_tracker.py
+
+# 或使用快速啟動腳本
+sudo python3 quick_start.py
+```
+
+### 3. Arduino 串口測試
+
+透過串口監視器測試 Arduino（波特率 115200）:
 
 ```bash
 # 移動到絕對位置 (Pan=135°, Tilt=90°)
@@ -217,11 +457,153 @@ Arduino RX1 ─總線舵機需要 **6V-8.4V** 供電（推薦 7.4V 鋰電池）
 # 設置移動速度為 80
 <SPEED:80>
 
-# 回到初始位置 (Pan:135°, Tilt:90°)
+# 回到初始位置
 <HOME>
+
+# （掃描模式已移除）
 
 # 停止移動
 <STOP>
+```
+
+### 4. 系統操作快捷鍵
+
+在追蹤系統運行時：
+
+| 快捷鍵 | 功能 | 說明 |
+|--------|------|------|
+| `q` | 退出系統 | 安全關閉所有資源 |
+| `r` | 重置偵測器 | 清除偵測歷史 |
+<!-- 掃描模式快捷鍵已移除 -->
+| `h` | 回到初始位置 | 雲台歸位 |
+| `l` | 切換雷射 | 手動開關雷射 |
+| `SPACE` | 雷射脈衝 | 0.2 秒標記脈衝 |
+
+---
+
+## 🎯 系統工作流程
+
+### 完整追蹤循環
+
+```
+1. [等待階段]
+   └─> 雲台保持中央（Pan 中心 / Tilt 90°）
+   └─> Orange Pi 持續影像監控
+
+2. [偵測階段]
+   └─> 發現移動物體（疑似蚊子）
+   └─> 篩選大小與形狀
+
+3. [追蹤階段]
+   └─> 計算目標偏移量
+   └─> 控制雲台對準目標
+
+4. [標記階段]
+   └─> 目標進入中心區域 (±30px)
+   └─> 啟動雷射標記
+   └─> 綠色圓圈標示中心區域
+
+5. [失去目標]
+   └─> 關閉雷射
+   └─> 停止移動並返回等待（保持中央）
+```
+
+---
+
+## 🛠️ 故障排除
+
+### Orange Pi 5 相關問題
+
+#### 1. GPIO 權限不足
+
+**錯誤**: `PermissionError: [Errno 13] Permission denied`
+
+**解決方法**:
+```bash
+# 方法 1: 使用 sudo
+sudo python3 mosquito_tracker.py
+
+# 方法 2: 加入 gpio 群組
+sudo usermod -a -G gpio $USER
+# 登出後重新登入
+
+# 方法 3: 設定 GPIO 權限規則
+sudo nano /etc/udev/rules.d/99-gpio.rules
+# 加入: SUBSYSTEM=="gpio", MODE="0660", GROUP="gpio"
+sudo udevadm control --reload-rules
+```
+
+#### 2. 攝像頭無法開啟
+
+**檢查方法**:
+```bash
+# 列出設備
+ls -l /dev/video*
+
+# 測試攝像頭
+v4l2-ctl --list-devices
+
+# 檢查權限
+sudo chmod 666 /dev/video0
+sudo chmod 666 /dev/video1
+```
+
+#### 3. Arduino 無法連接
+
+**檢查方法**:
+```bash
+# 列出串口設備
+ls -l /dev/ttyUSB* /dev/ttyACM*
+
+# 檢查連接
+dmesg | grep tty
+
+# 設定權限
+sudo chmod 666 /dev/ttyS1   # 依你的實際裝置節點調整
+sudo usermod -a -G dialout $USER
+```
+
+### 雷射相關問題
+
+#### 1. 雷射無法啟動
+
+**檢查項目**:
+- 檢查 GPIO 引腳是否正確（實體 Pin 5，BOARD 模式）
+- 確認雷射模組為 3.3V、低電流型（建議 ≤10mA），並已共地
+- 以萬用表量測 Pin 5 在 ON/OFF 時是否電位切換
+- 若模組需 5V 或電流較大，請改用 MOSFET/驅動器，勿直接接 GPIO
+
+**測試命令**:
+```bash
+sudo python3 laser_controller.py
+```
+
+#### 2. 雷射一直開啟無法關閉
+
+**緊急處理**:
+```bash
+# 立即關閉所有 GPIO
+sudo python3 -c "import OPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.setup(5, GPIO.OUT); GPIO.output(5, GPIO.LOW); GPIO.cleanup()"
+```
+
+### 偵測效果不佳
+
+**改進建議**:
+1. **增加照明** - 確保環境光線充足
+2. **使用純色背景** - 避免複雜紋理
+3. **調整參數**:
+   ```python
+   detector = MosquitoDetector(
+       min_area=30,          # 增加最小面積
+       max_area=500,         # 調整最大面積
+       motion_threshold=20   # 降低閾值提高靈敏度
+   )
+   ```
+4. **降低解析度** - 提高處理速度
+   ```python
+   camera_width = 1280  # 降為 720p
+   camera_height = 720
+   ```
 
 # 執行校準
 <CAL>
@@ -275,26 +657,11 @@ ser.close()
 | SPEED | `<SPEED:value>` | 設置速度 (1-100) | `<SPEED:50>` |
 | HOME | `<HOME>` | 回到初始位置 | `<HOME>` |
 | STOP | `<STOP>` | 停止移動 | `<STOP>` |
-| CAL | `<CAL>` | 執行校準 | `<CAL>` || READ | `<READ>` | 讀取實際位置 | `<READ>` |
-| **MODE** | `<MODE:0/1>` | **設置模式** | `<MODE:1>` |
-| **GETMODE** | `<GETMODE>` | **查詢模式** | `<GETMODE>` |
-| **TEMP** | `<TEMP>` | **讀取溫度** | `<TEMP>` |
-| **VOLT** | `<VOLT>` | **讀取電壓** | `<VOLT>` |
-| **STATUS** | `<STATUS>` | **完整狀態** | `<STATUS>` |
+| CAL | `<CAL>` | 執行校準 | `<CAL>` |
+| MODE | `<MODE:0/1>` | 設置模式（0=手動、1=自動掃描） | `<MODE:1>` |
+| GETMODE | `<GETMODE>` | 查詢當前模式 | `<GETMODE>` |
 
-### 工作模式
-
-#### 手動模式 (MODE:0)
-- 默認模式，完全由上位機控制
-- 支持所有移動命令
-- 適合：目標追蹤、精確定位
-
-#### 自動掃描模式 (MODE:1)
-- **垂直固定**: 20°
-- **水平掃描**: 75° - 195° (120° 範圍)
-- **速度**: 慢速平滑掃描
-- 自動來回掃描，無需上位機控制
-- 適合：區域監控、自動巡邏
+> 註：自動掃描模式僅供手動/單機測試使用，蚊子辨識流程不會觸發或使用掃描模式。
 ## 📁 專案結構
 
 ```
@@ -377,8 +744,8 @@ DEBUG_PRINT(panAngle);
 
 如有問題或建議，請通過以下方式聯繫：
 
-- Email: your.email@example.com
-- GitHub Issues: [提交問題](https://github.com/yourusername/arduino-pt2d/issues)
+- Email: jeff@ma7.in
+- GitHub Issues: [提交問題](https://github.com/majeff/arduino-pt2d/issues)
 
 ## 🙏 致謝
 
