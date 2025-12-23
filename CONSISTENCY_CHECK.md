@@ -2,11 +2,13 @@
 
 **檢查日期**: 2025年12月24日
 **檢查範圍**: Python 程式碼與文檔
-**檢查次數**: 第 2 次（完整複查）
+**檢查次數**: 第 3 次（根目錄 README.md 完整複查）
 
 ---
 
 ## 🔍 檢查摘要
+
+**第 3 次檢查發現**: 根目錄 README.md 仍使用舊的運動檢測描述，未更新為 AI 檢測系統。
 
 **第 2 次檢查發現**: 在 AI_DETECTION_GUIDE.md 和 MOSQUITO_MODELS.md 中發現使用已過時的 `use_gpu` 參數。
 
@@ -15,6 +17,91 @@
 ---
 
 ## ✅ 本次修正的問題
+
+### 🆕 第 3 次檢查 (2025-12-24)
+
+#### 1. **README.md (根目錄)** - 運動檢測描述未更新
+
+**問題**: 根目錄主 README.md 仍在描述運動檢測系統，與實際 AI 檢測不符
+
+**修正前的問題**:
+- ✗ 版本標示為 1.0.0（應為 2.0.0）
+- ✗ 功能描述為「背景減法 (MOG2)、幀差法」
+- ✗ 系統架構圖標註「運動檢測 + 形狀識別」
+- ✗ 工作流程描述為「偵測到運動物體（疑似蚊子）」
+- ✗ 配置參數顯示 `min_area`、`max_area`、`motion_threshold`
+- ✗ 故障排除章節使用舊的運動檢測參數
+
+**修正後**:
+```markdown
+# 版本更新
+![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
+![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
+
+# 功能描述更新為 AI
+- 🤖 **AI 蚊子智能辨識** (YOLOv8)
+- 深度學習物體檢測
+- 高準確度蚊子辨識
+- 信心度評分與過濾
+- 支援 CPU/NPU 推理（Orange Pi 5 優化）
+
+# 系統架構圖
+│  AI 蚊子偵測器    │ (YOLOv8 深度學習)
+│  mosquito_detector│ (信心度 + 邊界框)
+
+# 工作流程
+1. [監控階段] - YOLOv8 AI 持續分析影像
+2. [AI 辨識階段] - YOLOv8 檢測到蚊子（深度學習）
+3. [信心度過濾] - 檢查信心度 > 閾值（如 0.4）
+4. [追蹤階段] - PID 控制雲台對準目標
+5. [標記階段] - 高信心度 + 目標接近中心 → 啟動雷射
+
+# 配置參數
+detector = MosquitoDetector(
+    model_path='models/mosquito_yolov8n.pt',
+    confidence_threshold=0.4,
+    imgsz=320
+)
+```
+
+**影響範圍**:
+- README.md 標題、徽章（第 1-6 行）
+- Python 影像追蹤系統說明（第 38-48 行）
+- 系統架構圖（第 59-75 行）
+- 工作流程描述（第 77-82 行）
+- 配置參數示例（第 262-268 行）
+- 故障排除建議（第 593-611 行）
+
+**修正數量**: 6 處主要修正
+
+#### 2. **mosquito_tracker.py** - 運動檢測參數未更新
+
+**問題**: mosquito_tracker.py 仍使用舊的運動檢測參數初始化偵測器
+
+**修正前**:
+```python
+self.detector = MosquitoDetector(
+    min_area=20,
+    max_area=800,
+    motion_threshold=25
+)
+```
+
+**修正後**:
+```python
+# 初始化蚊子偵測器（AI 檢測）
+self.detector = MosquitoDetector(
+    model_path='models/mosquito_yolov8n.pt',  # 可選：使用自定義模型
+    confidence_threshold=0.4,                  # 信心度閾值
+    imgsz=320                                  # Orange Pi 5 建議使用 320
+)
+```
+
+**影響**: mosquito_tracker.py 第 59-63 行
+
+**修正數量**: 7 處主要修正（含 mosquito_tracker.py）
+
+---
 
 ### 🆕 第 2 次檢查 (2025-12-24)
 
@@ -236,13 +323,15 @@ DETECTION_IMGSZ = 320
 
 ## 📊 修正統計
 
-| 文件 | 修正項目 | 檢查 1 | 檢查 2 | 狀態 |
-|------|---------|--------|--------|------|
-| mosquito_detector.py | 移除 GPU 參數，加入 imgsz | ✅ 完成 | ✅ 一致 | ✅ 通過 |
-| README.md | 更新為 AI 檢測說明 | ✅ 完成 | ✅ 一致 | ✅ 通過 |
-| AI_DETECTION_GUIDE.md | 確認一致性 / 修正範例 | ✅ 一致 | ✅ 完成 | ✅ 通過 |
-| MOSQUITO_MODELS.md | 確認一致性 / 修正範例 | ✅ 一致 | ✅ 完成 | ✅ 通過 |
-| hardware.md | 確認一致性 | ✅ 一致 | ✅ 一致 | ✅ 通過 |
+| 文件 | 修正項目 | 檢查 1 | 檢查 2 | 檢查 3 | 狀態 |
+|------|---------|--------|--------|--------|------|
+| mosquito_detector.py | 移除 GPU 參數，加入 imgsz | ✅ 完成 | ✅ 一致 | ✅ 一致 | ✅ 通過 |
+| mosquito_tracker.py | 更新為 AI 參數 | ❌ 未檢查 | ❌ 未檢查 | ✅ 完成 | ✅ 通過 |
+| python/README.md | 更新為 AI 檢測說明 | ✅ 完成 | ✅ 一致 | ✅ 一致 | ✅ 通過 |
+| README.md (根目錄) | 更新為 AI 檢測系統 | ❌ 未檢查 | ❌ 未檢查 | ✅ 完成 | ✅ 通過 |
+| AI_DETECTION_GUIDE.md | 確認一致性 / 修正範例 | ✅ 一致 | ✅ 完成 | ✅ 一致 | ✅ 通過 |
+| MOSQUITO_MODELS.md | 確認一致性 / 修正範例 | ✅ 一致 | ✅ 完成 | ✅ 一致 | ✅ 通過 |
+| hardware.md | 確認一致性 | ✅ 一致 | ✅ 一致 | ✅ 一致 | ✅ 通過 |
 
 ---
 
@@ -354,7 +443,11 @@ grep -r "use_gpu" python/*.py
 
 ---
 
-**第 2 次檢查完成**: ✅ 所有文件與程式碼已確認一致
-**修正項目**: 2 處（AI_DETECTION_GUIDE.md 和 MOSQUITO_MODELS.md 的 use_gpu 參數）
+**第 3 次檢查完成**: ✅ 所有文件與程式碼已確認一致
+**修正項目**:
+- 第 1 次: 3 處（mosquito_detector.py 和 python/README.md）
+- 第 2 次: 2 處（AI_DETECTION_GUIDE.md 和 MOSQUITO_MODELS.md 的 use_gpu 參數）
+- 第 3 次: 7 處（根目錄 README.md 的運動檢測描述 + mosquito_tracker.py 參數）
+**總計修正**: 12 處不一致
 **版本**: 2.0.0 (AI 檢測版)
 **最後更新**: 2025年12月24日

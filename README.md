@@ -1,10 +1,11 @@
-# Arduino 2D 雲台控制系統 + 蚊子自動追蹤
+# Arduino 2D 雲台控制系統 + AI 蚊子自動追蹤
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
+![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Platform](https://img.shields.io/badge/platform-Arduino-red.svg)
+![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20Orange%20Pi%205-red.svg)
 
-一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與影像識別技術，實現自動蚊子偵測與追蹤功能。
+一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能。
 
 ## 📋 目錄
 
@@ -35,52 +36,55 @@
 - ✅ 總線舵機反饋：位置讀取、溫度監控、電壓檢測
 - ✅ JSON 格式響應
 
-### Python 影像追蹤系統
+### Python AI 影像追蹤系統
 
-- 🎥 **雙目 USB 攝像頭支援**: 左右攝像頭同步擷取
-- 🦟 **蚊子自動偵測**:
-  - 背景減法 (MOG2)
-  - 幀差法
-  - 形狀與大小篩選
+- 🎥 **雙目 USB 攝像頭支援**: 左右攝像頭同步擷取（3840×1080 @ 60fps）
+- 🤖 **AI 蚊子智能辨識** (YOLOv8):
+  - 深度學習物體檢測
+  - 高準確度蚊子辨識
+  - 信心度評分與過濾
+  - 支援 CPU/NPU 推理（Orange Pi 5 優化）
 - 🎯 **智能追蹤**:
-  - 偵測到蚊子 → 自動切換至追蹤模式
+  - AI 偵測到蚊子 → 自動切換至追蹤模式
   - 實時計算偏移並控制雲台對準
-  - 失去目標 → 自動切回初始模式(垂直90°, 水平置中)
-- 📊 **視覺化顯示**: 實時顯示偵測結果與追蹤狀態
-- 🔧 **參數可調**: 偵測靈敏度、追蹤增益、超時時間
+  - 信心度過低/失去目標 → 自動切回監控模式
+- 📊 **視覺化顯示**: 實時顯示 AI 偵測結果、邊界框、信心度
+- 🔧 **參數可調**: AI 模型路徑、信心度閾值、輸入解析度、追蹤增益
 
 ## 🏗️ 系統架構
 
 ```
 ┌──────────────────┐
-│  雙目 USB 攝像頭  │
+│  雙目 USB 攝像頭  │ (3840×1080 @ 60fps)
 └────────┬─────────┘
          │ 影像擷取
          ▼
 ┌──────────────────┐
-│  蚊子偵測器       │ (運動檢測 + 形狀識別)
-│  mosquito_detector│
+│  AI 蚊子偵測器    │ (YOLOv8 深度學習)
+│  mosquito_detector│ (信心度 + 邊界框)
 └────────┬─────────┘
-         │ 目標座標
+         │ 目標座標 + 信心度
          ▼
 ┌──────────────────┐
-│  追蹤控制器       │ (偏差計算 + 控制)
-│  mosquito_tracker │
+│  AI 追蹤控制器    │ (智能追蹤 + PID 控制)
+│  mosquito_tracker │ (信心度過濾)
 └────────┬─────────┘
          │ 串口命令 (TX/RX)
          ▼
 ┌──────────────────┐
-│  Arduino 雲台     │ (初始靜止 / 手動追蹤)
+│  Arduino 雲台     │ (初始靜止 / AI 追蹤)
 │  PT2D Controller  │
 └──────────────────┘
 ```
 
-### 工作流程
+### AI 工作流程
 
-1. **等待階段**: 雲台保持中央（Pan=中心, Tilt=90°），Python 持續監控影像
-2. **偵測階段**: Python 偵測到運動物體（疑似蚊子）
-3. **追蹤階段**: Python 計算偏移量並控制雲台對準
-4. **失去目標**: 停止移動，返回等待（保持中央不動）
+1. **監控階段**: 雲台保持中央（Pan=中心, Tilt=90°），AI 持續分析影像
+2. **AI 辨識階段**: YOLOv8 模型偵測到蚊子，輸出邊界框與信心度
+3. **信心度過濾**: 僅追蹤信心度 > 閾值（如 0.4）的高可信度目標
+4. **追蹤階段**: 計算偏移量並控制雲台對準，持續追蹤
+5. **雷射標記**: 目標接近中心 + 高信心度 → 啟動雷射標記
+6. **失去目標**: 信心度過低或無檢測 → 返回監控模式
 
 ## 🔧 硬體需求
 
@@ -275,11 +279,11 @@ ARDUINO_PORT = 'COM3'  # Windows
 LEFT_CAMERA_ID = 0
 RIGHT_CAMERA_ID = 1
 
-# 偵測參數
+# AI 偵測參數
 detector = MosquitoDetector(
-    min_area=20,          # 最小面積
-    max_area=800,         # 最大面積
-    motion_threshold=25   # 運動閾值
+    model_path='models/mosquito_yolov8n.pt',  # AI 模型路徑
+    confidence_threshold=0.4,                  # 信心度閾值（0.3-0.7）
+    imgsz=320                                  # 輸入解析度（320/416/640）
 )
 
 # 追蹤參數
@@ -483,29 +487,35 @@ sudo python3 quick_start.py
 
 ## 🎯 系統工作流程
 
-### 完整追蹤循環
+### 完整 AI 追蹤循環
 
 ```
-1. [等待階段]
+1. [監控階段]
    └─> 雲台保持中央（Pan 中心 / Tilt 90°）
-   └─> Orange Pi 持續影像監控
+   └─> YOLOv8 AI 持續分析影像
 
-2. [偵測階段]
-   └─> 發現移動物體（疑似蚊子）
-   └─> 篩選大小與形狀
+2. [AI 辨識階段]
+   └─> YOLOv8 檢測到蚊子（深度學習）
+   └─> 輸出邊界框與信心度評分
 
-3. [追蹤階段]
+3. [信心度過濾]
+   └─> 檢查信心度 > 閾值（如 0.4）
+   └─> 過濾低可信度誤檢
+
+4. [追蹤階段]
    └─> 計算目標偏移量
-   └─> 控制雲台對準目標
+   └─> PID 控制雲台對準目標
+   └─> 持續 AI 追蹤
 
-4. [標記階段]
-   └─> 目標進入中心區域 (±30px)
+5. [標記階段]
+   └─> 目標進入中心區域 (±30px) + 高信心度
    └─> 啟動雷射標記
    └─> 綠色圓圈標示中心區域
 
-5. [失去目標]
+6. [失去目標]
+   └─> 信心度過低或無檢測
    └─> 關閉雷射
-   └─> 停止移動並返回等待（保持中央）
+   └─> 返回監控模式（保持中央）
 ```
 
 ---
@@ -586,24 +596,24 @@ sudo python3 laser_controller.py
 sudo python3 -c "import OPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.setup(5, GPIO.OUT); GPIO.output(5, GPIO.LOW); GPIO.cleanup()"
 ```
 
-### 偵測效果不佳
+### AI 偵測效果不佳
 
 **改進建議**:
-1. **增加照明** - 確保環境光線充足
-2. **使用純色背景** - 避免複雜紋理
-3. **調整參數**:
+1. **使用蚊子專用模型** - 參見 [python/MOSQUITO_MODELS.md](python/MOSQUITO_MODELS.md)
+2. **增加照明** - 確保環境光線充足（最低 0.5 lux）
+3. **調整 AI 參數**:
    ```python
    detector = MosquitoDetector(
-       min_area=30,          # 增加最小面積
-       max_area=500,         # 調整最大面積
-       motion_threshold=20   # 降低閾值提高靈敏度
+       model_path='models/mosquito_yolov8n.pt',  # 使用專用模型
+       confidence_threshold=0.3,                  # 降低閾值（0.3-0.5）
+       imgsz=320                                  # 優化速度（320/416/640）
    )
    ```
-4. **降低解析度** - 提高處理速度
+4. **降低解析度** - 提高 AI 推理速度
    ```python
-   camera_width = 1280  # 降為 720p
-   camera_height = 720
+   detector = MosquitoDetector(imgsz=320)  # 從 640 降到 320
    ```
+5. **轉換為 ONNX/RKNN** - 參見 [python/AI_DETECTION_GUIDE.md](python/AI_DETECTION_GUIDE.md)
 
 # 執行校準
 <CAL>

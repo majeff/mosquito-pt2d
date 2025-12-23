@@ -54,12 +54,12 @@ class MosquitoTracker:
             height=camera_height
         )
 
-        # 初始化蚊子偵測器
-        logger.info("初始化蚊子偵測器...")
+        # 初始化蚊子偵測器（AI 檢測）
+        logger.info("初始化 AI 蚊子偵測器...")
         self.detector = MosquitoDetector(
-            min_area=20,
-            max_area=800,
-            motion_threshold=25
+            model_path='models/mosquito_yolov8n.pt',  # 可選：使用自定義模型
+            confidence_threshold=0.4,                  # 信心度閾值
+            imgsz=320                                  # Orange Pi 5 建議使用 320
         )
 
         # 初始化 Arduino 控制器
