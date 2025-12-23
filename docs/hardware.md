@@ -7,8 +7,8 @@
 #### 1. Orange Pi 5（主控制器）
 - **功能**: 執行影像處理、AI 辨識、系統控制
 - **連接**:
-  - USB 3.0 ×2 → 雙目攝像頭
-  - USB 3.0 → Arduino Nano
+  - USB 3.0 ×2 → 雙目攝像頭 https://item.taobao.com/item.htm?id=910727946025&mi_id=0000nFsaeV90sZPrGM6jCP_KWumdBYLOADsDcBAyRMf5-Bo&spm=tbpc.boughtlist.suborder_itemtitle.1.a4812e8d4MnjEE&sku_properties=10067151%3A124993
+  - USB 3.0 → 二维电动舵机云台 (Arduino Nano) https://item.taobao.com/item.htm?id=632434564398&mi_id=0000XD01TvJHXsWTbF9Gk_Wq8ZI-1Jd9l5IGYdH5RwKuwpQ&spm=tbpc.boughtlist.suborder_itemtitle.1.691a2e8dx4UgQn
   - GPIO Pin 5 → 雷射控制繼電器
 
 #### 2. 雙目 USB 攝像頭 ×2
@@ -33,7 +33,7 @@
 右攝像頭 ───→ Orange Pi USB 3.0 Port 2
 ```
 
-#### 3. Arduino Nano（雲台控制器）
+#### 3. 二维电动舵机云台(Arduino Nano)（雲台控制器）
 - **功能**: 控制總線舵機雲台
 - **連接方式**: USB 串口與 Orange Pi 通訊
 
@@ -43,7 +43,7 @@
    - 通訊方式: 串口 (UART)
    - 工作電壓: 6V-8.4V（推薦 7.4V）
    - 波特率: 9600 或 115200
-   - 轉動角度: 0-240°
+   - 轉動角度: 0-270°
    - 配置: Pan 舵機 (ID=1) + Tilt 舵機 (ID=2)
 
 #### 5. 雷射模組（可選）
@@ -51,16 +51,14 @@
 - **控制**: GPIO Pin 5 透過繼電器控制
 
 #### 6. 電源系統
+- **二维电动舵机云台**: 7.4V
 - **總線舵機電源**: 7.4V / 2A 以上（鋰電池或電源適配器）
 - **Orange Pi 5 電源**: 5V / 3A（Type-C 供電）
-- **Arduino Nano**: USB 供電（由 Orange Pi 提供）
 
 ### 可選組件
 
 - 電平轉換模組（5V ↔ 3.3V）
 - 繼電器模組（控制雷射）
-- 散熱片（舵機散熱）
-- 大容量電容（470μF-1000μF，電源穩定）
 
 ---
 
@@ -110,11 +108,12 @@ Z = (f × B) / d
 
 ### 支援型號對照表
 
-| 型號 | 扭矩 | 速度 | 工作電壓 | 通訊方式 |
-|------|------|------|----------|---------|
-| LX-16A | 16kg·cm | 0.1s/60° | 6-8.4V | 串口 (UART) |
-| SCS15 | 15kg·cm | 0.1s/60° | 6-8.4V | 串口 (UART) |
-| HTS-35H | 35kg·cm | 0.16s/60° | 6-8.4V | 串口 (UART) |
+| 型號 | 扭矩 | 速度 | 工作電壓 | 通訊方式 | 本專案使用 |
+|------|------|------|----------|---------|---------|
+| ZD361D | 15kg·cm | 0.16s/60° | 6-8.4V | 串口 (UART) | |
+| LX-16A | 16kg·cm | 0.1s/60° | 6-8.4V | 串口 (UART) | |
+| SCS15 | 15kg·cm | 0.1s/60° | 6-8.4V | 串口 (UART) | |
+| HTS-35H | 35kg·cm | 0.16s/60° | 6-8.4V | 串口 (UART) | ✓ (本專案) |
 
 ### Arduino 開發板選擇
 

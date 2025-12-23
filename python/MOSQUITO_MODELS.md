@@ -135,6 +135,317 @@ print(f"模型已下載到: {model_path}")
 EOF
 ```
 
+#### 🔄 Adapter 模型轉換（LoRA/Safetensors → RKNN）
+
+如果下載的是 **adapter_model.safetensors**（LoRA 適配器模型），需要額外步驟：
+
+**步驟 1: 合併 Adapter 到基礎模型**
+
+```python
+# 安裝必要套件
+pip install transformers peft safetensors torch onnx
+
+# merge_adapter.py
+import torch
+from transformers import AutoModel
+from peft import PeftModel
+from safetensors.torch import load_file
+
+# 1. 載入基礎模型
+base_model_name = "yolov8n"  # 或其他基礎模型
+base_model = AutoModel.from_pretrained(base_model_name)
+
+# 2. 載入 adapter 權重
+adapter_weights = load_file("models/mosquito.pt")
+
+# 3. 如果是 PEFT/LoRA adapter，合併到基礎模型
+if "peft" in str(type(adapter_weights)):
+    model = PeftModel.from_pretrained(base_model, "path/to/adapter")
+    merged_model = model.merge_and_unload()
+else:
+    # 手動合併權重
+    merged_model = base_model
+    merged_model.load_state_dict(adapter_weights, strict=False)
+
+# 4. 儲存完整模型
+merged_model.save_pretrained("merged_model")
+torch.save(merged_model.state_dict(), "merged_model.pt")
+print("✓ Adapter 已合併到基礎模型")
+```
+
+**步驟 2: 轉換為 ONNX**
+
+```python
+# convert_to_onnx.py
+import torch
+import torch.onnx
+from ultralytics import YOLO
+
+# 方法 1: 如果是 YOLO 模型（推薦）
+try:
+    model = YOLO("models/mosquito.pt")
+    model.export(
+        format='onnx',
+        imgsz=320,
+        opset=12,
+        simplify=True,
+        dynamic=False  # RKNN 需要固定輸入
+    )
+    print("✓ 已使用 Ultralytics 轉換為 ONNX")
+except Exception as e:
+    print(f"Ultralytics 轉換失敗: {e}")
+    print("嘗試通用 PyTorch 轉換方法...")
+
+    # 方法 2: 通用 PyTorch 模型轉 ONNX
+    # 注意: torch.load() 可能返回 state_dict 或完整模型
+    checkpoint = torch.load("models/mosquito.pt", map_location='cpu')
+
+    # 檢查載入的類型
+    if isinstance(checkpoint, dict):
+        # 如果是字典，需要模型結構
+        if 'model' in checkpoint:
+            model = checkpoint['model']
+        else:
+            # 需要先定義模型結構，然後載入權重
+            print("✗ 錯誤: 只有權重字典，需要模型結構定義")
+            print("建議使用 Ultralytics YOLO 或提供完整的模型文件")
+            exit(1)
+    else:
+        # 直接是模型對象
+        model = checkpoint
+
+    model.eval()
+    dummy_input = torch.randn(1, 3, 320, 320)
+
+    torch.onnx.export(
+        model,
+        dummy_input,
+        "mosquito.onnx",
+        export_params=True,
+        opset_version=12,
+        do_constant_folding=True,
+        input_names=['input'],
+        output_names=['output'],
+        dynamic_axes=None  # RKNN 需要固定維度
+    )
+    print("✓ 已轉換為 ONNX")
+```
+
+**快速轉換命令（推薦）**:
+
+```python
+# 最簡單的方式：使用 Ultralytics YOLO
+from ultralytics import YOLO
+
+model = YOLO("models/mosquito.pt")
+model.export(format='onnx', imgsz=320)
+# 會生成 mosquito.onnx
+```
+
+**步驟 3: 轉換為 RKNN**
+
+```python
+# convert_safetensors_to_rknn.py
+from rknn.api import RKNN
+import cv2
+import numpy as np
+
+def convert_to_rknn(onnx_path, output_path, calibration_dataset=None):
+    """
+    將 ONNX 模型轉換為 RKNN (RK3588 NPU)
+
+    Args:
+        onnx_path: ONNX 模型路徑
+        output_path: 輸出 RKNN 模型路徑
+        calibration_dataset: 校準數據集路徑列表檔案
+    """
+    rknn = RKNN(verbose=True)
+
+    # 1. 配置 RKNN
+    print('→ 配置 RKNN...')
+    rknn.config(
+        mean_values=[[0, 0, 0]],
+        std_values=[[255, 255, 255]],
+        target_platform='rk3588',
+        quantized_dtype='asymmetric_quantized-8',  # INT8 量化
+        optimization_level=3,
+        output_optimize=1
+    )
+
+    # 2. 載入 ONNX
+    print(f'→ 載入 ONNX: {onnx_path}')
+    ret = rknn.load_onnx(model=onnx_path)
+    if ret != 0:
+        print('✗ 載入 ONNX 失敗!')
+        return False
+
+    # 3. 建立模型（含量化）
+    print('→ 建立 RKNN 模型（INT8 量化）...')
+
+    if calibration_dataset:
+        # 使用校準數據集進行量化
+        ret = rknn.build(
+            do_quantization=True,
+            dataset=calibration_dataset
+        )
+    else:
+        # 不進行量化（較快但精度可能較低）
+        ret = rknn.build(do_quantization=False)
+
+    if ret != 0:
+        print('✗ 建立失敗!')
+        return False
+
+    # 4. 匯出 RKNN
+    print(f'→ 匯出 RKNN: {output_path}')
+    ret = rknn.export_rknn(output_path)
+    if ret != 0:
+        print('✗ 匯出失敗!')
+        return False
+
+    # 5. 測試推理
+    print('→ 測試推理速度...')
+    ret = rknn.init_runtime()
+    if ret != 0:
+        print('✗ 初始化執行環境失敗!')
+        return False
+
+    # 測試圖片
+    test_img = np.random.randint(0, 255, (320, 320, 3), dtype=np.uint8)
+
+    import time
+    times = []
+    for i in range(10):
+        start = time.time()
+        outputs = rknn.inference(inputs=[test_img])
+        elapsed = time.time() - start
+        times.append(elapsed)
+
+    avg_time = np.mean(times[1:])  # 排除第一次
+    fps = 1.0 / avg_time
+
+    print(f'✓ 平均推理時間: {avg_time*1000:.2f}ms ({fps:.1f} FPS)')
+    print(f'✓ 輸出形狀: {[out.shape for out in outputs]}')
+
+    rknn.release()
+    print(f'\n✓ RKNN 模型已準備就緒: {output_path}')
+    return True
+
+# 執行轉換
+if __name__ == "__main__":
+    # 準備校準數據集（可選但建議）
+    import glob
+    calibration_images = glob.glob("calibration_images/*.jpg")[:100]
+
+    if calibration_images:
+        with open("calibration_dataset.txt", "w") as f:
+            for img in calibration_images:
+                f.write(f"{img}\n")
+        calibration_dataset = "calibration_dataset.txt"
+    else:
+        print("⚠️  未提供校準數據集，將不進行 INT8 量化")
+        calibration_dataset = None
+
+    # 轉換
+    success = convert_to_rknn(
+        onnx_path="merged_model.onnx",
+        output_path="mosquito_yolov8n.rknn",
+        calibration_dataset=calibration_dataset
+    )
+
+    if success:
+        print("\n🎉 轉換完成！")
+        print("使用方法: 在 Python 中使用 rknnlite 載入此模型")
+```
+
+**完整轉換流程**:
+
+```bash
+# 1. 下載 Hugging Face 模型
+python << 'EOF'
+from huggingface_hub import hf_hub_download
+adapter_path = hf_hub_download(
+    repo_id="username/mosquito-model",
+    filename="adapter_model.safetensors"
+)
+print(f"下載至: {adapter_path}")
+EOF
+
+# 2. 合併 adapter 到基礎模型
+python merge_adapter.py
+
+# 3. 轉換為 ONNX
+python convert_to_onnx.py
+
+# 4. (可選) 準備校準數據集
+mkdir -p calibration_images
+# 複製 100-200 張蚊子圖片到此目錄
+
+# 5. 轉換為 RKNN
+python convert_safetensors_to_rknn.py
+
+# 6. 測試 RKNN 模型
+python test_rknn_model.py
+```
+
+**使用 RKNN 模型**:
+
+```python
+# 在 mosquito_detector.py 中使用 RKNN
+from rknnlite.api import RKNNLite
+
+class MosquitoDetectorRKNN:
+    def __init__(self, rknn_model_path='mosquito_yolov8n.rknn'):
+        self.rknn = RKNNLite()
+
+        # 載入 RKNN 模型
+        ret = self.rknn.load_rknn(rknn_model_path)
+        if ret != 0:
+            raise RuntimeError('載入 RKNN 模型失敗')
+
+        # 初始化執行環境（使用 NPU）
+        ret = self.rknn.init_runtime(core_mask=RKNNLite.NPU_CORE_0)
+        if ret != 0:
+            raise RuntimeError('初始化 RKNN 執行環境失敗')
+
+        print('✓ RKNN NPU 模型已載入')
+
+    def detect(self, frame):
+        # 預處理
+        img = cv2.resize(frame, (320, 320))
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        # NPU 推理
+        outputs = self.rknn.inference(inputs=[img])
+
+        # 後處理（解析 YOLO 輸出）
+        detections = self.parse_yolo_outputs(outputs)
+
+        return detections
+```
+
+**注意事項**:
+
+1. **Adapter 類型**: 確認是 LoRA、QLoRA 還是其他類型的 adapter
+2. **基礎模型**: 必須知道 adapter 對應的基礎模型版本
+3. **輸入形狀**: RKNN 需要固定輸入維度，不支援 dynamic axes
+4. **量化**: INT8 量化需要校準數據集（100+ 張圖片）
+5. **NPU 限制**: 某些操作可能不支援，需要回退到 CPU
+
+**故障排除**:
+
+```bash
+# 檢查 ONNX 模型
+pip install onnx
+python -c "import onnx; model = onnx.load('merged_model.onnx'); onnx.checker.check_model(model); print('✓ ONNX 模型有效')"
+
+# 檢查 RKNN Toolkit 版本
+python -c "from rknn.api import RKNN; print(RKNN().get_sdk_version())"
+
+# 測試 NPU 可用性
+python -c "from rknnlite.api import RKNNLite; rknn = RKNNLite(); print('✓ NPU 可用')"
+```
+
 ---
 
 ### 5. Papers with Code

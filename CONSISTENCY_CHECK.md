@@ -451,6 +451,109 @@ grep -r "use_gpu" python/*.py
 **總計修正**: 12 處不一致
 **版本**: 2.0.0 (AI 檢測版)
 **最後更新**: 2025年12月24日
+
+---
+
+## 🆕 第 5 次一致性檢查 (2025-12-24)
+
+### ✅ 完整系統一致性驗證
+
+**檢查範圍**: 所有 Python 代碼與文檔
+
+**驗證結果**: ✅ **完全一致**
+
+#### 檢查項目
+
+**1. Python 代碼一致性** ✅
+- `mosquito_detector.py`: AI 檢測，參數正確（model_path, confidence_threshold, imgsz）
+- `mosquito_tracker.py`: 雙目 AI 追蹤，使用正確的 AI 參數
+- 無任何舊的運動檢測參數（min_area, max_area, motion_threshold）
+- 無任何 use_gpu 參數
+
+**2. 文檔一致性** ✅
+- `README.md` (根目錄): AI 檢測系統描述完整
+- `python/README.md`: AI 模組說明正確
+- `AI_DETECTION_GUIDE.md`: AI 配置指南準確
+- `MOSQUITO_MODELS.md`: 模型資源完整
+
+**3. 系統架構描述** ✅
+- 所有文檔統一描述 YOLOv8 AI 深度學習檢測
+- 雙目攝像頭獨立 AI 檢測機制正確記錄
+- 信心度過濾機制描述一致
+
+**4. API 參數一致性** ✅
+```python
+# 所有地方統一使用：
+MosquitoDetector(
+    model_path='models/mosquito_yolov8n.pt',
+    confidence_threshold=0.4,
+    imgsz=320
+)
+```
+
+**5. 雙目 AI 追蹤實現** ✅
+- 左右攝像頭分別執行 AI 檢測
+- 自動選擇信心度最高的結果
+- 單邊高信心度即有效
+- 雷射標記需信心度 > 0.5
+
+#### grep 驗證結果
+
+```bash
+# 舊參數檢查
+grep -r "use_gpu" **/*.py                    # ✅ 無匹配
+grep -r "min_area" **/*.py                   # ✅ 無匹配
+grep -r "max_area" **/*.py                   # ✅ 無匹配
+grep -r "motion_threshold" **/*.py           # ✅ 無匹配
+grep -r "method.*background" **/*.py         # ✅ 無匹配
+
+# AI 檢測確認
+grep -r "YOLOv8" **/*.md                     # ✅ 20+ 匹配
+grep -r "深度學習" **/*.md                    # ✅ 多處匹配
+grep -r "AI.*檢測" **/*.md                   # ✅ 多處匹配
+grep -r "confidence_threshold" **/*.py       # ✅ 正確使用
+grep -r "imgsz" **/*.py                      # ✅ 正確使用
+```
+
+#### 代碼檢查
+
+**mosquito_detector.py** ✅
+- Line 29-40: `__init__` 方法使用正確 AI 參數
+- Line 64: 固定使用 `device = 'cpu'`
+- Line 72-90: `detect()` 方法使用 YOLO AI 推理
+- 無任何運動檢測代碼
+
+**mosquito_tracker.py** ✅
+- Line 59-63: 初始化使用 AI 參數
+- Line 143-257: `track_mosquito()` 支持雙目 AI 檢測
+- Line 283-285: 分別對左右攝像頭執行 AI 檢測
+- Line 287-289: 自動選擇信心度最高的結果
+
+**文檔描述** ✅
+- 所有文檔統一描述為 AI 檢測系統
+- 版本號統一為 2.0.0
+- 系統架構圖正確標註 YOLOv8
+- 無任何運動檢測描述（除歷史對照表）
+
+### 📋 總結
+
+**系統狀態**: ✅ **完全一致，可投入使用**
+
+**版本**: 2.0.0 (AI 檢測版 + 雙目獨立追蹤)
+
+**特點**:
+- ✅ 完整 AI 深度學習檢測（YOLOv8）
+- ✅ 雙目攝像頭獨立 AI 檢測
+- ✅ 智能信心度選擇
+- ✅ Orange Pi 5 CPU/NPU 優化
+- ✅ 單邊高信心度有效機制
+- ✅ 信心度過濾（追蹤 > 0.4，雷射 > 0.5）
+
+**無發現問題**: 所有代碼與文檔完全一致！
+
+---
+
+## 📊 歷史修正統計
 ---
 
 ## 🆕 第 4 次更新 (2025-12-24) - 雙目 AI 追蹤
