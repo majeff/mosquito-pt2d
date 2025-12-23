@@ -1,4 +1,10 @@
 opencv-python>=4.8.0
 pyserial>=3.5
 numpy>=1.24.0
+ultralytics>=8.0.0  # YOLO AI 模型（CPU 版本）
+onnxruntime>=1.15.0  # ONNX 推理引擎（Orange Pi 5 優化）
+# torch>=2.0.0  # PyTorch - Orange Pi 5 可選安裝 CPU 版本
 OrangePi.GPIO>=0.6.0  # Orange Pi 5 GPIO 控制（僅 Orange Pi 需要）
+
+# 可選：NPU 加速（需手動安裝）
+# rknn-toolkit2  # 從官方下載 .whl 檔案安裝

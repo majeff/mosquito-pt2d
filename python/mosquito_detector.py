@@ -1,181 +1,187 @@
 """
 蚊子影像識別模組
-使用運動檢測與形狀識別技術偵測蚊子
+使用深度學習AI模型（YOLO）偵測蚊子
 """
 
 import cv2
 import numpy as np
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 import logging
+import os
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 嘗試導入 ultralytics YOLO
+try:
+    from ultralytics import YOLO
+    YOLO_AVAILABLE = True
+except ImportError:
+    logger.warning("ultralytics 未安裝，請執行: pip install ultralytics")
+    YOLO_AVAILABLE = False
+
 
 class MosquitoDetector:
-    """蚊子偵測器類"""
+    """基於AI深度學習的蚊子偵測器類"""
 
     def __init__(self,
-                 min_area: int = 10,
-                 max_area: int = 500,
-                 motion_threshold: int = 25,
-                 blur_kernel: int = 5):
+                 model_path: Optional[str] = None,
+                 confidence_threshold: float = 0.25,
+                 iou_threshold: float = 0.45,
+                 imgsz: int = 640,
+                 fallback_to_pretrained: bool = True):
         """
-        初始化蚊子偵測器
+        初始化AI蚊子偵測器 (Orange Pi 5 優化)
 
         Args:
-            min_area: 最小偵測區域面積（像素）
-            max_area: 最大偵測區域面積（像素）
-            motion_threshold: 運動檢測閾值
-            blur_kernel: 高斯模糊核心大小
+            model_path: YOLO模型路徑（.pt檔案）。如果未提供，會使用預訓練模型
+            confidence_threshold: 信心度閾值（0-1）
+            iou_threshold: IoU閾值（用於NMS）
+            imgsz: 輸入影像大小（320/416/640），較小的值速度較快
+            fallback_to_pretrained: 如果找不到自定義模型，是否使用預訓練模型
         """
-        self.min_area = min_area
-        self.max_area = max_area
-        self.motion_threshold = motion_threshold
-        self.blur_kernel = blur_kernel
+        if not YOLO_AVAILABLE:
+            raise ImportError("需要安裝 ultralytics: pip install ultralytics")
 
-        # 背景減法器
-        self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-            history=500,
-            varThreshold=16,
-            detectShadows=False
+        self.confidence_threshold = confidence_threshold
+        self.iou_threshold = iou_threshold
+        self.imgsz = imgsz
+
+        # 載入模型
+        if model_path and os.path.exists(model_path):
+            logger.info(f"載入自定義YOLO模型: {model_path}")
+            self.model = YOLO(model_path)
+            self.model_type = 'custom'
+        elif fallback_to_pretrained:
+            logger.info("使用YOLOv8n預訓練模型（通用物體檢測）")
+            logger.warning("⚠️ 建議使用蚊子專用模型以獲得更好效果")
+            self.model = YOLO('yolov8n.pt')  # 輕量級快速模型
+            self.model_type = 'pretrained'
+        else:
+            raise FileNotFoundError(f"找不到模型檔案: {model_path}")
+
+        # Orange Pi 5 使用 CPU 推理（無 GPU）
+        self.device = 'cpu'
+        logger.info(f"使用 CPU 運算 (Orange Pi 5)，輸入解析度: {imgsz}x{imgsz}")
+
+        logger.info("AI蚊子偵測器已初始化")
+
+
+    def detect(self, frame: np.ndarray) -> Tuple[List[Dict], np.ndarray]:
+        """
+        使用YOLO AI模型偵測蚊子
+
+        Args:
+            frame: 輸入影像（BGR格式）
+
+        Returns:
+            (偵測結果列表，包含bbox和confidence，處理後的影像)
+        """
+        # 執行推理
+        results = self.model.predict(
+            frame,
+            conf=self.confidence_threshold,
+            iou=self.iou_threshold,
+            imgsz=self.imgsz,
+            device=self.device,
+            verbose=False
         )
 
-        # 前一幀（用於幀差法）
-        self.prev_frame = None
-
-        logger.info("蚊子偵測器已初始化")
-
-    def detect_motion(self, frame: np.ndarray) -> Tuple[List[Tuple[int, int, int, int]], np.ndarray]:
-        """
-        使用背景減法檢測運動物體
-
-        Args:
-            frame: 輸入影像（BGR格式）
-
-        Returns:
-            (偵測到的邊界框列表 [(x, y, w, h)], 前景遮罩)
-        """
-        # 應用背景減法
-        fg_mask = self.bg_subtractor.apply(frame)
-
-        # 降噪處理
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
-        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
-
-        # 尋找輪廓
-        contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        # 篩選合適大小的輪廓
         detections = []
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if self.min_area <= area <= self.max_area:
-                x, y, w, h = cv2.boundingRect(contour)
-                detections.append((x, y, w, h))
 
-        return detections, fg_mask
+        if len(results) > 0:
+            result = results[0]
 
-    def detect_frame_diff(self, frame: np.ndarray) -> Tuple[List[Tuple[int, int, int, int]], np.ndarray]:
+            # 解析檢測結果
+            for box in result.boxes:
+                # 獲取邊界框座標
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                x, y, w, h = int(x1), int(y1), int(x2 - x1), int(y2 - y1)
+
+                # 獲取信心度和類別
+                confidence = float(box.conf[0])
+                class_id = int(box.cls[0])
+                class_name = self.model.names[class_id]
+
+                detection = {
+                    'bbox': (x, y, w, h),
+                    'confidence': confidence,
+                    'class_id': class_id,
+                    'class_name': class_name,
+                    'center': (x + w // 2, y + h // 2)
+                }
+
+                # 如果是自定義模型，直接使用；如果是預訓練模型，篩選小物體
+                if self.model_type == 'custom' or self._is_mosquito_like(detection):
+                    detections.append(detection)
+
+        return detections, frame
+
+    def _is_mosquito_like(self, detection: Dict) -> bool:
         """
-        使用幀差法檢測運動物體
+        判斷檢測到的物體是否可能是蚊子（用於預訓練模型）
 
         Args:
-            frame: 輸入影像（BGR格式）
+            detection: 檢測結果字典
 
         Returns:
-            (偵測到的邊界框列表 [(x, y, w, h)], 差分影像)
+            是否可能是蚊子
         """
-        # 轉換為灰度
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (self.blur_kernel, self.blur_kernel), 0)
+        # 對於預訓練模型，我們可以篩選某些類別或大小
+        bbox = detection['bbox']
+        area = bbox[2] * bbox[3]
 
-        if self.prev_frame is None:
-            self.prev_frame = gray
-            return [], np.zeros_like(gray)
+        # 蚊子通常是小型物體
+        if area > 2000:  # 太大的物體不太可能是蚊子
+            return False
 
-        # 計算幀差
-        frame_diff = cv2.absdiff(self.prev_frame, gray)
-        _, thresh = cv2.threshold(frame_diff, self.motion_threshold, 255, cv2.THRESH_BINARY)
+        # 可以篩選特定類別，例如鳥類、昆蟲等
+        # COCO數據集中的類別：bird(14), cat(15), dog(16)等
+        mosquito_like_classes = ['bird', 'kite']  # 可能與蚊子相似的類別
 
-        # 形態學處理
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-        thresh = cv2.dilate(thresh, kernel, iterations=2)
+        if detection['class_name'] in mosquito_like_classes:
+            return True
 
-        # 尋找輪廓
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        return True  # 預設接受所有小物體
 
-        # 篩選合適大小的輪廓
-        detections = []
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if self.min_area <= area <= self.max_area:
-                x, y, w, h = cv2.boundingRect(contour)
-                detections.append((x, y, w, h))
 
-        # 更新前一幀
-        self.prev_frame = gray
-
-        return detections, thresh
-
-    def detect(self, frame: np.ndarray, method: str = 'background') -> Tuple[List[Tuple[int, int, int, int]], np.ndarray]:
+    def get_largest_detection(self, detections: List[Dict]) -> Optional[Dict]:
         """
-        偵測蚊子
+        獲取信心度最高的偵測結果
 
         Args:
-            frame: 輸入影像（BGR格式）
-            method: 偵測方法 ('background' 或 'frame_diff')
+            detections: 偵測結果列表
 
         Returns:
-            (偵測到的邊界框列表 [(x, y, w, h)], 處理後的遮罩)
-        """
-        if method == 'background':
-            return self.detect_motion(frame)
-        elif method == 'frame_diff':
-            return self.detect_frame_diff(frame)
-        else:
-            logger.error(f"未知的偵測方法: {method}")
-            return [], np.zeros_like(frame)
-
-    def get_largest_detection(self, detections: List[Tuple[int, int, int, int]]) -> Optional[Tuple[int, int, int, int]]:
-        """
-        獲取最大的偵測框（假設最大的是蚊子）
-
-        Args:
-            detections: 偵測框列表
-
-        Returns:
-            最大的偵測框，若無則返回 None
+            信心度最高的偵測結果，若無則返回 None
         """
         if not detections:
             return None
 
-        return max(detections, key=lambda bbox: bbox[2] * bbox[3])
+        return max(detections, key=lambda det: det['confidence'])
 
-    def get_center(self, bbox: Tuple[int, int, int, int]) -> Tuple[int, int]:
+    def get_center(self, detection: Dict) -> Tuple[int, int]:
         """
-        計算邊界框中心點
+        獲取檢測結果的中心點
 
         Args:
-            bbox: 邊界框 (x, y, w, h)
+            detection: 檢測結果字典
 
         Returns:
             中心點座標 (cx, cy)
         """
-        x, y, w, h = bbox
-        return (x + w // 2, y + h // 2)
+        return detection['center']
 
-    def draw_detections(self, frame: np.ndarray, detections: List[Tuple[int, int, int, int]],
+    def draw_detections(self, frame: np.ndarray, detections: List[Dict],
                        color: Tuple[int, int, int] = (0, 255, 0),
                        thickness: int = 2) -> np.ndarray:
         """
-        在影像上繪製偵測框
+        在影像上繪製AI偵測框
 
         Args:
             frame: 輸入影像
-            detections: 偵測框列表
+            detections: 偵測結果列表
             color: 邊界框顏色 (B, G, R)
             thickness: 線條粗細
 
@@ -184,87 +190,114 @@ class MosquitoDetector:
         """
         result = frame.copy()
 
-        for (x, y, w, h) in detections:
+        for detection in detections:
+            x, y, w, h = detection['bbox']
+            confidence = detection['confidence']
+            class_name = detection['class_name']
+            cx, cy = detection['center']
+
+            # 根據信心度選擇顏色
+            if confidence > 0.7:
+                box_color = (0, 255, 0)  # 綠色：高信心度
+            elif confidence > 0.5:
+                box_color = (0, 255, 255)  # 黃色：中等信心度
+            else:
+                box_color = (0, 165, 255)  # 橙色：低信心度
+
             # 繪製邊界框
-            cv2.rectangle(result, (x, y), (x + w, y + h), color, thickness)
+            cv2.rectangle(result, (x, y), (x + w, y + h), box_color, thickness)
 
             # 繪製中心點
-            cx, cy = self.get_center((x, y, w, h))
             cv2.circle(result, (cx, cy), 3, (0, 0, 255), -1)
 
-            # 標註面積
-            area = w * h
-            cv2.putText(result, f"{area}px", (x, y - 5),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+            # 標註類別和信心度
+            label = f"{class_name}: {confidence:.2f}"
+            (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            cv2.rectangle(result, (x, y - label_h - 10), (x + label_w, y), box_color, -1)
+            cv2.putText(result, label, (x, y - 5),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
 
         return result
 
     def reset(self):
-        """重置偵測器狀態"""
-        self.prev_frame = None
-        self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-            history=500,
-            varThreshold=16,
-            detectShadows=False
-        )
-        logger.info("偵測器已重置")
+        """重置偵測器狀態（AI模型不需要重置）"""
+        logger.info("AI偵測器無需重置")
 
 
 def test_mosquito_detector():
-    """測試蚊子偵測器"""
-    print("=== 測試蚊子偵測器 ===")
-    print("按 'q' 退出, 'r' 重置偵測器, 'm' 切換偵測方法")
+    """測試AI蚊子偵測器"""
+    print("=== 測試AI蚊子偵測器 ===")
+    print("按 'q' 退出, 's' 儲存當前幀")
+    print("\n提示：首次執行會自動下載YOLOv8n模型（約6MB）")
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("無法開啟攝像頭")
         return
 
-    detector = MosquitoDetector(min_area=20, max_area=1000)
-    method = 'background'
+    try:
+        # 初始化AI偵測器 (Orange Pi 5)
+        # 可以指定自定義模型：detector = MosquitoDetector(model_path='models/mosquito_yolov8n.pt')
+        detector = MosquitoDetector(
+            confidence_threshold=0.3,  # 降低閾值以檢測更多物體
+            imgsz=320  # Orange Pi 5 建議使用 320 以提升速度
+        )
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+        frame_count = 0
 
-        # 執行偵測
-        detections, mask = detector.detect(frame, method=method)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        # 繪製偵測結果
-        result = detector.draw_detections(frame, detections)
+            frame_count += 1
 
-        # 顯示偵測數量
-        cv2.putText(result, f"Detections: {len(detections)} | Method: {method}",
-                   (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            # 執行AI偵測
+            detections, _ = detector.detect(frame)
 
-        # 如果有偵測到，標註最大的
-        largest = detector.get_largest_detection(detections)
-        if largest:
-            x, y, w, h = largest
-            cv2.rectangle(result, (x, y), (x + w, y + h), (0, 0, 255), 3)
-            cx, cy = detector.get_center(largest)
-            cv2.putText(result, f"Target: ({cx}, {cy})", (cx - 50, cy - 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            # 繪製偵測結果
+            result = detector.draw_detections(frame, detections)
 
-        # 顯示影像
-        cv2.imshow('Mosquito Detection', result)
-        cv2.imshow('Mask', mask)
+            # 顯示偵測數量和FPS
+            cv2.putText(result, f"Detections: {len(detections)} | Frame: {frame_count}",
+                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(result, f"Device: {detector.device} | Model: {detector.model_type}",
+                       (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        # 鍵盤控制
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-        elif key == ord('r'):
-            detector.reset()
-            print("偵測器已重置")
-        elif key == ord('m'):
-            method = 'frame_diff' if method == 'background' else 'background'
-            print(f"切換至偵測方法: {method}")
+            # 如果有偵測到，高亮最佳結果
+            best = detector.get_largest_detection(detections)
+            if best:
+                x, y, w, h = best['bbox']
+                cv2.rectangle(result, (x, y), (x + w, y + h), (0, 0, 255), 3)
+                cx, cy = best['center']
+                cv2.putText(result, f"Best: ({cx}, {cy})", (cx - 50, cy - 10),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-    cap.release()
-    cv2.destroyAllWindows()
-    print("測試完成")
+                # 顯示詳細資訊
+                info = f"Class: {best['class_name']} | Conf: {best['confidence']:.2f}"
+                cv2.putText(result, info, (10, 90),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
+            # 顯示影像
+            cv2.imshow('AI Mosquito Detection', result)
+
+            # 鍵盤控制
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                break
+            elif key == ord('s'):
+                filename = f"detection_frame_{frame_count}.jpg"
+                cv2.imwrite(filename, result)
+                print(f"已儲存: {filename}")
+
+    except Exception as e:
+        print(f"錯誤: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        print("測試完成")
 
 
 if __name__ == "__main__":
