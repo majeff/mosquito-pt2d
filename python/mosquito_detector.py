@@ -42,9 +42,9 @@ class MosquitoDetector:
 
     def __init__(self,
                  model_path: Optional[str] = None,
-                 confidence_threshold: float = 0.25,
+                 confidence_threshold: float = 0.4,
                  iou_threshold: float = 0.45,
-                 imgsz: int = 640,
+                 imgsz: int = 320,
                  fallback_to_pretrained: bool = True):
         """
         初始化AI蚊子偵測器 (Orange Pi 5 優化)
@@ -53,9 +53,11 @@ class MosquitoDetector:
         Args:
             model_path: 模型路徑（可不含副檔名），或 models/ 目錄下的基本名稱
                        例如: "mosquito" 會自動搜尋 mosquito.rknn → mosquito.onnx → mosquito.pt
-            confidence_threshold: 信心度閾值（0-1）
-            iou_threshold: IoU閾值（用於NMS）
-            imgsz: 輸入影像大小（320/416/640），較小的值速度較快
+            confidence_threshold: 信心度閾值（0-1），預設 0.4（推薦範圍 0.3-0.7）
+            iou_threshold: IoU閾值（用於NMS），預設 0.45
+            imgsz: 輸入影像大小，預設 320（Orange Pi 5 推薦）
+                   - 320: 快速推理，適合 Orange Pi 5 / 嵌入式設備
+                   - 640: 高精度，適合 PC 開發環境
             fallback_to_pretrained: 如果找不到自定義模型，是否使用預訓練模型
         """
         self.confidence_threshold = confidence_threshold

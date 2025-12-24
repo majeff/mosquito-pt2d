@@ -404,7 +404,7 @@ camera_height = 720
 - [主 README](../README.md) - 專案總覽
 - [hardware.md](hardware.md) - Arduino 硬體連接
 - [protocol.md](protocol.md) - 通訊協議
-- [Python README](../python/README.md) - Python 端說明
+- [Python README](python_README.md) - Python 端說明
 
 ---
 

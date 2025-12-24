@@ -58,7 +58,7 @@ class MosquitoTracker:
         # 初始化蚊子偵測器（AI 檢測）
         logger.info("初始化 AI 蚊子偵測器...")
         self.detector = MosquitoDetector(
-            model_path='models/mosquito_yolov8n.pt',  # 可選：使用自定義模型
+            model_path=None,                           # 自動搜尋模型（.rknn → .onnx → .pt）
             confidence_threshold=0.4,                  # 信心度閾值
             imgsz=320                                  # Orange Pi 5 建議使用 320
         )
@@ -81,6 +81,11 @@ class MosquitoTracker:
         # 追蹤狀態
         self.tracking_active = False
         self.last_detection_time = 0
+        self.no_detection_timeout = 3.0  # 無檢測超時時間（秒）
+
+        # 目標鎖定機制（多目標時保持追蹤同一目標）
+        self.locked_target_position = None  # 上次追蹤的目標位置 (x, y)
+        self.target_lock_distance = 100     # 目標鎖定距離閾值（像素）
 
         # 位置緩存（減少串口讀取頻率）
         self.cached_pan = 135
@@ -170,9 +175,41 @@ class MosquitoTracker:
 
         return pan_delta, tilt_delta
 
+    def _find_closest_detection(self, detections, target_position):
+        """
+        從檢測列表中找到與目標位置最接近的檢測
+
+        Args:
+            detections: 檢測結果列表
+            target_position: 目標位置 (x, y)
+
+        Returns:
+            最接近的檢測結果，或 None
+        """
+        if not detections or target_position is None:
+            return None
+
+        closest_detection = None
+        min_distance = float('inf')
+
+        for detection in detections:
+            center_x, center_y = detection['center']
+            # 計算歐氏距離
+            distance = np.sqrt((center_x - target_position[0])**2 +
+                             (center_y - target_position[1])**2)
+
+            if distance < min_distance:
+                min_distance = distance
+                closest_detection = detection
+
+        # 只有在距離小於閾值時才返回（避免鎖定錯誤目標）
+        if min_distance < self.target_lock_distance:
+            return closest_detection
+        return None
+
     def track_mosquito(self, left_detections, right_detections, left_frame, right_frame):
         """
-        追蹤蚊子邏輯（雙目 AI 檢測，任一邊檢測到高信心度即可）
+        追蹤蚊子邏輯（支援多目標，鎖定追蹤單一目標直到失去）
 
         Args:
             left_detections: 左攝像頭 AI 偵測結果列表
@@ -182,26 +219,54 @@ class MosquitoTracker:
         """
         current_time = time.time()
 
-        # 合併左右攝像頭的 AI 檢測結果（任一邊檢測到高信心度即可）
+        # 選擇目標策略：
+        # 1. 如果正在追蹤，優先追蹤最接近上次位置的目標（目標鎖定）
+        # 2. 如果沒有追蹤，選擇信心度最高的目標
         best_detection = None
-        best_confidence = 0
         use_left_camera = True
 
-        # 從左攝像頭尋找最佳檢測
-        if left_detections:
-            left_best = self.detector.get_largest_detection(left_detections)
-            if left_best and left_best['confidence'] > best_confidence:
-                best_detection = left_best
-                best_confidence = left_best['confidence']
-                use_left_camera = True
+        if self.tracking_active and self.locked_target_position is not None:
+            # 策略 1: 目標鎖定模式 - 優先追蹤最接近的目標
+            left_closest = self._find_closest_detection(left_detections, self.locked_target_position)
+            right_closest = self._find_closest_detection(right_detections, self.locked_target_position)
 
-        # 從右攝像頭尋找最佳檢測
-        if right_detections:
-            right_best = self.detector.get_largest_detection(right_detections)
-            if right_best and right_best['confidence'] > best_confidence:
-                best_detection = right_best
-                best_confidence = right_best['confidence']
+            # 選擇距離最近且信心度足夠的目標
+            if left_closest and right_closest:
+                # 兩邊都有接近的目標，選信心度高的
+                if left_closest['confidence'] >= right_closest['confidence']:
+                    best_detection = left_closest
+                    use_left_camera = True
+                else:
+                    best_detection = right_closest
+                    use_left_camera = False
+            elif left_closest:
+                best_detection = left_closest
+                use_left_camera = True
+            elif right_closest:
+                best_detection = right_closest
                 use_left_camera = False
+            else:
+                # 沒有找到接近的目標，解除鎖定，重新選擇
+                logger.debug("未找到鎖定目標附近的檢測，解除目標鎖定")
+                self.locked_target_position = None
+
+        if best_detection is None:
+            # 策略 2: 新目標選擇模式 - 選擇信心度最高的目標
+            best_confidence = 0
+
+            if left_detections:
+                left_best = self.detector.get_largest_detection(left_detections)
+                if left_best and left_best['confidence'] > best_confidence:
+                    best_detection = left_best
+                    best_confidence = left_best['confidence']
+                    use_left_camera = True
+
+            if right_detections:
+                right_best = self.detector.get_largest_detection(right_detections)
+                if right_best and right_best['confidence'] > best_confidence:
+                    best_detection = right_best
+                    best_confidence = right_best['confidence']
+                    use_left_camera = False
 
         # 選擇使用的幀
         frame = left_frame if use_left_camera else right_frame
@@ -217,14 +282,17 @@ class MosquitoTracker:
             confidence = best_detection['confidence']
             class_name = best_detection.get('class_name', 'unknown')
 
-            # 開始追蹤
+            # 開始追蹤或保持追蹤
             if not self.tracking_active:
-                logger.info(f"[{camera_side}攝像頭] AI 偵測到蚊子 (信心度: {confidence:.2f})，開始追蹤")
+                logger.info(f"[{camera_side}攝像頭] AI 偵測到蚊子 (信心度: {confidence:.2f})，鎖定目標開始追蹤")
                 self.tracking_active = True
                 # 非同步觸發蜂鳴器警報（避免阻塞雲台控制）
                 if current_time - self.last_beep_time > self.beep_cooldown:
                     threading.Thread(target=self._beep_async, daemon=True).start()
                     self.last_beep_time = current_time
+
+            # 更新鎖定目標位置（用於下一幀的目標鎖定）
+            self.locked_target_position = (target_x, target_y)
 
             # 計算角度增量
             pan_delta, tilt_delta = self.calculate_target_angles(target_x, target_y)
@@ -280,15 +348,30 @@ class MosquitoTracker:
         else:
             # 沒有偵測到目標（左右攝像頭都沒有高信心度檢測）
             if self.tracking_active:
-                # 關閉雷射
-                if self.enable_laser and self.laser_marking:
-                    self.laser.off()
-                    self.laser_marking = False
+                # 檢查是否超時（連續一段時間未檢測到目標）
+                time_since_last_detection = current_time - self.last_detection_time
 
-                # 非同步回到初始位置繼續監控（避免阻塞主循環）
-                logger.info("AI 失去目標，雲台回到初始位置繼續監控...")
-                threading.Thread(target=self._home_async, daemon=True).start()
-                self.tracking_active = False
+                if time_since_last_detection > self.no_detection_timeout:
+                    # 超時，判定為失去目標
+                    logger.info(f"AI 持續 {time_since_last_detection:.1f}s 未檢測到目標，失去追蹤...")
+
+                    # 關閉雷射
+                    if self.enable_laser and self.laser_marking:
+                        self.laser.off()
+                        self.laser_marking = False
+
+                    # 非同步回到初始位置繼續監控（避免阻塞主循環）
+                    logger.info("雲台回到初始位置繼續監控...")
+                    threading.Thread(target=self._home_async, daemon=True).start()
+                    self.tracking_active = False
+                    self.locked_target_position = None  # 清除目標鎖定
+                else:
+                    # 未超時，保持追蹤狀態，等待目標重新出現
+                    logger.debug(f"暫時失去目標 ({time_since_last_detection:.1f}s)，保持追蹤狀態...")
+                    # 在畫面上顯示等待狀態
+                    cv2.putText(left_frame, f"Waiting for target... ({time_since_last_detection:.1f}s)",
+                               (10, self.camera_height - 30),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
             # 返回左攝像頭畫面作為預設顯示
             return left_frame
@@ -381,6 +464,7 @@ class MosquitoTracker:
                     logger.info("回到初始位置")
                     threading.Thread(target=self._home_async, daemon=True).start()
                     self.tracking_active = False
+                    self.locked_target_position = None  # 清除目標鎖定
                     if self.enable_laser and self.laser_marking:
                         self.laser.off()
                         self.laser_marking = False

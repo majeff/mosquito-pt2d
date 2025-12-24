@@ -280,15 +280,19 @@ RIGHT_CAMERA_ID = 1
 
 # AI 偵測參數
 detector = MosquitoDetector(
-    model_path='models/mosquito_yolov8n.pt',  # AI 模型路徑
-    confidence_threshold=0.4,                  # 信心度閾值（0.3-0.7）
+    model_path=None,                           # 自動搜尋模型（.rknn → .onnx → .pt）
+    confidence_threshold=0.4,                  # 信心度閾值（推薦 0.3-0.7）
     imgsz=320                                  # 輸入解析度（320/416/640）
 )
 
 # 追蹤參數
-self.pan_gain = 0.15              # Pan 增益
-self.tilt_gain = 0.15             # Tilt 增益
-self.no_detection_timeout = 3.0   # 無偵測超時
+self.pan_gain = 0.15                # Pan 增益（控制靈敏度）
+self.tilt_gain = 0.15               # Tilt 增益（控制靈敏度）
+self.no_detection_timeout = 3.0     # 無偵測超時（秒）
+self.target_lock_distance = 100     # 目標鎖定距離（像素）
+self.beep_cooldown = 2.0            # 蜂鳴器冷卻時間（秒）
+self.laser_cooldown = 0.5           # 雷射冷卻時間（秒）
+self.position_update_interval = 0.5 # 位置更新間隔（秒）
 ```
 
 ---
@@ -304,12 +308,29 @@ self.no_detection_timeout = 3.0   # 無偵測超時
 ### 2. 修改 config.h
 
 ```cpp
-// 根據你的舵機調整
-#define SERVO_BAUDRATE      115200    // LX-16A: 115200, SCS: 9600 或 1000000
-#define PAN_SERVO_ID        1         // Pan 軸舵機 ID
-#define TILT_SERVO_ID       2         // Tilt 軸舵機 ID
+// 串口配置
+#define SERIAL_BAUDRATE     115200    // 上位機串口波特率
+#define SERVO_BAUDRATE      115200    // 舵機總線波特率（LX-16A: 115200, SCS: 9600/1000000）
+
+// 舵機 ID（系統會自動掃描，也可手動指定）
+#define DEFAULT_PAN_SERVO_ID    1     // Pan 軸舵機 ID（預設值）
+#define DEFAULT_TILT_SERVO_ID   2     // Tilt 軸舵機 ID（預設值）
+#define AUTO_DETECT_SERVO_ID    true  // 啟動時自動掃描舵機 ID
+
+// 舵機角度範圍
 #define PAN_MAX_ANGLE       270       // Pan 水平最大角度
 #define TILT_MAX_ANGLE      180       // Tilt 垂直最大角度
+#define PAN_INIT_ANGLE      135       // Pan 初始角度（水平中心）
+#define TILT_INIT_ANGLE     90        // Tilt 初始角度（垂直中心）
+
+// 運動參數
+#define DEFAULT_SPEED       50        // 預設移動速度（1-100）
+#define MIN_SPEED           1         // 最小速度
+#define MAX_SPEED           100       // 最大速度
+
+// 自動掃描配置
+#define SERVO_DETECT_TIMEOUT    500   // 舵機掃描超時（毫秒）
+#define SERVO_DETECT_INTERVAL   100   // 舵機掃描間隔（毫秒）
 ```
 
 ---
@@ -409,7 +430,7 @@ JSON 格式: `{"key":"value"}\n`
 
 ### Python API
 
-詳見 [python/README.md](python/README.md)
+詳見 [docs/python_README.md](docs/python_README.md)
 
 ---
 
@@ -501,20 +522,27 @@ sudo python3 quick_start.py
    └─> 檢查信心度 > 閾值（如 0.4）
    └─> 過濾低可信度誤檢
 
-4. [追蹤階段]
+4. [追蹤階段] ⭐ 持續追蹤
    └─> 計算目標偏移量
    └─> PID 控制雲台對準目標
-   └─> 持續 AI 追蹤
+   └─> 持續 AI 追蹤，實時更新目標位置
+   └─> **多目標處理**：鎖定單一目標持續追蹤
+      ├─ 畫面中有多個蚊子時，選擇信心度最高的目標
+      ├─ 鎖定目標後，保持追蹤該目標（不會跳到其他蚊子）
+      ├─ 使用位置追蹤（100px 範圍內）確保追蹤同一隻
+      └─ 只有失去當前目標後，才會選擇新目標
+   └─> 即使暫時失去目標，維持追蹤狀態 3 秒
+   └─> 目標重新出現時立即恢復追蹤
 
 5. [標記階段]
    └─> 目標進入中心區域 (±30px) + 高信心度
    └─> 啟動雷射標記
    └─> 綠色圓圈標示中心區域
 
-6. [失去目標]
-   └─> 信心度過低或無檢測
+6. [失去目標] ⚠️ 超時機制
+   └─> 連續 3 秒無檢測（防止誤判）
    └─> 關閉雷射
-   └─> 返回監控模式（保持中央）
+   └─> 返回監控模式（回到中央位置）
 ```
 
 ---
@@ -598,7 +626,7 @@ sudo python3 -c "import OPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.setup(5
 ### AI 偵測效果不佳
 
 **改進建議**:
-1. **使用蚊子專用模型** - 參見 [python/MOSQUITO_MODELS.md](python/MOSQUITO_MODELS.md)
+1. **使用蚊子專用模型** - 參見 [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md)
 2. **增加照明** - 確保環境光線充足（最低 0.5 lux）
 3. **調整 AI 參數**:
    ```python
@@ -612,7 +640,7 @@ sudo python3 -c "import OPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.setup(5
    ```python
    detector = MosquitoDetector(imgsz=320)  # 從 640 降到 320
    ```
-5. **轉換為 ONNX/RKNN** - 參見 [python/AI_DETECTION_GUIDE.md](python/AI_DETECTION_GUIDE.md)
+5. **轉換為 ONNX/RKNN** - 參見 [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md)
 
 # 執行校準
 <CAL>
@@ -750,6 +778,64 @@ DEBUG_PRINT(panAngle);
 ### Q4: 角度範圍不正確
 
 **A**: 執行校準命令 `<CAL>`，或在 `config.h` 中調整角度範圍。
+
+---
+
+## 📚 完整文檔索引
+
+### 📖 核心文檔
+
+| 文檔 | 說明 |
+|------|------|
+| [README.md](README.md) | 專案主文檔（本文件） |
+| [CONSISTENCY_CHECK.md](CONSISTENCY_CHECK.md) | 文件與程式一致性檢查報告 |
+| [SERIAL_PROTOCOL_MAPPING.md](SERIAL_PROTOCOL_MAPPING.md) | 串口通訊協議完整對照表 |
+| [LICENSE](LICENSE) | MIT 授權條款 |
+
+### 🔧 硬體與配置文檔
+
+| 文檔 | 說明 |
+|------|------|
+| [docs/hardware.md](docs/hardware.md) | 硬體連接詳細說明（含接線圖） |
+| [docs/orangepi5_hardware.md](docs/orangepi5_hardware.md) | Orange Pi 5 硬體配置指南 |
+| [docs/protocol.md](docs/protocol.md) | 串口通訊協議技術規格 |
+| [docs/arduino_ide_guide.md](docs/arduino_ide_guide.md) | Arduino IDE 編譯上傳指南 |
+
+### 🤖 AI 與 Python 文檔
+
+| 文檔 | 說明 |
+|------|------|
+| [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI 檢測系統詳細指南 |
+| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | 蚊子檢測模型說明與下載 |
+| [docs/python_example.md](docs/python_example.md) | Python 範例程式與使用教學 |
+| [docs/python_README.md](docs/python_README.md) | Python 模塊導航文檔 |
+| [python/README.md](python/README.md) | Python 程式目錄說明 |
+
+### 🧪 測試與驗證文檔
+
+| 文檔 | 說明 |
+|------|------|
+| [docs/SERIAL_CHECK_SUMMARY.md](docs/SERIAL_CHECK_SUMMARY.md) | 串口通訊格式檢查總結 |
+| [python/test_serial_protocol.py](python/test_serial_protocol.py) | 串口協議測試腳本 |
+| [python/test_tracking_logic.py](python/test_tracking_logic.py) | 追蹤邏輯驗證腳本 |
+| [python/test_multi_target_tracking.py](python/test_multi_target_tracking.py) | 多目標追蹤測試腳本 |
+
+### 📁 代碼文件
+
+| 檔案 | 說明 |
+|------|------|
+| [include/config.h](include/config.h) | Arduino 固件配置參數 |
+| [src/main.cpp](src/main.cpp) | Arduino 橋接固件主程式 |
+| [python/mosquito_tracker.py](python/mosquito_tracker.py) | 主追蹤系統 |
+| [python/mosquito_detector.py](python/mosquito_detector.py) | AI 檢測器模組 |
+| [python/pt2d_controller.py](python/pt2d_controller.py) | Arduino 控制器介面 |
+| [python/stereo_camera.py](python/stereo_camera.py) | 雙目相機模組 |
+| [python/laser_controller.py](python/laser_controller.py) | 雷射控制模組 |
+| [python/quick_start.py](python/quick_start.py) | 快速啟動腳本 |
+
+**提示**: 所有文檔均以 Markdown 格式編寫，可直接在 GitHub 或任何 Markdown 編輯器中閱讀。
+
+---
 
 ## 📄 授權
 
