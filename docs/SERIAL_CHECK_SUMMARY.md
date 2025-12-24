@@ -100,7 +100,7 @@
 ### 2. 啟動訊息處理
 - **重要：** 連接後會收到 4-7 行啟動訊息
 - **處理：** Python 端已加入 `_clear_startup_messages()` 方法
-- **建議：** 使用更新後的 `pt2d_controller.py` 或 `pt2d_controller_improved.py`
+- **建議：** 使用更新後的 `pt2d_controller.py`（已整合重試機制）
 
 ### 3. JSON 解析失敗處理
 - **現象：** 如果收到非 JSON 格式，會返回 `{'raw': <字串>, 'error': 'Failed to parse JSON'}`
@@ -171,8 +171,7 @@ with PT2DController('COM3') as pt:
 
 - [SERIAL_PROTOCOL_MAPPING.md](../SERIAL_PROTOCOL_MAPPING.md) - 詳細通訊格式對照
 - [src/main.cpp](../src/main.cpp) - 固件代碼
-- [python/pt2d_controller.py](../python/pt2d_controller.py) - Python 控制器（已更新）
-- [python/pt2d_controller_improved.py](../python/pt2d_controller_improved.py) - 增強版控制器
+- [python/pt2d_controller.py](../python/pt2d_controller.py) - Python 控制器（已整合重試機制）
 - [python/test_serial_protocol.py](../python/test_serial_protocol.py) - 自動化測試腳本
 
 ## 🎯 總結

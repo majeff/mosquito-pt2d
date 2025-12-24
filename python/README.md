@@ -45,15 +45,15 @@ python quick_start.py
 
 | 檔案 | 說明 |
 |------|------|
-| `pt2d_controller.py` | 雲台控制器（標準版） |
-| `pt2d_controller_improved.py` | 雲台控制器（增強版，帶重試機制） |
+| `pt2d_controller.py` | 雲台控制器（含重試機制） |
 | `mosquito_detector.py` | AI 蚊子檢測器 |
 | `mosquito_tracker.py` | 蚊子追蹤邏輯 |
 | `laser_controller.py` | 雷射控制器 |
 | `stereo_camera.py` | 立體相機處理 |
 | `quick_start.py` | 快速啟動腳本 |
 | `test_serial_protocol.py` | Serial 通訊測試腳本 |
-| `download_model.py` | 模型下載工具 |
+| `test_tracking_logic.py` | 追蹤邏輯測試腳本 |
+| `test_multi_target_tracking.py` | 多目標追蹤測試腳本 |
 
 ## 🔗 更多資訊
 
