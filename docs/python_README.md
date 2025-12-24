@@ -173,7 +173,7 @@ from mosquito_detector import MosquitoDetector
 # 初始化 AI 偵測器
 detector = MosquitoDetector(
     model_path='models/mosquito_yolov8n.pt',  # 使用蚊子專用模型
-    confidence_threshold=0.3,
+    confidence_threshold=0.4,
     imgsz=320  # Orange Pi 5 建議使用 320 提升速度
 )
 
@@ -224,6 +224,15 @@ from pt2d_controller import PT2DController
 with PT2DController('COM3') as pt:
     # 設置到中央位置
     pt.home()
+    
+    # 移動到指定位置
+    pt.move_to(135, 90)
+    
+    # 獲取當前位置
+    pan, tilt = pt.get_position()
+    print(f"位置: {pan}°, {tilt}°")
+```
+
 **測試:**
 
 ```bash
