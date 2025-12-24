@@ -74,7 +74,7 @@ static void autoDetectServoId() {
     return;
   }
 
-  Serial.println("[INFO] 啟動舵機ID自動掃描...");
+  Serial.println("{\"status\":\"info\",\"message\":\"啟動舵機ID自動掃描\"}");
 
   // 嘗試掃描 Pan 舵機
   for (int id = 1; id <= 5; id++) {
@@ -89,8 +89,9 @@ static void autoDetectServoId() {
       char c = (char)BUS_SERIAL.read();
       if (c == '!') {
         panServoId = id;
-        Serial.print("[OK] Pan 舵機 ID: ");
-        Serial.println(panServoId);
+        Serial.print("{\"status\":\"info\",\"message\":\"Pan舵機ID\",\"id\":");
+        Serial.print(panServoId);
+        Serial.println("}");
         break;
       }
     }
@@ -113,8 +114,9 @@ static void autoDetectServoId() {
       char c = (char)BUS_SERIAL.read();
       if (c == '!') {
         tiltServoId = id;
-        Serial.print("[OK] Tilt 舵機 ID: ");
-        Serial.println(tiltServoId);
+        Serial.print("{\"status\":\"info\",\"message\":\"Tilt舵機ID\",\"id\":");
+        Serial.print(tiltServoId);
+        Serial.println("}");
         break;
       }
     }
@@ -126,7 +128,7 @@ static void autoDetectServoId() {
   }
 
   servoIdDetected = true;
-  Serial.println("[INFO] 舵機掃描完成");
+  Serial.println("{\"status\":\"info\",\"message\":\"舵機掃描完成\"}");
 }
 
 static void beep_short3() {
@@ -215,11 +217,11 @@ static void handlePcLine(const String &line) {
         if (newPanId > 0 && newTiltId > 0) {
           panServoId = newPanId;
           tiltServoId = newTiltId;
-          Serial.print("{\"status\":\"ok\",\"message\":\"Pan ID=");
+          Serial.print("{\"status\":\"ok\",\"pan_id\":");
           Serial.print(panServoId);
-          Serial.print(", Tilt ID=");
+          Serial.print(",\"tilt_id\":");
           Serial.print(tiltServoId);
-          Serial.println("\"}");
+          Serial.println("}");
           return;
         }
       }
@@ -455,20 +457,19 @@ void setup() {
   setup_uart();
   setup_bus();
 
-  Serial.println(F("================================="));
-  Serial.println(F("PT2D Bridge Firmware v2.2.0"));
-  Serial.println(F("PC <...> / BUS #...!"));
-  Serial.println(F("================================="));
+  Serial.println(F("{\"status\":\"info\",\"message\":\"PT2D Bridge Firmware v2.2.0\"}"));
+  Serial.println(F("{\"status\":\"info\",\"message\":\"PC <...> / BUS #...!\"}"));
   beep_short3();
 
   // 啟動時自動掃描舵機 ID
   delay(500);  // 等待舵機啟動
   autoDetectServoId();
 
-  Serial.print(F("[SERVO] Pan ID="));
+  Serial.print(F("{\"status\":\"info\",\"message\":\"舵機ID已設置\",\"pan_id\":"));
   Serial.print(panServoId);
-  Serial.print(F(" Tilt ID="));
-  Serial.println(tiltServoId);
+  Serial.print(F(",\"tilt_id\":"));
+  Serial.print(tiltServoId);
+  Serial.println(F("}"));
 }
 
 void loop() {

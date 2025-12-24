@@ -35,14 +35,47 @@ class PT2DController:
             time.sleep(2)  # 等待 Arduino 初始化
             logger.info(f"已連接至 {port}，波特率 {baudrate}")
 
-            # 清空緩衝區
-            self.ser.flushInput()
-            self.ser.flushOutput()
+            # 讀取並清空啟動訊息
+            self._clear_startup_messages()
             self.is_connected = True
 
         except Exception as e:
             logger.error(f"無法連接至 {port}: {e}")
             self.is_connected = False
+
+    def _clear_startup_messages(self, timeout: float = 3.0):
+        """
+        清空啟動時的訊息
+        
+        Args:
+            timeout: 總超時時間（秒）
+        """
+        start_time = time.time()
+        logger.info("讀取啟動訊息...")
+        
+        while (time.time() - start_time) < timeout:
+            try:
+                if self.ser.in_waiting > 0:
+                    line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+                    if line:
+                        logger.debug(f"啟動訊息: {line}")
+                        # 嘗試解析 JSON，記錄舵機 ID
+                        try:
+                            data = json.loads(line)
+                            if 'pan_id' in data and 'tilt_id' in data:
+                                logger.info(f"偵測到舵機 ID: Pan={data['pan_id']}, Tilt={data['tilt_id']}")
+                        except json.JSONDecodeError:
+                            pass
+                else:
+                    time.sleep(0.05)
+            except Exception as e:
+                logger.warning(f"讀取啟動訊息時發生錯誤: {e}")
+                break
+        
+        # 清空剩餘緩衝區
+        self.ser.flushInput()
+        self.ser.flushOutput()
+        logger.info("啟動訊息處理完畢")
 
     def send_command(self, cmd: str) -> Dict:
         """
