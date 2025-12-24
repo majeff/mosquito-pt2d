@@ -1,6 +1,6 @@
 # 文件與程式一致性檢查報告
 
-**檢查日期**: 2025-12-25  
+**檢查日期**: 2025-12-25
 **專案**: mosquito-pt2d - 蚊子追蹤 AI 雲台系統
 
 ---
@@ -78,7 +78,7 @@
 
 **修正位置**: `python/mosquito_tracker.py` 第 61 行
 
-**修正前**: `model_path='models/mosquito_yolov8n.pt'`  
+**修正前**: `model_path='models/mosquito_yolov8n.pt'`
 **修正後**: `model_path=None`
 
 **優點**:
@@ -90,7 +90,7 @@
 
 **修正位置**: `python/mosquito_detector.py` 第 45 行
 
-**修正前**: `confidence_threshold: float = 0.25`  
+**修正前**: `confidence_threshold: float = 0.25`
 **修正後**: `confidence_threshold: float = 0.4`
 
 **同時更新文檔說明**:
@@ -102,7 +102,7 @@ confidence_threshold: 信心度閾值（0-1），預設 0.4（推薦範圍 0.3-0
 
 **修正位置**: `python/mosquito_detector.py` 第 48 行
 
-**修正前**: `imgsz: int = 640`  
+**修正前**: `imgsz: int = 640`
 **修正後**: `imgsz: int = 320`
 
 **同時更新文檔說明**:
@@ -170,7 +170,7 @@ imgsz: 輸入影像大小，預設 320（Orange Pi 5 推薦）
 
 **結論**: ✅ 所有文檔已在 README.md 的「完整文檔索引」章節中引用
 
-**新增章節**: 
+**新增章節**:
 - 📚 完整文檔索引（包含核心文檔、硬體配置、AI/Python、測試驗證、代碼文件等分類）
 
 ---
@@ -188,7 +188,7 @@ imgsz: 輸入影像大小，預設 320（Orange Pi 5 推薦）
 | 雙目相機 | ❌ 缺少 | - | ⚠️ |
 | 雷射控制 | ❌ 缺少 | - | ⚠️ |
 
-**建議**: 
+**建議**:
 1. 添加 `test_mosquito_detector.py` 測試 AI 檢測功能
 2. 添加 `test_stereo_camera.py` 測試雙目相機
 3. 添加 `test_laser_controller.py` 測試雷射控制
@@ -254,7 +254,7 @@ self.position_update_interval = 0.5 # 位置更新間隔（秒）
 
 **文檔完整性**: 100% ✅
 - 所有 config.h 參數已記錄
-- 所有 mosquito_tracker.py 參數已記錄  
+- 所有 mosquito_tracker.py 參數已記錄
 - 所有文檔已在索引中引用
 
 **參數一致性**: 100% ✅
@@ -329,6 +329,6 @@ self.position_update_interval = 0.5 # 位置更新間隔（秒）
 
 ---
 
-**檢查人員**: GitHub Copilot  
-**檢查工具**: 自動代碼掃描 + 人工審核  
+**檢查人員**: GitHub Copilot
+**檢查工具**: 自動代碼掃描 + 人工審核
 **下次檢查建議**: 每次重大功能更新後
