@@ -306,15 +306,354 @@ cd mosquito-detection
 
 **D. 自己訓練輕量級模型（適合 Orange Pi 5）**
 
+如果現有模型不符合需求，可以使用自己收集的蚊子數據集訓練專用模型。本指南為在有 GPU 的電腦上訓練，然後部署到 Orange Pi 5。
+
+##### 📋 訓練環境準備（GPU 電腦）
+
+**步驟 1: 安裝訓練環境**
+
 ```bash
-# 使用 YOLOv8n-nano 訓練（最輕量）
-yolo train data=mosquito.yaml model=yolov8n.pt epochs=100 imgsz=416
+# 在 GPU 電腦上（Windows/Linux/Mac）
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install ultralytics opencv-python pillow
+pip install roboflow  # 可選：用於下載標註數據集
+```
 
-# 轉換為 ONNX 格式（Orange Pi 5 優化）
-yolo export model=best.pt format=onnx opset=12 simplify=True
+**驗證安裝**：
+```bash
+python -c "import torch; print(f'CUDA Available: {torch.cuda.is_available()}')"
+python -c "from ultralytics import YOLO; print('YOLOv8 OK')"
+```
 
-# 進一步轉換為 RKNN 格式（NPU 加速）
-# 需要使用 RKNN Toolkit 2
+##### 📊 數據集準備
+
+**方式 1: 使用 Roboflow 數據集（推薦快速方式）**
+
+```bash
+# 登錄 Roboflow 後取得 API Key
+# https://roboflow.com/
+
+python << EOF
+from roboflow import Roboflow
+
+# 替換為你的 workspace 和 project
+rf = Roboflow(api_key="YOUR_API_KEY")
+project = rf.workspace("your-workspace").project("mosquito-detection")
+
+# 下載 YOLOv8 格式數據集
+dataset = project.version(1).download("yolov8")
+EOF
+```
+
+**方式 2: 本地收集和標註數據**
+
+需要自己使用標註工具準備數據集：
+
+```
+mosquito_dataset/
+├── images/
+│   ├── train/
+│   │   ├── img_001.jpg
+│   │   ├── img_002.jpg
+│   │   └── ...
+│   ├── val/
+│   │   ├── img_101.jpg
+│   │   └── ...
+│   └── test/
+│       ├── img_201.jpg
+│       └── ...
+└── labels/
+    ├── train/
+    │   ├── img_001.txt  # YOLO 格式標註
+    │   └── ...
+    ├── val/
+    │   └── ...
+    └── test/
+        └── ...
+```
+
+推薦標註工具：
+- **Roboflow Annotate**: https://roboflow.com/ （線上標註 + 自動增強）
+- **LabelImg**: 本地標註工具
+- **CVAT**: https://github.com/openvinotoolkit/cvat （企業級工具）
+
+##### 🎯 創建 YAML 配置文件
+
+創建 `mosquito.yaml` 配置文件：
+
+```yaml
+# mosquito.yaml
+path: /path/to/mosquito_dataset  # 數據集根路徑
+train: images/train
+val: images/val
+test: images/test
+
+# 類別定義
+nc: 1  # 蚊子為單類別
+names: ['mosquito']
+```
+
+##### 🚀 開始訓練
+
+**基本訓練命令**：
+
+```bash
+# 使用 YOLOv8n（最輕量，適合 Orange Pi 5）
+yolo detect train \
+    data=mosquito.yaml \
+    model=yolov8n.pt \
+    epochs=100 \
+    imgsz=416 \
+    batch=32 \
+    device=0 \
+    patience=20 \
+    save=True
+```
+
+**訓練參數說明**：
+
+| 參數 | 值 | 說明 |
+|------|-----|------|
+| `data` | mosquito.yaml | 數據集配置文件 |
+| `model` | yolov8n.pt | 使用 nano 模型（最輕量） |
+| `epochs` | 100 | 訓練輪次（通常 100-200） |
+| `imgsz` | 416 | 輸入圖像尺寸（416 或 320） |
+| `batch` | 32 | 批次大小（根據 GPU 內存調整） |
+| `device` | 0 | 使用的 GPU ID（0 = 第一個 GPU） |
+| `patience` | 20 | Early stopping 耐心值 |
+
+**進階訓練配置**（用於 Google Colab）：
+
+```python
+from ultralytics import YOLO
+import torch
+
+# 檢查 GPU
+print(f'GPU Available: {torch.cuda.is_available()}')
+print(f'GPU Device: {torch.cuda.get_device_name(0)}')
+
+# 載入預訓練模型
+model = YOLO('yolov8n.pt')
+
+# 開始訓練
+results = model.train(
+    data='mosquito.yaml',
+    epochs=100,
+    imgsz=416,
+    batch=32,
+    device=0,
+    patience=20,
+    verbose=True,
+    save=True,
+    augment=True,  # 啟用數據增強
+    mosaic=1.0,    # Mosaic 增強
+    flipud=0.5,    # 上下翻轉
+    fliplr=0.5,    # 左右翻轉
+    degrees=10,    # 旋轉角度
+    translate=0.1, # 平移
+    scale=0.5      # 縮放
+)
+
+# 獲取結果
+print(results)
+```
+
+##### ✅ 訓練完成後
+
+訓練完成後，最佳模型保存在：
+
+```
+runs/detect/train/
+├── weights/
+│   ├── best.pt      # 最佳模型 ⭐ 使用此檔案
+│   └── last.pt      # 最後一個檢查點
+├── results.csv      # 訓練結果
+└── ...
+```
+
+##### 📈 評估模型性能
+
+```python
+from ultralytics import YOLO
+
+# 載入訓練好的模型
+model = YOLO('runs/detect/train/weights/best.pt')
+
+# 在驗證集上評估
+metrics = model.val()
+
+# 列印指標
+print(f'mAP50: {metrics.box.map50}')
+print(f'mAP50-95: {metrics.box.map}')
+
+# 測試模型
+results = model.predict(source='test_image.jpg', conf=0.4)
+```
+
+##### 🔄 模型轉換和部署
+
+**步驟 1: 轉換為 ONNX 格式（所有平台支持）**
+
+```python
+from ultralytics import YOLO
+
+model = YOLO('runs/detect/train/weights/best.pt')
+
+# 導出為 ONNX
+model.export(
+    format='onnx',
+    opset=12,
+    simplify=True,
+    dynamic=True  # 動態批處理
+)
+
+# 會生成 best.onnx
+```
+
+**步驟 2: 轉換為 RKNN 格式（Orange Pi 5 NPU 加速）**
+
+在 Orange Pi 5 上執行（或使用 RKNN Toolkit Docker）：
+
+```python
+from rknn.api import RKNN
+import cv2
+import numpy as np
+
+# 準備校準數據集（重要！影響量化精度）
+def prepare_calibration_images(image_dir, num_images=100):
+    """準備校準數據集"""
+    images = []
+    import os
+    for i, img_file in enumerate(os.listdir(image_dir)[:num_images]):
+        img_path = os.path.join(image_dir, img_file)
+        img = cv2.imread(img_path)
+        if img is not None:
+            img = cv2.resize(img, (416, 416))
+            images.append(img)
+    return images
+
+# 初始化 RKNN
+rknn = RKNN(verbose=True)
+
+# 配置
+rknn.config(
+    mean_values=[[0, 0, 0]],
+    std_values=[[255, 255, 255]],
+    target_platform='rk3588',
+    quantized_dtype='asymmetric_quantized-8'  # INT8 量化
+)
+
+# 載入 ONNX 模型
+print('[*] 載入 ONNX 模型...')
+ret = rknn.load_onnx(model='best.onnx')
+if ret != 0:
+    print('[!] 載入失敗')
+    exit(1)
+
+# 準備校準數據
+print('[*] 準備校準數據...')
+calib_images = prepare_calibration_images('path/to/train/images')
+
+# 建立 RKNN 模型（進行量化）
+print('[*] 構建 RKNN 模型...')
+ret = rknn.build(
+    do_quantization=True,
+    dataset=calib_images,
+    rknn_batch_size=1
+)
+if ret != 0:
+    print('[!] 構建失敗')
+    exit(1)
+
+# 匯出 RKNN 模型
+print('[*] 匯出 RKNN 模型...')
+ret = rknn.export_rknn('mosquito_yolov8n.rknn')
+if ret != 0:
+    print('[!] 匯出失敗')
+    exit(1)
+
+print('[✓] 轉換完成！模型已保存為 mosquito_yolov8n.rknn')
+
+rknn.release()
+```
+
+**步驟 3: 複製到 Orange Pi 5**
+
+```bash
+# 在 GPU 電腦上
+scp runs/detect/train/weights/best.onnx pi@orangepi5:/home/pi/mosquito_tracker/models/
+
+# 或直接在 Orange Pi 5 上轉換
+scp best.onnx orangepi5:~/
+# 然後在 Orange Pi 5 上執行轉換腳本
+```
+
+##### 📱 在 Orange Pi 5 上使用訓練的模型
+
+```python
+from mosquito_detector import MosquitoDetector
+
+# 使用 PyTorch 模型（速度較慢）
+detector = MosquitoDetector(
+    model_path='models/best.pt',
+    confidence_threshold=0.4,
+    imgsz=416
+)
+
+# 或使用 ONNX 模型（較快）
+# detector = MosquitoDetector(
+#     model_path='models/best.onnx',
+#     confidence_threshold=0.4
+# )
+
+# 或使用 RKNN 模型（最快，需要 NPU）
+# detector = MosquitoDetector(
+#     model_path='models/mosquito_yolov8n.rknn',
+#     confidence_threshold=0.4
+# )
+
+# 執行偵測
+frame = ...  # 讀取影像
+detections, _ = detector.detect(frame)
+```
+
+##### ⚠️ 訓練常見問題
+
+**問題 1: GPU 顯存不足**
+
+```bash
+# 減少批次大小
+yolo detect train data=mosquito.yaml model=yolov8n.pt batch=16 device=0
+
+# 或使用更小的圖像尺寸
+yolo detect train data=mosquito.yaml model=yolov8n.pt imgsz=320 device=0
+```
+
+**問題 2: 訓練速度太慢**
+
+- 使用 yolov8n（nano）而不是 yolov8s 或 yolov8m
+- 減少 epochs 數量（開始時用 50-100）
+- 使用更小的 imgsz（320 vs 416）
+
+**問題 3: 模型過擬合（val 損失升高）**
+
+```python
+model.train(
+    data='mosquito.yaml',
+    epochs=100,
+    patience=15,      # Early stopping
+    dropout=0.3,      # 增加 dropout
+    weight_decay=0.01 # L2 正則化
+)
+```
+
+**問題 4: mAP 精度低（< 0.5）**
+
+- 檢查標註品質（标注框是否正確）
+- 增加訓練數據量（至少 500 張圖片）
+- 訓練更多 epochs（200+ epochs）
+- 使用數據增強
+
 ```
 
 ##### 📦 模型下載和使用
