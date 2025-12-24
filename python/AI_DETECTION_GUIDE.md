@@ -10,14 +10,47 @@
 
 ### 1. 安裝依賴套件 (Orange Pi 5)
 
+#### 步驟 1.1: 安裝系統級依賴
+
+首先安裝編譯工具和開發庫（**必須**）：
+
+```bash
+# 更新系統
+sudo apt update && sudo apt upgrade -y
+
+# 安裝編譯工具和依賴庫
+sudo apt install -y \
+    build-essential \
+    cmake \
+    git \
+    libssl-dev \
+    libffi-dev \
+    python3-dev \
+    python3-pip
+
+# 安裝 OpenCV 系統依賴
+sudo apt install -y \
+    libjasper-dev \
+    libtiff5-dev \
+    libatlas-base-dev \
+    libharfbuzz0b \
+    libwebp6
+
+# 驗證 cmake 安裝
+cmake --version
+```
+
+**重要**: 如果跳過此步驟會導致 `cmake not found` 錯誤！
+
+#### 步驟 1.2: 安裝 Python 套件
+
 ```bash
 # 基本套件
 pip install -r requirements.txt
 
-# Orange Pi 5 NPU 支援 (可選，用於硬體加速)
-# RKNN Toolkit 2 - 需要從官方下載
-wget https://github.com/rockchip-linux/rknn-toolkit2/releases/download/v1.5.0/rknn_toolkit2-1.5.0-cp38-cp38-linux_aarch64.whl
-pip install rknn_toolkit2-1.5.0-cp38-cp38-linux_aarch64.whl
+# Orange Pi 5 NPU 支援 (推薦)
+# RKNN Toolkit 2 - 最新版本 2.3.2，可直接通過 pip 安裝
+pip install rknn-toolkit2
 ```
 
 這會安裝以下主要套件：
@@ -25,9 +58,114 @@ pip install rknn_toolkit2-1.5.0-cp38-cp38-linux_aarch64.whl
 - `onnxruntime`: ONNX 模型推理引擎
 - `opencv-python`: 影像處理
 - `numpy`: 數值運算
-- `rknn-toolkit2`: (可選) RK3588 NPU 加速
+- `rknn-toolkit2`: (推薦) RK3588 NPU 加速 (v2.3.2+)
 
 **注意**: Orange Pi 5 沒有 GPU，不需要安裝 PyTorch CUDA 版本。
+
+## 🚀 快速開始
+
+### 自動安裝腳本（推薦）
+
+為了簡化安裝過程，使用此一鍵安裝腳本：
+
+```bash
+# 建立安裝腳本
+cat > install_orangepi5.sh << 'EOF'
+#!/bin/bash
+set -e
+
+echo "=========================================="
+echo "Orange Pi 5 AI 蚊子檢測系統安裝"
+echo "=========================================="
+
+# 步驟 1: 更新系統
+echo "[1/4] 更新系統..."
+sudo apt update && sudo apt upgrade -y
+
+# 步驟 2: 安裝系統依賴
+echo "[2/4] 安裝編譯工具和開發庫..."
+sudo apt install -y \
+    build-essential cmake git \
+    libssl-dev libffi-dev python3-dev \
+    libjasper-dev libtiff5-dev \
+    libatlas-base-dev libharfbuzz0b libwebp6
+
+# 步驟 3: 驗證 cmake
+echo "[3/4] 驗證 cmake..."
+cmake --version
+
+# 步驟 4: 安裝 Python 套件
+echo "[4/4] 安裝 Python 套件..."
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+pip install rknn-toolkit2
+
+echo ""
+echo "=========================================="
+echo "✓ 安裝完成！"
+echo "=========================================="
+echo ""
+echo "驗證安裝："
+echo "  python3 -c \"import ultralytics; print('YOLOv8 OK')\""
+echo "  python3 -c \"from rknn.api import RKNN; print('RKNN 2.3.2 OK')\""
+echo ""
+EOF
+
+# 執行安裝腳本
+chmod +x install_orangepi5.sh
+./install_orangepi5.sh
+```
+
+### 手動安裝步驟
+
+如果自動腳本不可用，按照以下步驟手動安裝：
+
+**步驟 1: 安裝系統依賴** (必須)
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y build-essential cmake git libssl-dev libffi-dev python3-dev
+```
+
+**步驟 2: 驗證 cmake**
+
+```bash
+cmake --version
+# 應該輸出類似：cmake version 3.xx.x
+```
+
+**步驟 3: 升級 pip**
+
+```bash
+pip install --upgrade pip setuptools wheel
+```
+
+**步驟 4: 安裝 Python 套件**
+
+```bash
+cd python
+pip install -r requirements.txt
+```
+
+**步驟 5: 安裝 RKNN Toolkit 2 (推薦)**
+
+```bash
+# 直接安裝最新版本 (v2.3.2+)
+pip install rknn-toolkit2
+```
+
+**驗證安裝：**
+
+```bash
+# 驗證 YOLOv8
+python3 -c "from ultralytics import YOLO; print('✓ YOLOv8 安裝成功')"
+
+# 驗證 RKNN (v2.3.2+)
+python3 -c "from rknn.api import RKNN; print('✓ RKNN 2.3.2 安裝成功')"
+
+# 驗證 OpenCV
+python3 -c "import cv2; print(f'✓ OpenCV {cv2.__version__} 安裝成功')"
+```
 
 ### 2. 執行測試
 
@@ -390,7 +528,71 @@ python -c "from rknn.api import RKNN; print('NPU OK')"
 ```
 
 
-### 錯誤: "ultralytics 未安裝"
+### 錯誤: "Could not find cmake executable"
+
+**症狀**:
+```
+AssertionError: Could not find "cmake" executable!
+```
+
+**原因**: 系統缺少 cmake 和編譯工具
+
+**解決方案**:
+```bash
+# 安裝編譯工具
+sudo apt update
+sudo apt install -y build-essential cmake git libssl-dev libffi-dev python3-dev
+
+# 驗證安裝
+cmake --version
+
+# 重新安裝 RKNN Toolkit 2
+pip install rknn-toolkit2
+```
+
+**注意**: 如果仍然失敗，可以先不安裝 RKNN，使用 CPU 版本（見下方）
+
+### 錯誤: "Failed to build 'onnxoptimizer'"
+
+**症狀**:
+```
+ERROR: Failed to build 'onnxoptimizer' when getting requirements to build wheel
+```
+
+**原因**: RKNN Toolkit 2 v2.3.2+ 已修復此問題，通常不會再出現
+
+**解決方案**:
+如果升級後仍出現此錯誤，嘗試以下步驟：
+
+```bash
+# 升級到最新版本
+pip install --upgrade rknn-toolkit2
+
+# 如果仍然失敗，使用 CPU 版本（無 NPU 加速）
+pip install onnxruntime
+```
+
+### 錯誤: "fatal: not a git repository"
+
+**症狀**:
+```
+fatal: not a git repository (or any parent up to mount point /)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+```
+
+**原因**: 套件安裝過程中尋找 git 版本信息，但系統不在 git 倉庫中
+
+**解決方案**: 通常可以忽略此警告，它不會影響安裝。如果安裝失敗，執行：
+
+```bash
+# 初始化 git（可選）
+git init
+
+# 或直接忽略，繼續下一步
+pip install rknn_toolkit2-*.whl --no-build-isolation
+```
+
+### 錯誤: "No module named 'onnxruntime'"
 
 ```bash
 pip install ultralytics
@@ -544,5 +746,6 @@ MIT License
 
 ---
 
-**最後更新**: 2025年12月23日
-**版本**: 2.0.0 (Orange Pi 5 優化版)
+**最後更新**: 2025年12月24日
+**版本**: 2.2.0 (RKNN Toolkit 2.3.2 版本更新)
+**更新內容**: 更新 RKNN Toolkit 2 到 v2.3.2；簡化安裝步驟，改用 `pip install rknn-toolkit2`；移除手動 wheel 下載；更新故障排查指南
