@@ -46,13 +46,13 @@ class PT2DController:
     def _clear_startup_messages(self, timeout: float = 3.0):
         """
         清空啟動時的訊息
-        
+
         Args:
             timeout: 總超時時間（秒）
         """
         start_time = time.time()
         logger.info("讀取啟動訊息...")
-        
+
         while (time.time() - start_time) < timeout:
             try:
                 if self.ser.in_waiting > 0:
@@ -71,7 +71,7 @@ class PT2DController:
             except Exception as e:
                 logger.warning(f"讀取啟動訊息時發生錯誤: {e}")
                 break
-        
+
         # 清空剩餘緩衝區
         self.ser.flushInput()
         self.ser.flushOutput()

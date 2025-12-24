@@ -204,7 +204,7 @@ Serial.println("}");
 ```python
 def __init__(self, port: str, baudrate: int = 115200, timeout: float = 1.0):
     # ... 現有代碼 ...
-    
+
     try:
         self.ser = serial.Serial(port, baudrate, timeout=timeout)
         time.sleep(2)
@@ -212,7 +212,7 @@ def __init__(self, port: str, baudrate: int = 115200, timeout: float = 1.0):
 
         # ✅ 新增：讀取並清空啟動訊息
         self._clear_startup_messages()
-        
+
         self.is_connected = True
     # ...
 
@@ -295,4 +295,3 @@ def _clear_startup_messages(self, timeout: float = 3.0):
 3. ⏳ **待執行：** 修復 SETID 命令響應格式（見下方）
 4. ⏳ **可選：** 更新原版 pt2d_controller.py 或統一使用 improved 版本
 5. ⏳ **測試：** 實際硬件測試所有命令
-

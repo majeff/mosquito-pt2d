@@ -123,14 +123,14 @@ from pt2d_controller import PT2DController
 with PT2DController('COM3') as pt:
     # 測試基本命令
     print(pt.send_command('BEEP'))
-    
+
     # 測試移動
     print(pt.move_to(135, 90))
-    
+
     # 測試查詢
     pan, tilt = pt.get_position()
     print(f"位置: {pan}, {tilt}")
-    
+
     # 測試狀態
     status = pt.read_status()
     print(status)
@@ -178,16 +178,16 @@ with PT2DController('COM3') as pt:
 ## 🎯 總結
 
 ### 優點
-✅ 所有通訊統一使用 JSON 格式  
-✅ 結構清晰，易於解析  
-✅ 錯誤處理完善  
-✅ 支援總線透傳  
-✅ Python 端健壯性強  
+✅ 所有通訊統一使用 JSON 格式
+✅ 結構清晰，易於解析
+✅ 錯誤處理完善
+✅ 支援總線透傳
+✅ Python 端健壯性強
 
 ### 已修復的問題
-✅ 啟動訊息格式化  
-✅ SETID 響應結構化  
-✅ Python 端處理啟動訊息  
+✅ 啟動訊息格式化
+✅ SETID 響應結構化
+✅ Python 端處理啟動訊息
 
 ### 狀態
 🟢 **所有 Serial 通訊格式已檢查完畢，並完成必要修復**

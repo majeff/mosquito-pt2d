@@ -36,7 +36,7 @@ class PT2DController:
 
             # 清空緩衝區並讀取啟動訊息
             self._read_startup_messages()
-            
+
             self.is_connected = True
 
         except Exception as e:
@@ -46,16 +46,16 @@ class PT2DController:
     def _read_startup_messages(self, max_lines: int = 20, timeout: float = 3.0):
         """
         讀取 Arduino 啟動時的訊息（可能是純文字或 JSON）
-        
+
         Args:
             max_lines: 最多讀取的行數
             timeout: 總超時時間（秒）
         """
         start_time = time.time()
         lines_read = 0
-        
+
         logger.info("讀取啟動訊息...")
-        
+
         while lines_read < max_lines and (time.time() - start_time) < timeout:
             try:
                 if self.ser.in_waiting > 0:
@@ -63,7 +63,7 @@ class PT2DController:
                     if line:
                         lines_read += 1
                         logger.info(f"啟動訊息 #{lines_read}: {line}")
-                        
+
                         # 嘗試解析 JSON
                         try:
                             data = json.loads(line)
@@ -78,7 +78,7 @@ class PT2DController:
             except Exception as e:
                 logger.warning(f"讀取啟動訊息時發生錯誤: {e}")
                 break
-        
+
         logger.info("啟動訊息讀取完畢")
         # 清空剩餘緩衝區
         self.ser.flushInput()
@@ -137,15 +137,15 @@ class PT2DController:
     def _read_response(self, timeout: float = 1.0) -> str:
         """
         讀取一行響應，跳過非 JSON 格式的調試訊息
-        
+
         Args:
             timeout: 超時時間
-            
+
         Returns:
             響應字符串
         """
         start_time = time.time()
-        
+
         while (time.time() - start_time) < timeout:
             if self.ser.in_waiting > 0:
                 line = self.ser.readline().decode('utf-8', errors='ignore').strip()
@@ -159,7 +159,7 @@ class PT2DController:
                         logger.debug(f"跳過非 JSON 訊息: {line}")
                         continue
             time.sleep(0.01)
-        
+
         return ""
 
     def send_bus_command(self, raw: str) -> Dict:
