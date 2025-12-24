@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import time
 import logging
+import threading
 from typing import Optional, Tuple
 
 from stereo_camera import StereoCamera
@@ -81,6 +82,16 @@ class MosquitoTracker:
         self.tracking_active = False
         self.last_detection_time = 0
 
+        # 位置緩存（減少串口讀取頻率）
+        self.cached_pan = 135
+        self.cached_tilt = 90
+        self.last_position_update = 0
+        self.position_update_interval = 0.5  # 每0.5秒更新一次位置
+
+        # 蜂鳴器狀態
+        self.beep_cooldown = 2.0  # 蜂鳴冷卻時間（秒），避免頻繁觸發
+        self.last_beep_time = 0
+
         # 雷射標記狀態
         self.laser_marking = False
         self.last_laser_time = 0
@@ -91,6 +102,24 @@ class MosquitoTracker:
         self.tilt_gain = 0.15  # Tilt 軸增益
 
         logger.info("追蹤系統初始化完成")
+
+    def _beep_async(self):
+        """非同步蜂鳴器方法（在獨立線程中執行）"""
+        try:
+            self.controller.beep()
+            logger.info("🔔 蜂鳴器已觸發")
+        except Exception as e:
+            logger.warning(f"蜂鳴器觸發失敗: {e}")
+
+    def _home_async(self):
+        """非同步回到初始位置方法（在獨立線程中執行）"""
+        try:
+            self.controller.home()
+            self.cached_pan = 135
+            self.cached_tilt = 90
+            logger.info("雲台已回到初始位置")
+        except Exception as e:
+            logger.warning(f"雲台歸位失敗: {e}")
 
     def start(self) -> bool:
         """
@@ -192,6 +221,10 @@ class MosquitoTracker:
             if not self.tracking_active:
                 logger.info(f"[{camera_side}攝像頭] AI 偵測到蚊子 (信心度: {confidence:.2f})，開始追蹤")
                 self.tracking_active = True
+                # 非同步觸發蜂鳴器警報（避免阻塞雲台控制）
+                if current_time - self.last_beep_time > self.beep_cooldown:
+                    threading.Thread(target=self._beep_async, daemon=True).start()
+                    self.last_beep_time = current_time
 
             # 計算角度增量
             pan_delta, tilt_delta = self.calculate_target_angles(target_x, target_y)
@@ -252,9 +285,9 @@ class MosquitoTracker:
                     self.laser.off()
                     self.laser_marking = False
 
-                # 回到初始位置繼續監控
+                # 非同步回到初始位置繼續監控（避免阻塞主循環）
                 logger.info("AI 失去目標，雲台回到初始位置繼續監控...")
-                self.controller.home()
+                threading.Thread(target=self._home_async, daemon=True).start()
                 self.tracking_active = False
 
             # 返回左攝像頭畫面作為預設顯示
@@ -305,11 +338,18 @@ class MosquitoTracker:
                 cv2.putText(result, f"左: {len(left_detections)} | 右: {len(right_detections)}", (10, 60),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-                # 獲取當前雲台位置
-                try:
-                    pan, tilt = self.controller.get_position()
-                except:
-                    pan, tilt = 0, 0
+                # 獲取當前雲台位置（使用緩存減少串口讀取）
+                current_time = time.time()
+                if current_time - self.last_position_update > self.position_update_interval:
+                    try:
+                        pan, tilt = self.controller.get_position()
+                        if pan is not None and tilt is not None:
+                            self.cached_pan = pan
+                            self.cached_tilt = tilt
+                        self.last_position_update = current_time
+                    except:
+                        pass
+                pan, tilt = self.cached_pan, self.cached_tilt
 
                 # 顯示雷射狀態
                 if self.enable_laser:
@@ -339,7 +379,7 @@ class MosquitoTracker:
                     self.detector.reset()
                 elif key == ord('h'):
                     logger.info("回到初始位置")
-                    self.controller.home()
+                    threading.Thread(target=self._home_async, daemon=True).start()
                     self.tracking_active = False
                     if self.enable_laser and self.laser_marking:
                         self.laser.off()

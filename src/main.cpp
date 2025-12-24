@@ -64,11 +64,7 @@ static void setup_uart() {
 }
 
 static void setup_bus() {
-#if !defined(__AVR_ATmega2560__)
   BUS_SERIAL.begin(SERVO_BAUDRATE);
-#else
-  BUS_SERIAL.begin(SERVO_BAUDRATE);
-#endif
 }
 
 // 自動掃描舵機 ID
@@ -552,7 +548,7 @@ void loop() {
               aggPhase = 1;
               busBuf = "";
               char buf[24];
-              snprintf(buf, sizeof(buf), "#%03dPRTV!", PAN_SERVO_ID);
+              snprintf(buf, sizeof(buf), "#%03dPRTV!", panServoId);
               sendBus(String(buf));
               break;
             } else if (aggPhase == 1 && vcount >= 2) {

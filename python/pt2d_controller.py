@@ -229,6 +229,15 @@ class PT2DController:
         """執行校準"""
         return self.send_command('CAL')
 
+    def beep(self) -> Dict:
+        """
+        觸發蜂鳴器響聲
+
+        Returns:
+            響應字典
+        """
+        return self.send_command('BEEP')
+
     # 提示：韌體已移除掃描模式，以下模式相關命令不再提供
 
     def wait_until_reached(self, target_pan: int, target_tilt: int,
