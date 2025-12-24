@@ -9,6 +9,7 @@
  */
 
 #include <Arduino.h>
+#include <avr/wdt.h>  // 看門狗定時器
 #include "config.h"
 
 #if !defined(__AVR_ATmega2560__)
@@ -22,8 +23,11 @@ SoftwareSerial BUS_SERIAL(SERVO_TX_PIN, SERVO_RX_PIN);
 #define LED_PIN 13
 #define BEEP_PIN 4
 
-static String pcBuf;
-static String busBuf;
+// 固定大小緩衝區（避免 String 類的 heap 碎片化）
+static char pcBuf[128];
+static uint8_t pcBufLen = 0;
+static char busBuf[64];
+static uint8_t busBufLen = 0;
 
 enum BusCmdType { BUS_NONE = 0, BUS_READ_ANGLE, BUS_READ_VOLTEMP };
 static BusCmdType lastBusCmd = BUS_NONE;
@@ -48,6 +52,10 @@ static int aggPanVolt = -1;
 static int aggPanTemp = -1;
 static int aggTiltVolt = -1;
 static int aggTiltTemp = -1;
+static unsigned long aggTimeout = 0;  // 聚合命令超時保護（毫秒）
+
+// 超時設定（毫秒）
+#define AGG_CMD_TIMEOUT 2000  // 聚合命令最大等待時間
 
 static void setup_led() {
   pinMode(LED_PIN, OUTPUT);
@@ -67,6 +75,83 @@ static void setup_bus() {
   BUS_SERIAL.begin(SERVO_BAUDRATE);
 }
 
+// ============================================
+// 輔助函數：參數驗證與字串處理
+// ============================================
+
+// 驗證舵機 ID 是否有效（1-254）
+static bool isValidServoId(int id) {
+  return (id >= 1 && id <= 254);
+}
+
+// 驗證角度是否在範圍內
+static bool isValidAngle(int angle, int maxAngle) {
+  return (angle >= 0 && angle <= maxAngle);
+}
+
+// 安全的整數解析（避免 toInt() 的未定義行為）
+static bool parseIntParam(const char* str, int& result) {
+  if (!str || *str == '\0') return false;
+  char* endptr;
+  long val = strtol(str, &endptr, 10);
+  if (*endptr != '\0' && *endptr != ',' && *endptr != ' ') return false;
+  result = (int)val;
+  return true;
+}
+
+// 解析逗號分隔的兩個整數
+static bool parseTwoInts(const char* params, int& val1, int& val2) {
+  const char* comma = strchr(params, ',');
+  if (!comma) return false;
+
+  char buf1[16], buf2[16];
+  int len1 = comma - params;
+  if (len1 >= 16) return false;
+  strncpy(buf1, params, len1);
+  buf1[len1] = '\0';
+
+  strncpy(buf2, comma + 1, 15);
+  buf2[15] = '\0';
+
+  return parseIntParam(buf1, val1) && parseIntParam(buf2, val2);
+}
+
+// 字串轉大寫（in-place）
+static void toUpperCase(char* str) {
+  while (*str) {
+    if (*str >= 'a' && *str <= 'z') *str -= 32;
+    str++;
+  }
+}
+
+// 清空緩衝區
+static void clearBuf(char* buf, uint8_t& len) {
+  buf[0] = '\0';
+  len = 0;
+}
+
+// 重置聚合狀態
+static void resetAggState() {
+  aggType = AGG_NONE;
+  aggPhase = 0;
+  aggPanAngle = aggTiltAngle = -1;
+  aggPanVolt = aggTiltVolt = -1;
+  aggPanTemp = aggTiltTemp = -1;
+  aggTimeout = 0;
+  clearBuf(busBuf, busBufLen);
+}
+
+// JSON 錯誤回應
+static void sendError(const char* msg) {
+  Serial.print("{\"status\":\"error\",\"message\":\"");
+  Serial.print(msg);
+  Serial.println("\"}");
+}
+
+static void sendOk() {
+  Serial.println("{\"status\":\"ok\",\"message\":\"OK\"}");
+}
+
 // 自動掃描舵機 ID
 static void autoDetectServoId() {
   if (!AUTO_DETECT_SERVO_ID) {
@@ -80,7 +165,7 @@ static void autoDetectServoId() {
   for (int id = 1; id <= 5; id++) {
     char buf[16];
     snprintf(buf, sizeof(buf), "#%03dPID!", id);
-    sendBus(String(buf));
+    sendBus(buf);
     delay(SERVO_DETECT_INTERVAL);
 
     // 檢查回應
@@ -105,7 +190,7 @@ static void autoDetectServoId() {
 
     char buf[16];
     snprintf(buf, sizeof(buf), "#%03dPID!", id);
-    sendBus(String(buf));
+    sendBus(buf);
     delay(SERVO_DETECT_INTERVAL);
 
     // 檢查回應
@@ -148,7 +233,7 @@ static void forwardBusResponse() {
   }
 }
 
-static void sendBus(const String &cmd) {
+static void sendBus(const char* cmd) {
   // 將 #...! 指令送往總線
   BUS_SERIAL.print(cmd);
   BUS_SERIAL.flush();
@@ -161,303 +246,340 @@ static uint16_t angleToPosition(int angle) {
   return (uint16_t)map(angle, 0, SERVO_MAX_ANGLE, 0, 1000);
 }
 
-static void handlePcLine(const String &line) {
+// ============================================
+// 命令處理函數
+// ============================================
+
+// 處理 LED 命令
+static void handleLed(const char* params) {
+  char paramsCopy[16];
+  strncpy(paramsCopy, params, 15);
+  paramsCopy[15] = '\0';
+  toUpperCase(paramsCopy);
+
+  if (strcmp(paramsCopy, "ON") == 0) {
+    digitalWrite(LED_PIN, LOW);
+  } else {
+    digitalWrite(LED_PIN, HIGH);
+  }
+  Serial.println("{\"status\":\"ok\",\"message\":\"LED\"}");
+}
+
+// 處理 BEEP 命令
+static void handleBeep() {
+  beep_short3();
+  Serial.println("{\"status\":\"ok\",\"message\":\"BEEP\"}");
+}
+
+// 處理 SPEED 命令
+static void handleSpeed(const char* params) {
+  int val;
+  if (!parseIntParam(params, val)) {
+    sendError("Invalid parameter");
+    return;
+  }
+  if (val < 1) val = 1;
+  if (val > 100) val = 100;
+  moveSpeed = val;
+  moveTime = map(moveSpeed, 1, 100, 5000, 100);
+  sendOk();
+}
+
+// 處理 SETID 命令
+static void handleSetId(const char* params) {
+  int newPanId, newTiltId;
+  if (!parseTwoInts(params, newPanId, newTiltId)) {
+    sendError("Invalid parameter");
+    return;
+  }
+  if (!isValidServoId(newPanId) || !isValidServoId(newTiltId)) {
+    sendError("Invalid servo ID");
+    return;
+  }
+  panServoId = newPanId;
+  tiltServoId = newTiltId;
+  Serial.print("{\"status\":\"ok\",\"pan_id\":");
+  Serial.print(panServoId);
+  Serial.print(",\"tilt_id\":");
+  Serial.print(tiltServoId);
+  Serial.println("}");
+}
+
+// 處理 MOVE/MOVETO 命令
+static void handleMove(const char* params) {
+  int panAngle, tiltAngle;
+  if (!parseTwoInts(params, panAngle, tiltAngle)) {
+    sendError("Invalid parameter");
+    return;
+  }
+
+  uint16_t panPos = angleToPosition(panAngle);
+  uint16_t tiltPos = angleToPosition(tiltAngle);
+  char buf[32];
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, panPos, moveTime);
+  sendBus(buf);
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, tiltPos, moveTime);
+  sendBus(buf);
+  sendOk();
+}
+
+// 處理 STOP 命令
+static void handleStop() {
+  char buf[24];
+  snprintf(buf, sizeof(buf), "#%03dPDST!", panServoId);
+  sendBus(buf);
+  snprintf(buf, sizeof(buf), "#%03dPDST!", tiltServoId);
+  sendBus(buf);
+  sendOk();
+}
+
+// 處理 HOME 命令
+static void handleHome() {
+  uint16_t panPos = angleToPosition(PAN_INIT_ANGLE);
+  uint16_t tiltPos = angleToPosition(TILT_INIT_ANGLE);
+  char buf[32];
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, panPos, moveTime);
+  sendBus(buf);
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, tiltPos, moveTime);
+  sendBus(buf);
+  sendOk();
+}
+
+// 處理 POS/GETPOS 命令（啟動聚合讀取雙軸角度）
+static void handleGetPos() {
+  aggType = AGG_POS_BOTH;
+  aggPhase = 0;
+  aggPanAngle = aggTiltAngle = -1;
+  aggTimeout = millis() + AGG_CMD_TIMEOUT;
+  clearBuf(busBuf, busBufLen);
+
+  char buf[24];
+  snprintf(buf, sizeof(buf), "#%03dPRAD!", panServoId);
+  sendBus(buf);
+}
+
+// 處理 STATUS/INFO 命令（啟動聚合讀取雙軸完整狀態）
+static void handleStatus() {
+  aggType = AGG_STATUS_BOTH;
+  aggPhase = 0;
+  aggPanAngle = aggTiltAngle = -1;
+  aggPanVolt = aggTiltVolt = -1;
+  aggPanTemp = aggTiltTemp = -1;
+  aggTimeout = millis() + AGG_CMD_TIMEOUT;
+  clearBuf(busBuf, busBufLen);
+
+  char buf[24];
+  snprintf(buf, sizeof(buf), "#%03dPRAD!", panServoId);
+  sendBus(buf);
+}
+
+// 處理 READANGLE 命令
+static void handleReadAngle(const char* params) {
+  int id;
+  if (!parseIntParam(params, id) || !isValidServoId(id)) {
+    sendError("Invalid parameter");
+    return;
+  }
+
+  char buf[24];
+  snprintf(buf, sizeof(buf), "#%03dPRAD!", id);
+  lastBusCmd = BUS_READ_ANGLE;
+  lastBusId = id;
+  clearBuf(busBuf, busBufLen);
+  sendBus(buf);
+}
+
+// 處理 READVOLTEMP 命令
+static void handleReadVolTemp(const char* params) {
+  int id;
+  if (!parseIntParam(params, id) || !isValidServoId(id)) {
+    sendError("Invalid parameter");
+    return;
+  }
+
+  char buf[24];
+  snprintf(buf, sizeof(buf), "#%03dPRTV!", id);
+  lastBusCmd = BUS_READ_VOLTEMP;
+  lastBusId = id;
+  clearBuf(busBuf, busBufLen);
+  sendBus(buf);
+}
+
+// 處理 MOVER/MOVEBY 命令（相對移動）
+static void handleMoveBy(const char* params) {
+  int panDelta, tiltDelta;
+  if (!parseTwoInts(params, panDelta, tiltDelta)) {
+    sendError("Invalid parameter");
+    return;
+  }
+
+  // 讀取當前位置後加上偏移
+  int currentPan = 135;  // 預設中心
+  int currentTilt = 90;
+  int newPan = currentPan + panDelta;
+  int newTilt = currentTilt + tiltDelta;
+
+  // 限制在範圍內
+  if (newPan < 0) newPan = 0;
+  if (newPan > SERVO_MAX_ANGLE) newPan = SERVO_MAX_ANGLE;
+  if (newTilt < 0) newTilt = 0;
+  if (newTilt > 180) newTilt = 180;
+
+  uint16_t panPos = angleToPosition(newPan);
+  uint16_t tiltPos = angleToPosition(newTilt);
+  char buf[32];
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, panPos, moveTime);
+  sendBus(buf);
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, tiltPos, moveTime);
+  sendBus(buf);
+  sendOk();
+}
+
+// 處理 CAL/CALIBRATE 命令
+static void handleCalibrate() {
+  char buf[32];
+
+  // 移動到中心位置 (135°, 90°)
+  uint16_t centerPan = angleToPosition(135);
+  uint16_t centerTilt = angleToPosition(90);
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, centerPan, 2000);
+  sendBus(buf);
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, centerTilt, 2000);
+  sendBus(buf);
+  delay(2500);
+
+  // Pan 最小 (0°)
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, 0, 2000);
+  sendBus(buf);
+  delay(2500);
+
+  // Pan 最大 (270°)
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, 1000, 2000);
+  sendBus(buf);
+  delay(2500);
+
+  // Tilt 最小 (0°)
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, 0, 2000);
+  sendBus(buf);
+  delay(2500);
+
+  // Tilt 最大 (180°)
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, 1000, 2000);
+  sendBus(buf);
+  delay(2500);
+
+  // 回到初始位置
+  uint16_t panPos = angleToPosition(PAN_INIT_ANGLE);
+  uint16_t tiltPos = angleToPosition(TILT_INIT_ANGLE);
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, panPos, 2000);
+  sendBus(buf);
+  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, tiltPos, 2000);
+  sendBus(buf);
+
+  sendOk();
+}
+
+// ============================================
+// 主命令處理函數（重構為簡潔的命令分發器）
+// ============================================
+
+static void handlePcLine(const char* line) {
   // 1) 直接透傳 #...! 指令到總線
-  if (line.startsWith("#")) {
+  if (line[0] == '#') {
     sendBus(line);
     return;
   }
 
-  // 2) 最小集合：<RAW:...> 直接帶 payload 為 #...! 指令
-  if (line.startsWith("<") && line.endsWith(">")) {
-    String inner = line.substring(1, line.length() - 1);
-    int colon = inner.indexOf(':');
-    String cmdType = colon >= 0 ? inner.substring(0, colon) : inner;
-    String params = colon >= 0 ? inner.substring(colon + 1) : String("");
-    cmdType.toUpperCase();
+  // 2) 解析 <CMD:PARAMS> 格式
+  if (line[0] != '<' || line[strlen(line)-1] != '>') {
+    return;  // 格式錯誤，靜默忽略
+  }
 
-    if (cmdType == "RAW") {
-      // 例如 <RAW:#001P1500T1000!>
-      lastBusCmd = BUS_NONE; // 保持透傳，不解析
-      lastBusId = -1;
-      sendBus(params);
-      return;
-    }
+  // 提取內容（去除 < 和 >）
+  char inner[120];
+  strncpy(inner, line + 1, sizeof(inner) - 1);
+  inner[sizeof(inner) - 1] = '\0';
+  inner[strlen(inner) - 1] = '\0';  // 移除 >
 
-    if (cmdType == "LED") {
-      // <LED:ON> 或 <LED:OFF>
-      params.toUpperCase();
-      if (params == "ON") digitalWrite(LED_PIN, LOW);
-      else digitalWrite(LED_PIN, HIGH);
-      Serial.println("{\"status\":\"ok\",\"message\":\"LED\"}");
-      return;
-    }
+  // 分離命令類型和參數
+  char* colon = strchr(inner, ':');
+  char cmdType[20];
+  const char* params = "";
 
-    if (cmdType == "BEEP") {
-      beep_short3();
-      Serial.println("{\"status\":\"ok\",\"message\":\"BEEP\"}");
-      return;
-    }
+  if (colon) {
+    int cmdLen = colon - inner;
+    if (cmdLen >= sizeof(cmdType)) cmdLen = sizeof(cmdType) - 1;
+    strncpy(cmdType, inner, cmdLen);
+    cmdType[cmdLen] = '\0';
+    params = colon + 1;
+  } else {
+    strncpy(cmdType, inner, sizeof(cmdType) - 1);
+    cmdType[sizeof(cmdType) - 1] = '\0';
+  }
 
-    if (cmdType == "SPEED") {
-      int val = params.toInt();
-      if (val < 1) val = 1; if (val > 100) val = 100;
-      moveSpeed = val;
-      moveTime = map(moveSpeed, 1, 100, 5000, 100);
-      Serial.println("{\"status\":\"ok\",\"message\":\"OK\"}");
-      return;
-    }
+  toUpperCase(cmdType);
 
-    if (cmdType == "SETID") {
-      // 格式：<SETID:pan_id,tilt_id>
-      int comma = params.indexOf(',');
-      if (comma > 0) {
-        int newPanId = params.substring(0, comma).toInt();
-        int newTiltId = params.substring(comma + 1).toInt();
-        if (newPanId > 0 && newTiltId > 0) {
-          panServoId = newPanId;
-          tiltServoId = newTiltId;
-          Serial.print("{\"status\":\"ok\",\"pan_id\":");
-          Serial.print(panServoId);
-          Serial.print(",\"tilt_id\":");
-          Serial.print(tiltServoId);
-          Serial.println("}");
-          return;
-        }
-      }
-      Serial.println("{\"status\":\"error\",\"message\":\"Invalid parameter\"}");
-      return;
-    }
-
-    if (cmdType == "MOVE" || cmdType == "MOVETO") {
-      // 格式：<MOVE:pan,tilt>
-      int comma = params.indexOf(',');
-      if (comma > 0) {
-        int panAngle = params.substring(0, comma).toInt();
-        int tiltAngle = params.substring(comma + 1).toInt();
-        uint16_t panPos = angleToPosition(panAngle);
-        uint16_t tiltPos = angleToPosition(tiltAngle);
-        char buf[32];
-        snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, panPos, moveTime);
-        sendBus(String(buf));
-        snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, tiltPos, moveTime);
-        sendBus(String(buf));
-        Serial.println("{\"status\":\"ok\",\"message\":\"OK\"}");
-        return;
-      }
-      Serial.println("{\"status\":\"error\",\"message\":\"Invalid parameter\"}");
-      return;
-    }
-
-    if (cmdType == "STOP") {
-      char buf[24];
-      snprintf(buf, sizeof(buf), "#%03dPDST!", panServoId);
-      sendBus(String(buf));
-      snprintf(buf, sizeof(buf), "#%03dPDST!", tiltServoId);
-      sendBus(String(buf));
-      Serial.println("{\"status\":\"ok\",\"message\":\"OK\"}");
-      return;
-    }
-
-    if (cmdType == "HOME") {
-      uint16_t panPos = angleToPosition(PAN_INIT_ANGLE);
-      uint16_t tiltPos = angleToPosition(TILT_INIT_ANGLE);
-      char buf[32];
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, panPos, moveTime);
-      sendBus(String(buf));
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, tiltPos, moveTime);
-      sendBus(String(buf));
-      Serial.println("{\"status\":\"ok\",\"message\":\"OK\"}");
-      return;
-    }
-
-    // 4) 聚合命令：POS（雙軸角度）
-    if (cmdType == "POS" || cmdType == "GETPOS") {
-      aggType = AGG_POS_BOTH;
-      aggPhase = 0;
-      aggPanAngle = aggTiltAngle = -1;
-      busBuf = "";
-      char buf[24];
-      snprintf(buf, sizeof(buf), "#%03dPRAD!", panServoId);
-      sendBus(String(buf));
-      return;
-    }
-
-    // 5) 聚合命令：STATUS（雙軸角度+電壓+溫度）
-    if (cmdType == "STATUS" || cmdType == "INFO") {
-      aggType = AGG_STATUS_BOTH;
-      aggPhase = 0;
-      aggPanAngle = aggTiltAngle = -1;
-      aggPanVolt = aggTiltVolt = -1;
-      aggPanTemp = aggTiltTemp = -1;
-      busBuf = "";
-      char buf[24];
-      snprintf(buf, sizeof(buf), "#%03dPRAD!", panServoId);
-      sendBus(String(buf));
-      return;
-    }
-
-    if (cmdType == "READANGLE") {
-      // <READANGLE:id>
-      int id = params.toInt();
-      if (id <= 0) { Serial.println("{\"status\":\"error\",\"message\":\"Invalid parameter\"}"); return; }
-      char buf[24];
-      snprintf(buf, sizeof(buf), "#%03dPRAD!", id);
-      lastBusCmd = BUS_READ_ANGLE;
-      lastBusId = id;
-      busBuf = "";
-      sendBus(String(buf));
-      return;
-    }
-
-    if (cmdType == "READVOLTEMP") {
-      // <READVOLTEMP:id>
-      int id = params.toInt();
-      if (id <= 0) { Serial.println("{\"status\":\"error\",\"message\":\"Invalid parameter\"}"); return; }
-      char buf[24];
-      snprintf(buf, sizeof(buf), "#%03dPRTV!", id);
-      lastBusCmd = BUS_READ_VOLTEMP;
-      lastBusId = id;
-      busBuf = "";
-      sendBus(String(buf));
-      return;
-    }
-
-    // 6) MOVER/MOVEBY - 相對移動
-    if (cmdType == "MOVER" || cmdType == "MOVEBY") {
-      // 格式：<MOVER:pan_delta,tilt_delta>
-      int comma = params.indexOf(',');
-      if (comma > 0) {
-        int panDelta = params.substring(0, comma).toInt();
-        int tiltDelta = params.substring(comma + 1).toInt();
-
-        // 讀取當前位置後加上偏移
-        int currentPan = 135;  // 預設中心
-        int currentTilt = 90;
-        int newPan = currentPan + panDelta;
-        int newTilt = currentTilt + tiltDelta;
-
-        // 限制在範圍內
-        if (newPan < 0) newPan = 0;
-        if (newPan > SERVO_MAX_ANGLE) newPan = SERVO_MAX_ANGLE;
-        if (newTilt < 0) newTilt = 0;
-        if (newTilt > 180) newTilt = 180;
-
-        uint16_t panPos = angleToPosition(newPan);
-        uint16_t tiltPos = angleToPosition(newTilt);
-        char buf[32];
-        snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, panPos, moveTime);
-        sendBus(String(buf));
-        snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, tiltPos, moveTime);
-        sendBus(String(buf));
-        Serial.println("{\"status\":\"ok\",\"message\":\"OK\"}");
-        return;
-      }
-      Serial.println("{\"status\":\"error\",\"message\":\"Invalid parameter\"}");
-      return;
-    }
-
-    // 7) READ/READPOS - 讀取舵機實際位置（同 POS，但強制重新讀取）
-    if (cmdType == "READ" || cmdType == "READPOS") {
-      aggType = AGG_POS_BOTH;
-      aggPhase = 0;
-      aggPanAngle = aggTiltAngle = -1;
-      busBuf = "";
-      char buf[24];
-      snprintf(buf, sizeof(buf), "#%03dPRAD!", panServoId);
-      sendBus(String(buf));
-      return;
-    }
-
-    // 8) TEMP/TEMPERATURE - 讀取雙軸溫度
-    if (cmdType == "TEMP" || cmdType == "TEMPERATURE") {
-      // 聚合讀取兩個舵機的溫度
-      aggType = AGG_STATUS_BOTH;  // 復用 STATUS 流程但只輸出溫度
-      aggPhase = 0;
-      aggPanAngle = aggTiltAngle = -1;
-      aggPanVolt = aggTiltVolt = -1;
-      aggPanTemp = aggTiltTemp = -1;
-      busBuf = "";
-      char buf[24];
-      snprintf(buf, sizeof(buf), "#%03dPRTV!", panServoId);
-      sendBus(String(buf));
-      return;
-    }
-
-    // 9) VOLT/VOLTAGE - 讀取雙軸電壓
-    if (cmdType == "VOLT" || cmdType == "VOLTAGE") {
-      // 聚合讀取兩個舵機的電壓
-      aggType = AGG_STATUS_BOTH;  // 復用 STATUS 流程但只輸出電壓
-      aggPhase = 0;
-      aggPanAngle = aggTiltAngle = -1;
-      aggPanVolt = aggTiltVolt = -1;
-      aggPanTemp = aggTiltTemp = -1;
-      busBuf = "";
-      char buf[24];
-      snprintf(buf, sizeof(buf), "#%03dPRTV!", panServoId);
-      sendBus(String(buf));
-      return;
-    }
-
-    // 10) CAL/CALIBRATE - 執行校準（測試所有運動範圍）
-    if (cmdType == "CAL" || cmdType == "CALIBRATE") {
-      // 校準流程：中心→Min Pan→Max Pan→Min Tilt→Max Tilt→初始位置
-      // 簡單實現：依序發出移動指令，每個停留 2 秒
-      char buf[32];
-      // 移動到中心位置 (135°, 90°)，2000ms
-      uint16_t centerPan = angleToPosition(135);
-      uint16_t centerTilt = angleToPosition(90);
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, centerPan, 2000);
-      sendBus(String(buf));
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, centerTilt, 2000);
-      sendBus(String(buf));
-      delay(2500);
-
-      // Pan 最小 (0°) → 位置 0
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, 0, 2000);
-      sendBus(String(buf));
-      delay(2500);
-
-      // Pan 最大 (270°) → 位置 1000
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, 1000, 2000);
-      sendBus(String(buf));
-      delay(2500);
-
-      // Tilt 最小 (0°) → 位置 0
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, 0, 2000);
-      sendBus(String(buf));
-      delay(2500);
-
-      // Tilt 最大 (180°) → 位置 1000
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, 1000, 2000);
-      sendBus(String(buf));
-      delay(2500);
-
-      // 回到初始位置
-      uint16_t panPos = angleToPosition(PAN_INIT_ANGLE);
-      uint16_t tiltPos = angleToPosition(TILT_INIT_ANGLE);
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, panPos, 2000);
-      sendBus(String(buf));
-      snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, tiltPos, 2000);
-      sendBus(String(buf));
-
-      Serial.println("{\"status\":\"ok\",\"message\":\"OK\"}");
-      return;
-    }
-
-    // 其他 <...> 命令暫不支持；回覆錯誤
-    Serial.println("{\"status\":\"error\",\"message\":\"Unknown command\"}");
-    return;
+  // 3) 命令分發（使用提取的函數）
+  if (strcmp(cmdType, "RAW") == 0) {
+    lastBusCmd = BUS_NONE;
+    lastBusId = -1;
+    sendBus(params);
+  }
+  else if (strcmp(cmdType, "LED") == 0) handleLed(params);
+  else if (strcmp(cmdType, "BEEP") == 0) handleBeep();
+  else if (strcmp(cmdType, "SPEED") == 0) handleSpeed(params);
+  else if (strcmp(cmdType, "SETID") == 0) handleSetId(params);
+  else if (strcmp(cmdType, "MOVE") == 0 || strcmp(cmdType, "MOVETO") == 0) handleMove(params);
+  else if (strcmp(cmdType, "STOP") == 0) handleStop();
+  else if (strcmp(cmdType, "HOME") == 0) handleHome();
+  else if (strcmp(cmdType, "POS") == 0 || strcmp(cmdType, "GETPOS") == 0) handleGetPos();
+  else if (strcmp(cmdType, "STATUS") == 0 || strcmp(cmdType, "INFO") == 0) handleStatus();
+  else if (strcmp(cmdType, "READANGLE") == 0) handleReadAngle(params);
+  else if (strcmp(cmdType, "READVOLTEMP") == 0) handleReadVolTemp(params);
+  else if (strcmp(cmdType, "MOVER") == 0 || strcmp(cmdType, "MOVEBY") == 0) handleMoveBy(params);
+  else if (strcmp(cmdType, "READ") == 0 || strcmp(cmdType, "READPOS") == 0) handleGetPos();
+  else if (strcmp(cmdType, "TEMP") == 0 || strcmp(cmdType, "TEMPERATURE") == 0) {
+    // 復用 STATUS 流程但只輸出溫度
+    aggType = AGG_STATUS_BOTH;
+    aggPhase = 0;
+    aggPanAngle = aggTiltAngle = -1;
+    aggPanVolt = aggTiltVolt = -1;
+    aggPanTemp = aggTiltTemp = -1;
+    aggTimeout = millis() + AGG_CMD_TIMEOUT;
+    clearBuf(busBuf, busBufLen);
+    char buf[24];
+    snprintf(buf, sizeof(buf), "#%03dPRTV!", panServoId);
+    sendBus(buf);
+  }
+  else if (strcmp(cmdType, "VOLT") == 0 || strcmp(cmdType, "VOLTAGE") == 0) {
+    // 復用 STATUS 流程但只輸出電壓
+    aggType = AGG_STATUS_BOTH;
+    aggPhase = 0;
+    aggPanAngle = aggTiltAngle = -1;
+    aggPanVolt = aggTiltVolt = -1;
+    aggPanTemp = aggTiltTemp = -1;
+    aggTimeout = millis() + AGG_CMD_TIMEOUT;
+    clearBuf(busBuf, busBufLen);
+    char buf[24];
+    snprintf(buf, sizeof(buf), "#%03dPRTV!", panServoId);
+    sendBus(buf);
+  }
+  else if (strcmp(cmdType, "CAL") == 0 || strcmp(cmdType, "CALIBRATE") == 0) handleCalibrate();
+  else {
+    sendError("Unknown command");
   }
 }
 
 void setup() {
+  // 禁用看門狗（防止啟動時重置）
+  wdt_disable();
+
   setup_led();
   setup_beep();
   setup_uart();
   setup_bus();
 
-  Serial.println(F("{\"status\":\"info\",\"message\":\"PT2D Bridge Firmware v2.2.0\"}"));
+  Serial.println(F("{\"status\":\"info\",\"message\":\"PT2D Bridge Firmware v2.3.0\"}"));
   Serial.println(F("{\"status\":\"info\",\"message\":\"PC <...> / BUS #...!\"}"));
   beep_short3();
 
@@ -470,51 +592,80 @@ void setup() {
   Serial.print(F(",\"tilt_id\":"));
   Serial.print(tiltServoId);
   Serial.println(F("}"));
+
+  // 啟用看門狗定時器（2秒超時）
+  wdt_enable(WDTO_2S);
+  Serial.println(F("{\"status\":\"info\",\"message\":\"看門狗已啟用 (2秒)\"}"));
 }
 
 void loop() {
-  // 讀取 PC 指令（以 \n 分隔）
+  // 0) 重置看門狗（防止超時重啟）
+  wdt_reset();
+
+  // 1) 檢查聚合命令超時
+  if (aggType != AGG_NONE && aggTimeout > 0 && millis() > aggTimeout) {
+    sendError("Aggregate command timeout");
+    resetAggState();
+  }
+
+  // 2) 讀取 PC 指令（以 \n 分隔）
   while (Serial.available()) {
     char c = (char)Serial.read();
     if (c == '\n' || c == '\r') {
-      if (pcBuf.length() > 0) {
+      if (pcBufLen > 0) {
+        pcBuf[pcBufLen] = '\0';  // 終止字串
         handlePcLine(pcBuf);
-        pcBuf = "";
+        clearBuf(pcBuf, pcBufLen);
       }
     } else {
-      pcBuf += c;
-      if (pcBuf.length() > 128) pcBuf = pcBuf.substring(0, 128);
+      if (pcBufLen < sizeof(pcBuf) - 1) {
+        pcBuf[pcBufLen++] = c;
+      } else {
+        // 緩衝區滿，清空並報錯
+        clearBuf(pcBuf, pcBufLen);
+        sendError("Command too long");
+      }
     }
   }
 
-  // 轉發總線回覆
-  // 當沒有特別的 READ 命令時，保持透傳；否則嘗試解析一次完整訊息
+  // 3) 轉發總線回覆
   if (lastBusCmd == BUS_NONE) {
     // 若有聚合狀態，則分階段解析；否則直接透傳
     if (aggType == AGG_NONE) {
       forwardBusResponse();
     } else {
+      // 聚合命令解析
       while (BUS_SERIAL.available()) {
         char c = (char)BUS_SERIAL.read();
-        busBuf += c;
-        if (c == '!' || c == '\n' || c == '\r' || busBuf.length() >= 64) {
+        if (busBufLen < sizeof(busBuf) - 1) {
+          busBuf[busBufLen++] = c;
+        }
+
+        if (c == '!' || c == '\n' || c == '\r' || busBufLen >= sizeof(busBuf) - 1) {
+          busBuf[busBufLen] = '\0';
+
           // 提取整數
           int values[4];
           int vcount = 0;
-          String num = "";
-          for (size_t i = 0; i < busBuf.length(); i++) {
-            char ch = busBuf[i];
-            if ((ch >= '0' && ch <= '9') || ch == '-') {
-              num += ch;
+          char* ptr = busBuf;
+          char num[16];
+          int numLen = 0;
+
+          while (*ptr && vcount < 4) {
+            if ((*ptr >= '0' && *ptr <= '9') || *ptr == '-') {
+              if (numLen < 15) num[numLen++] = *ptr;
             } else {
-              if (num.length() > 0 && vcount < 4) {
-                values[vcount++] = num.toInt();
-                num = "";
+              if (numLen > 0) {
+                num[numLen] = '\0';
+                values[vcount++] = atoi(num);
+                numLen = 0;
               }
             }
+            ptr++;
           }
-          if (num.length() > 0 && vcount < 4) {
-            values[vcount++] = num.toInt();
+          if (numLen > 0 && vcount < 4) {
+            num[numLen] = '\0';
+            values[vcount++] = atoi(num);
           }
 
           // 聚合流程
@@ -522,72 +673,72 @@ void loop() {
             if (aggPhase == 0 && vcount >= 1) {
               aggPanAngle = values[0];
               aggPhase = 1;
-              busBuf = "";
+              clearBuf(busBuf, busBufLen);
               char buf[24];
               snprintf(buf, sizeof(buf), "#%03dPRAD!", tiltServoId);
-              sendBus(String(buf));
+              sendBus(buf);
               break;
             } else if (aggPhase == 1 && vcount >= 1) {
               aggTiltAngle = values[0];
-              Serial.print("{\"pan\":"); Serial.print(aggPanAngle);
-              Serial.print(",\"tilt\":"); Serial.print(aggTiltAngle);
+              Serial.print("{\"pan\":");
+              Serial.print(aggPanAngle);
+              Serial.print(",\"tilt\":");
+              Serial.print(aggTiltAngle);
               Serial.println("}");
-              aggType = AGG_NONE;
-              aggPhase = 0;
-              busBuf = "";
+              resetAggState();
               break;
             } else {
               Serial.print(busBuf);
-              aggType = AGG_NONE;
-              aggPhase = 0;
-              busBuf = "";
+              resetAggState();
               break;
             }
           } else if (aggType == AGG_STATUS_BOTH) {
             if (aggPhase == 0 && vcount >= 1) {
               aggPanAngle = values[0];
               aggPhase = 1;
-              busBuf = "";
+              clearBuf(busBuf, busBufLen);
               char buf[24];
               snprintf(buf, sizeof(buf), "#%03dPRTV!", panServoId);
-              sendBus(String(buf));
+              sendBus(buf);
               break;
             } else if (aggPhase == 1 && vcount >= 2) {
               aggPanVolt = values[0];
               aggPanTemp = values[1];
               aggPhase = 2;
-              busBuf = "";
+              clearBuf(busBuf, busBufLen);
               char buf[24];
               snprintf(buf, sizeof(buf), "#%03dPRAD!", tiltServoId);
-              sendBus(String(buf));
+              sendBus(buf);
               break;
             } else if (aggPhase == 2 && vcount >= 1) {
               aggTiltAngle = values[0];
               aggPhase = 3;
-              busBuf = "";
+              clearBuf(busBuf, busBufLen);
               char buf[24];
               snprintf(buf, sizeof(buf), "#%03dPRTV!", tiltServoId);
-              sendBus(String(buf));
+              sendBus(buf);
               break;
             } else if (aggPhase == 3 && vcount >= 2) {
               aggTiltVolt = values[0];
               aggTiltTemp = values[1];
-              Serial.print("{\"pan\":"); Serial.print(aggPanAngle);
-              Serial.print(",\"tilt\":"); Serial.print(aggTiltAngle);
-              Serial.print(",\"pan_temp\":"); Serial.print(aggPanTemp);
-              Serial.print(",\"tilt_temp\":"); Serial.print(aggTiltTemp);
-              Serial.print(",\"pan_voltage\":"); Serial.print(aggPanVolt);
-              Serial.print(",\"tilt_voltage\":"); Serial.print(aggTiltVolt);
+              Serial.print("{\"pan\":");
+              Serial.print(aggPanAngle);
+              Serial.print(",\"tilt\":");
+              Serial.print(aggTiltAngle);
+              Serial.print(",\"pan_temp\":");
+              Serial.print(aggPanTemp);
+              Serial.print(",\"tilt_temp\":");
+              Serial.print(aggTiltTemp);
+              Serial.print(",\"pan_voltage\":");
+              Serial.print(aggPanVolt);
+              Serial.print(",\"tilt_voltage\":");
+              Serial.print(aggTiltVolt);
               Serial.println("}");
-              aggType = AGG_NONE;
-              aggPhase = 0;
-              busBuf = "";
+              resetAggState();
               break;
             } else {
               Serial.print(busBuf);
-              aggType = AGG_NONE;
-              aggPhase = 0;
-              busBuf = "";
+              resetAggState();
               break;
             }
           }
@@ -595,40 +746,54 @@ void loop() {
       }
     }
   } else {
+    // 單次命令回覆解析
     while (BUS_SERIAL.available()) {
       char c = (char)BUS_SERIAL.read();
-      // 累積回覆內容
-      busBuf += c;
-      // 粗略界定一個回覆結束（遇到 '!' 或換行）
-      if (c == '!' || c == '\n' || c == '\r' || busBuf.length() >= 64) {
+      if (busBufLen < sizeof(busBuf) - 1) {
+        busBuf[busBufLen++] = c;
+      }
+
+      if (c == '!' || c == '\n' || c == '\r' || busBufLen >= sizeof(busBuf) - 1) {
+        busBuf[busBufLen] = '\0';
+
         // 提取整數
         int values[4];
         int vcount = 0;
-        String num = "";
-        for (size_t i = 0; i < busBuf.length(); i++) {
-          char ch = busBuf[i];
-          if ((ch >= '0' && ch <= '9') || ch == '-') {
-            num += ch;
+        char* ptr = busBuf;
+        char num[16];
+        int numLen = 0;
+
+        while (*ptr && vcount < 4) {
+          if ((*ptr >= '0' && *ptr <= '9') || *ptr == '-') {
+            if (numLen < 15) num[numLen++] = *ptr;
           } else {
-            if (num.length() > 0 && vcount < 4) {
-              values[vcount++] = num.toInt();
-              num = "";
+            if (numLen > 0) {
+              num[numLen] = '\0';
+              values[vcount++] = atoi(num);
+              numLen = 0;
             }
           }
+          ptr++;
         }
-        if (num.length() > 0 && vcount < 4) {
-          values[vcount++] = num.toInt();
+        if (numLen > 0 && vcount < 4) {
+          num[numLen] = '\0';
+          values[vcount++] = atoi(num);
         }
 
         // 根據最後指令類型輸出 JSON
         if (lastBusCmd == BUS_READ_ANGLE && vcount >= 1) {
-          Serial.print("{\"id\":"); Serial.print(lastBusId);
-          Serial.print(",\"angle\":"); Serial.print(values[0]);
+          Serial.print("{\"id\":");
+          Serial.print(lastBusId);
+          Serial.print(",\"angle\":");
+          Serial.print(values[0]);
           Serial.println("}");
         } else if (lastBusCmd == BUS_READ_VOLTEMP && vcount >= 2) {
-          Serial.print("{\"id\":"); Serial.print(lastBusId);
-          Serial.print(",\"voltage\":"); Serial.print(values[0]);
-          Serial.print(",\"temp\":"); Serial.print(values[1]);
+          Serial.print("{\"id\":");
+          Serial.print(lastBusId);
+          Serial.print(",\"voltage\":");
+          Serial.print(values[0]);
+          Serial.print(",\"temp\":");
+          Serial.print(values[1]);
           Serial.println("}");
         } else {
           // 解析失敗則原樣透傳
@@ -638,8 +803,8 @@ void loop() {
         // 重置狀態
         lastBusCmd = BUS_NONE;
         lastBusId = -1;
-        busBuf = "";
-        break; // 本回圈只處理一次完整回覆
+        clearBuf(busBuf, busBufLen);
+        break;
       }
     }
   }

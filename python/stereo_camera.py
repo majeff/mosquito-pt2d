@@ -73,6 +73,9 @@ class StereoCamera:
             logger.info(f"解析度: {self.width}x{self.height}, FPS: {self.fps}")
             return True
 
+        except (IOError, OSError) as e:
+            logger.error(f"攝像頭設備錯誤: {e}")
+            return False
         except Exception as e:
             logger.error(f"開啟攝像頭失敗: {e}")
             return False
@@ -97,6 +100,9 @@ class StereoCamera:
                 logger.warning("讀取影像失敗")
                 return False, None, None
 
+        except (IOError, OSError) as e:
+            logger.error(f"攝像頭 I/O 錯誤: {e}")
+            return False, None, None
         except Exception as e:
             logger.error(f"讀取影像異常: {e}")
             return False, None, None

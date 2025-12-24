@@ -299,8 +299,12 @@ class MosquitoTracker:
 
             # 只有在偏離中心較大時才移動
             if abs(pan_delta) > 2 or abs(tilt_delta) > 2:
-                self.controller.move_by(pan_delta, tilt_delta)
-                logger.debug(f"[{camera_side}] AI 追蹤移動: Pan={pan_delta}, Tilt={tilt_delta}, 信心度={confidence:.2f}")
+                try:
+                    self.controller.move_by(pan_delta, tilt_delta)
+                    logger.debug(f"[{camera_side}] AI 追蹤移動: Pan={pan_delta}, Tilt={tilt_delta}, 信心度={confidence:.2f}")
+                except Exception as e:
+                    logger.error(f"雲台移動失敗: {e}")
+                    # 串口錯誤不中斷追蹤，繼續處理下一幀
 
             # 在影像上標註目標（標註在使用的攝像頭畫面上）
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
@@ -325,10 +329,13 @@ class MosquitoTracker:
                     and confidence > confidence_threshold):
                     # 目標在中心且信心度高，啟動雷射標記
                     if not self.laser_marking and (current_time - self.last_laser_time > self.laser_cooldown):
-                        self.laser.on()
-                        self.laser_marking = True
-                        self.last_laser_time = current_time
-                        logger.info(f"🎯 雷射標記啟動 [{camera_side}] 信心度: {confidence:.2f}")
+                        try:
+                            self.laser.on()
+                            self.laser_marking = True
+                            self.last_laser_time = current_time
+                            logger.info(f"🎯 雷射標記啟動 [{camera_side}] 信心度: {confidence:.2f}")
+                        except Exception as e:
+                            logger.error(f"雷射啟動失敗: {e}")
 
                     # 標記中心區域
                     cv2.circle(frame, (self.camera_width // 2, self.camera_height // 2),
@@ -338,9 +345,12 @@ class MosquitoTracker:
                 else:
                     # 目標偏離中心或信心度不足，關閉雷射
                     if self.laser_marking:
-                        self.laser.off()
-                        self.laser_marking = False
-                        logger.info("雷射標記關閉（目標偏離或信心度不足）")
+                        try:
+                            self.laser.off()
+                            self.laser_marking = False
+                            logger.info("雷射標記關閉（目標偏離或信心度不足）")
+                        except Exception as e:
+                            logger.error(f"雷射關閉失敗: {e}")
 
             # 返回使用的幀用於顯示
             return frame
@@ -391,27 +401,43 @@ class MosquitoTracker:
 
         try:
             while True:
-                # 讀取雙目攝像頭影像
-                ret, left_frame, right_frame = self.camera.read()
-                if not ret:
-                    logger.warning("無法讀取雙目影像")
-                    continue
+                try:
+                    # 讀取雙目攝像頭影像
+                    ret, left_frame, right_frame = self.camera.read()
+                    if not ret:
+                        logger.warning("無法讀取雙目影像")
+                        continue
 
-                # 分別對左右攝像頭執行 AI 檢測
-                left_detections, _ = self.detector.detect(left_frame)
-                right_detections, _ = self.detector.detect(right_frame)
+                    # 分別對左右攝像頭執行 AI 檢測
+                    try:
+                        left_detections, _ = self.detector.detect(left_frame)
+                        right_detections, _ = self.detector.detect(right_frame)
+                    except Exception as e:
+                        logger.error(f"AI 檢測失敗: {e}")
+                        left_detections, right_detections = [], []
+                        display_frame = left_frame
+                        result = display_frame.copy()
+                        # 繼續運行，不中斷追蹤
+                    else:
+                        # AI 追蹤蚊子（自動選擇信心度最高的攝像頭）
+                        try:
+                            display_frame = self.track_mosquito(left_detections, right_detections,
+                                                                left_frame, right_frame)
+                        except Exception as e:
+                            logger.error(f"追蹤邏輯失敗: {e}")
+                            display_frame = left_frame
 
-                # AI 追蹤蚊子（自動選擇信心度最高的攝像頭）
-                display_frame = self.track_mosquito(left_detections, right_detections,
-                                                    left_frame, right_frame)
-
-                # 繪製 AI 偵測結果在顯示幀上
-                if display_frame is left_frame and left_detections:
-                    result = self.detector.draw_detections(display_frame.copy(), left_detections)
-                elif display_frame is right_frame and right_detections:
-                    result = self.detector.draw_detections(display_frame.copy(), right_detections)
-                else:
-                    result = display_frame.copy()
+                        # 繪製 AI 偵測結果在顯示幀上
+                        try:
+                            if display_frame is left_frame and left_detections:
+                                result = self.detector.draw_detections(display_frame.copy(), left_detections)
+                            elif display_frame is right_frame and right_detections:
+                                result = self.detector.draw_detections(display_frame.copy(), right_detections)
+                            else:
+                                result = display_frame.copy()
+                        except Exception as e:
+                            logger.error(f"繪製檢測結果失敗: {e}")
+                            result = display_frame.copy()
 
                 # 顯示狀態資訊
                 mode_text = "AI TRACKING" if self.tracking_active else "AI SCANNING"
@@ -430,8 +456,8 @@ class MosquitoTracker:
                             self.cached_pan = pan
                             self.cached_tilt = tilt
                         self.last_position_update = current_time
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"讀取位置失敗，使用緩存值: {e}")
                 pan, tilt = self.cached_pan, self.cached_tilt
 
                 # 顯示雷射狀態
@@ -451,6 +477,12 @@ class MosquitoTracker:
                 # 可選：顯示左右攝像頭原始畫面
                 # cv2.imshow('Left Camera', left_frame)
                 # cv2.imshow('Right Camera', right_frame)
+
+                except Exception as loop_error:
+                    logger.error(f"主循環發生異常: {loop_error}")
+                    logger.error("嘗試繼續運行...")
+                    time.sleep(0.1)
+                    continue
 
                 # 鍵盤控制
                 key = cv2.waitKey(1) & 0xFF

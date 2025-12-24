@@ -190,14 +190,24 @@ class MosquitoDetector:
         Returns:
             (偵測結果列表，包含bbox和confidence，處理後的影像)
         """
-        if self.backend == 'rknn':
-            return self._detect_rknn(frame)
-        elif self.backend == 'onnx':
-            return self._detect_onnx(frame)
-        elif self.backend == 'pytorch':
-            return self._detect_pytorch(frame)
-        else:
-            raise RuntimeError(f"未知的推理後端: {self.backend}")
+        try:
+            if self.backend == 'rknn':
+                return self._detect_rknn(frame)
+            elif self.backend == 'onnx':
+                return self._detect_onnx(frame)
+            elif self.backend == 'pytorch':
+                return self._detect_pytorch(frame)
+            else:
+                raise RuntimeError(f"未知的推理後端: {self.backend}")
+        except RuntimeError as e:
+            logger.error(f"AI 推理失敗 (Runtime): {e}")
+            return [], frame
+        except MemoryError as e:
+            logger.error(f"記憶體不足無法執行推理: {e}")
+            return [], frame
+        except Exception as e:
+            logger.error(f"AI 偵測發生未預期錯誤: {e}")
+            return [], frame
 
     def _detect_pytorch(self, frame: np.ndarray) -> Tuple[List[Dict], np.ndarray]:
         """使用 PyTorch (Ultralytics YOLO) 推理"""

@@ -77,12 +77,41 @@ class PT2DController:
         self.ser.flushOutput()
         logger.info("啟動訊息處理完畢")
 
-    def send_command(self, cmd: str) -> Dict:
+    def _read_json_response(self, timeout: float = 1.0) -> str:
         """
-        發送命令並獲取響應
+        讀取一行 JSON 響應，自動跳過非 JSON 格式的調試訊息
+
+        Args:
+            timeout: 超時時間（秒）
+
+        Returns:
+            JSON 格式的響應字符串
+        """
+        start_time = time.time()
+
+        while (time.time() - start_time) < timeout:
+            if self.ser.in_waiting > 0:
+                line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+                if line:
+                    # 嘗試解析 JSON
+                    try:
+                        json.loads(line)  # 驗證是否為有效 JSON
+                        return line
+                    except json.JSONDecodeError:
+                        # 非 JSON 格式，記錄並繼續讀取下一行
+                        logger.debug(f"跳過非 JSON 訊息: {line}")
+                        continue
+            time.sleep(0.01)
+
+        return ""
+
+    def send_command(self, cmd: str, retry: int = 1) -> Dict:
+        """
+        發送命令並獲取響應（支援重試機制）
 
         Args:
             cmd: 命令字符串（不含 < > 符號）
+            retry: 重試次數（預設 1 次，即不重試）
 
         Returns:
             JSON 格式的響應字典
@@ -90,29 +119,48 @@ class PT2DController:
         if not self.is_connected:
             return {'error': 'Not connected'}
 
-        try:
-            # 格式化命令
-            if not cmd.startswith('<'):
-                cmd = f'<{cmd}>'
-            if not cmd.endswith('\n'):
-                cmd += '\n'
-
-            # 發送命令
-            self.ser.write(cmd.encode())
-            time.sleep(0.05)  # 短暫等待
-
-            # 讀取響應
-            response = self.ser.readline().decode().strip()
-
-            # 解析 JSON
+        for attempt in range(retry):
             try:
-                return json.loads(response)
-            except json.JSONDecodeError:
-                return {'raw': response, 'error': 'Failed to parse JSON'}
+                # 格式化命令
+                if not cmd.startswith('<'):
+                    cmd = f'<{cmd}>'
+                if not cmd.endswith('\n'):
+                    cmd += '\n'
 
-        except Exception as e:
-            logger.error(f"發送命令失敗: {e}")
-            return {'error': str(e)}
+                # 清空接收緩衝區（避免讀取舊數據）
+                self.ser.flushInput()
+
+                # 發送命令
+                self.ser.write(cmd.encode())
+                time.sleep(0.05)  # 短暫等待
+
+                # 讀取響應（自動過濾非 JSON）
+                response = self._read_json_response()
+
+                if response:
+                    # 解析 JSON
+                    try:
+                        return json.loads(response)
+                    except json.JSONDecodeError:
+                        logger.warning(f"嘗試 {attempt + 1}/{retry}: 無法解析 JSON: {response}")
+                        if attempt == retry - 1:
+                            return {'raw': response, 'error': 'Failed to parse JSON'}
+                else:
+                    logger.warning(f"嘗試 {attempt + 1}/{retry}: 未收到響應")
+                    if attempt == retry - 1:
+                        return {'error': 'No response received'}
+
+                # 重試前等待
+                if attempt < retry - 1:
+                    time.sleep(0.1)
+
+            except Exception as e:
+                logger.error(f"發送命令失敗 (嘗試 {attempt + 1}/{retry}): {e}")
+                if attempt == retry - 1:
+                    return {'error': str(e)}
+                time.sleep(0.1)
+
+        return {'error': 'Max retries exceeded'}
 
     def send_bus_command(self, raw: str) -> Dict:
         """
