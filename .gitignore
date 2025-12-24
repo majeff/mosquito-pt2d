@@ -45,6 +45,3 @@ ENV/
 *.tmp
 *.bak
 *.backup
-
-# Ignore model files
-models/

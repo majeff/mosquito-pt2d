@@ -119,7 +119,7 @@ class MosquitoDetector:
         # 在 models/ 目錄搜尋預設名稱
         models_dir = Path('models')
         if models_dir.exists():
-            for default_name in ['mosquito', 'yolov8n']:
+            for default_name in ['mosquito_yolov8', 'mosquito', 'yolov8n']:
                 search_paths.extend([
                     models_dir / f"{default_name}.rknn",
                     models_dir / f"{default_name}.onnx",

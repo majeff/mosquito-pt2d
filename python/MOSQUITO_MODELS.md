@@ -183,7 +183,7 @@ from ultralytics import YOLO
 
 # 方法 1: 如果是 YOLO 模型（推薦）
 try:
-    model = YOLO("models/mosquito.pt")
+    model = YOLO("mosquito_yolov8.pt")
     model.export(
         format='onnx',
         imgsz=320,
@@ -298,7 +298,7 @@ def convert_to_rknn(onnx_path, output_path, calibration_dataset=None):
 
     # 4. 匯出 RKNN
     print(f'→ 匯出 RKNN: {output_path}')
-    ret = rknn.export_rknn(output_path)
+    ret = rknn.export_rknn("mosquito_yolov8.rknn")
     if ret != 0:
         print('✗ 匯出失敗!')
         return False
