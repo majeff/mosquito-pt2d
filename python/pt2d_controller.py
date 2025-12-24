@@ -81,6 +81,34 @@ class PT2DController:
             logger.error(f"發送命令失敗: {e}")
             return {'error': str(e)}
 
+    def send_bus_command(self, raw: str) -> Dict:
+        """
+        直接發送總線指令（#...!）並回讀原始回覆。
+
+        用途：當固件以橋接模式運作時，可直接透過 Arduino 轉發到總線。
+
+        Args:
+            raw: 例如 '#001P1500T1000!'
+
+        Returns:
+            {'raw': <回覆字串>} 或錯誤字典
+        """
+        if not self.is_connected:
+            return {'error': 'Not connected'}
+
+        try:
+            line = raw
+            if not line.endswith('\n'):
+                line += '\n'
+            # 橋接固件支援直接透傳以 # 開頭的行
+            self.ser.write(line.encode())
+            time.sleep(0.05)
+            response = self.ser.readline().decode().strip()
+            return {'raw': response}
+        except Exception as e:
+            logger.error(f"發送總線指令失敗: {e}")
+            return {'error': str(e)}
+
     def move_to(self, pan: int, tilt: int) -> Dict:
         """
         移動到絕對位置
@@ -119,6 +147,26 @@ class PT2DController:
             return response['pan'], response['tilt']
         return None, None
 
+    def read_position(self) -> Tuple[Optional[int], Optional[int]]:
+        """
+        讀取舵機實際位置（READ 強制重新讀取）
+
+        Returns:
+            (pan, tilt) 元組，失敗返回 (None, None)
+        """
+        response = self.send_command('READ')
+        if 'pan' in response and 'tilt' in response:
+            return response['pan'], response['tilt']
+        return None, None
+
+    def read_temperature(self) -> Dict:
+        """讀取雙軸溫度"""
+        return self.send_command('TEMP')
+
+    def read_voltage(self) -> Dict:
+        """讀取雙軸電壓"""
+        return self.send_command('VOLT')
+
     def set_speed(self, speed: int) -> Dict:
         """
         設置移動速度
@@ -139,6 +187,43 @@ class PT2DController:
     def stop(self) -> Dict:
         """停止移動"""
         return self.send_command('STOP')
+
+    def calibrate(self) -> Dict:
+        """執行校準"""
+        return self.send_command('CAL')
+
+    # 總線指令快捷方法（橋接模式）
+    def bus_move(self, servo_id: int, position: int, time_ms: int) -> Dict:
+        """以總線指令移動單一舵機：#ID Pxxxx Tyyyy!"""
+        return self.send_bus_command(f"#{servo_id:03d}P{position:04d}T{time_ms:04d}!")
+
+    def bus_stop(self, servo_id: int) -> Dict:
+        return self.send_bus_command(f"#{servo_id:03d}PDST!")
+
+    def bus_pause(self, servo_id: int) -> Dict:
+        return self.send_bus_command(f"#{servo_id:03d}PDPT!")
+
+    def bus_continue(self, servo_id: int) -> Dict:
+        return self.send_bus_command(f"#{servo_id:03d}PDCT!")
+
+    def bus_read_angle(self, servo_id: int) -> Dict:
+        return self.send_bus_command(f"#{servo_id:03d}PRAD!")
+
+    def bus_read_voltage_temp(self, servo_id: int) -> Dict:
+        return self.send_bus_command(f"#{servo_id:03d}PRTV!")
+
+    # 解析後 JSON（橋接固件命令）
+    def read_angle(self, servo_id: int) -> Dict:
+        """使用橋接固件的 <READANGLE:id> 取得角度 JSON"""
+        return self.send_command(f"READANGLE:{servo_id}")
+
+    def read_voltage_temp(self, servo_id: int) -> Dict:
+        """使用橋接固件的 <READVOLTEMP:id> 取得電壓與溫度 JSON"""
+        return self.send_command(f"READVOLTEMP:{servo_id}")
+
+    def read_status(self) -> Dict:
+        """讀取雙軸完整狀態（位置+電壓+溫度），對應固件 <STATUS>"""
+        return self.send_command("STATUS")
 
     def calibrate(self) -> Dict:
         """執行校準"""

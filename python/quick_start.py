@@ -3,7 +3,9 @@
 """
 
 from mosquito_tracker import MosquitoTracker
+from pt2d_controller import PT2DController
 import sys
+import time
 
 def main():
     """主程式入口"""
@@ -27,7 +29,59 @@ def main():
     print("左攝像頭 ID: 0")
     print("右攝像頭 ID: 1")
     print()
-    print("按下任意鍵開始...")
+
+    # 簡單測試：驗證 Arduino 連接與基本操作
+    print("=" * 50)
+    print("測試 Arduino 連接...")
+    print("=" * 50)
+    try:
+        with PT2DController(ARDUINO_PORT) as pt:
+            if not pt.is_connected:
+                print(f"⚠ 無法連接至 {ARDUINO_PORT}，請檢查連線")
+                return
+
+            print("✓ Arduino 已連接")
+            print()
+
+            # 測試 1: 移動到初始位置
+            print("[測試 1] 移動到初始位置 (135°, 90°)...")
+            pt.move_to(135, 90)
+            time.sleep(1.5)
+
+            # 測試 2: 讀取位置
+            print("[測試 2] 讀取當前位置...")
+            pan, tilt = pt.get_position()
+            print(f"  → Pan: {pan}°, Tilt: {tilt}°")
+
+            # 測試 3: 讀取完整狀態（位置 + 溫度 + 電壓）
+            print("[測試 3] 讀取完整系統狀態...")
+            status = pt.read_status()
+            print(f"  → {status}")
+
+            # 測試 4: 相對移動
+            print("[測試 4] 相對移動 (+30°, +15°)...")
+            pt.move_by(30, 15)
+            time.sleep(1.5)
+
+            # 測試 5: 讀取新位置
+            print("[測試 5] 再次讀取位置...")
+            pan, tilt = pt.get_position()
+            print(f"  → Pan: {pan}°, Tilt: {tilt}°")
+
+            # 測試 6: 回到初始位置
+            print("[測試 6] 回到初始位置...")
+            pt.home()
+            time.sleep(1.5)
+
+            print()
+            print("✓ 所有測試完成！系統運作正常")
+
+    except Exception as e:
+        print(f"⚠ 測試失敗: {e}")
+        return
+
+    print()
+    print("按下任意鍵開始追蹤系統...")
     input()
 
     # 建立並運行追蹤系統
@@ -39,7 +93,7 @@ def main():
         camera_height=480
     )
 
-    print("\n正在啟動系統...")
+    print("\n正在啟動追蹤系統...")
     tracker.run()
 
 

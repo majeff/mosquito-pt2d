@@ -28,9 +28,14 @@
   #define SERVO_RX_PIN      11           // 舵機 RX 引腳
 #endif
 
-// 舵機 ID 配置
-#define PAN_SERVO_ID        1         // Pan 軸舵機 ID
-#define TILT_SERVO_ID       2         // Tilt 軸舵機 ID
+// 舵機 ID 配置（預設值，啟動時會自動掃描）
+#define DEFAULT_PAN_SERVO_ID    1         // Pan 軸舵機 ID（預設值）
+#define DEFAULT_TILT_SERVO_ID   2         // Tilt 軸舵機 ID（預設值）
+#define AUTO_DETECT_SERVO_ID    true      // 啟動時自動掃描舵機ID
+
+// 自動掃描超時設置
+#define SERVO_DETECT_TIMEOUT    500       // 掃描超時（毫秒）
+#define SERVO_DETECT_INTERVAL   100       // 掃描嘗試間隔（毫秒）
 
 // ============================================
 // 舵機角度範圍

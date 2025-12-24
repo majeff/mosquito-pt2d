@@ -109,10 +109,11 @@ class MosquitoTracker:
             logger.error("Arduino 未連接")
             return False
 
-            # 設置雲台到初始位置（水平中央 90°，垂直 90°）
-            logger.info("設置雲台到中央位置...")
-            self.controller.home()
-            time.sleep(0.5)
+        # 設置雲台到初始位置（水平中央 135°，垂直 90°）
+        logger.info("設置雲台到中央位置...")
+        self.controller.home()
+        time.sleep(1.0)  # 等待雲台移動完成
+        logger.info("雲台已置中，等待偵測目標...")
 
         return True
 
@@ -251,7 +252,9 @@ class MosquitoTracker:
                     self.laser.off()
                     self.laser_marking = False
 
-                logger.info("AI 失去目標，等待下次偵測")
+                # 回到初始位置繼續監控
+                logger.info("AI 失去目標，雲台回到初始位置繼續監控...")
+                self.controller.home()
                 self.tracking_active = False
 
             # 返回左攝像頭畫面作為預設顯示

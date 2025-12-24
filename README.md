@@ -93,7 +93,6 @@
 | 組件 | 規格 | 數量 | 備註 |
 |-----|------|------|------|
 | **Orange Pi 5** | 8GB RAM | 1 | 主控制器，運行影像識別 |
-| microSD 卡 | 64GB+ Class 10 | 1 | 系統儲存 |
 | 電源供應器 | 5V/4A USB-C | 1 | Orange Pi 5 供電 |
 
 ### 視覺系統
@@ -675,20 +674,25 @@ ser.close()
 ## 📁 專案結構
 
 ```
-arduino-pt2d/
+mosquito-pt2d/
 ├── src/
-│   ├── main.cpp              # 主程序
-│   ├── ServoController.cpp   # 伺服馬達控制實現
-│   └── SerialProtocol.cpp    # 串口協議實現
+│   └── main.cpp              # 橋接固件主程序
 ├── include/
-│   ├── config.h              # 配置文件
-│   ├── ServoController.h     # 伺服馬達控制器頭文件
-│   └── SerialProtocol.h      # 串口協議頭文件
-├── lib/                      # 自定義庫目錄
+│   └── config.h              # 配置文件（串口、舵機ID、角度範圍）
+├── python/                   # Python AI 追蹤系統
+│   ├── pt2d_controller.py    # Arduino 串口控制器
+│   ├── mosquito_tracker.py   # AI 追蹤主程序
+│   ├── mosquito_detector.py  # YOLOv8 蚊子偵測器
+│   ├── stereo_camera.py      # 雙目攝像頭控制
+│   ├── laser_controller.py   # 雷射控制（GPIO）
+│   └── quick_start.py        # 快速啟動腳本
+├── models/                   # AI 模型目錄
+│   └── mosquito.pt           # YOLOv8 蚊子偵測模型
 ├── docs/                     # 文檔目錄
 │   ├── hardware.md           # 硬體連接說明
 │   ├── protocol.md           # 通訊協議詳細說明
-│   └── python_example.md     # Python 控制示例
+│   ├── python_example.md     # Python 控制示例
+│   └── arduino_ide_guide.md  # Arduino IDE 使用說明
 ├── platformio.ini            # PlatformIO 配置
 ├── .gitignore               # Git 忽略文件
 └── README.md                # 本文件
@@ -708,10 +712,15 @@ arduino-pt2d/
 
 ### 添加新功能
 
-1. 在 `ServoController` 類中添加新方法
-2. 在 `SerialProtocol` 中添加新命令類型
-3. 在 `main.cpp` 的 `loop()` 中處理新命令
-4. 更新文檔
+**固件端（Arduino）**：
+1. 在 `src/main.cpp` 的 `handlePcLine()` 函數中添加新命令解析
+2. 實現命令邏輯並發送相應的總線指令
+3. 更新 `docs/protocol.md` 協議文檔
+
+**Python 端**：
+1. 在 `python/pt2d_controller.py` 中添加對應的便利方法
+2. 更新 `mosquito_tracker.py` 以使用新功能
+3. 更新文檔
 
 ### 調試技巧
 
@@ -755,7 +764,7 @@ DEBUG_PRINT(panAngle);
 如有問題或建議，請通過以下方式聯繫：
 
 - Email: jeff@ma7.in
-- GitHub Issues: [提交問題](https://github.com/majeff/arduino-pt2d/issues)
+- GitHub Issues: [提交問題](https://github.com/majeff/mosquito-pt2d/issues)
 
 ## 🙏 致謝
 

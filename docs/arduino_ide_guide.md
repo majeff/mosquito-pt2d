@@ -9,39 +9,26 @@
 
 ## 📂 專案結構說明
 
-本專案提供兩種使用方式：
+本專案使用 **PlatformIO**（推薦），也支援 Arduino IDE。
 
-### 方式 1: Arduino IDE（.ino 文件）
-
-適合使用 Arduino IDE 的用戶：
+### 當前架構（橋接固件）
 
 ```
-arduino-pt2d/
-├── arduino-pt2d.ino          # 主程序
-├── BusServoController.h      # 舵機控制器頭文件
-├── BusServoController.cpp    # 舵機控制器實現
-├── SerialProtocol.h          # 串口協議頭文件
-├── SerialProtocol.cpp        # 串口協議實現
-└── config.h                  # 配置文件
-```
-
-**注意**: Arduino IDE 要求所有文件必須在同一個文件夾中，且文件夾名稱必須與 .ino 文件同名。
-
-### 方式 2: PlatformIO（推薦）
-
-適合使用 VS Code + PlatformIO 的用戶：
-
-```
-arduino-pt2d/
+mosquito-pt2d/
 ├── src/
-│   └── main.cpp
+│   └── main.cpp              # 橋接固件主程序
 ├── include/
-│   ├── config.h
-│   ├── BusServoController.h
-│   └── SerialProtocol.h
-├── lib/
-└── platformio.ini
+│   └── config.h              # 配置文件
+├── platformio.ini            # PlatformIO 配置
+└── python/                   # Python 控制程序
+    ├── pt2d_controller.py    # Arduino 控制器
+    └── mosquito_tracker.py   # AI 追蹤系統
 ```
+
+**說明**:
+- 固件採用橋接模式，將 PC 端 `<...>` 命令轉換為總線舵機 `#...!` 指令
+- 不再使用獨立的控制器類，所有邏輯整合在 `main.cpp` 中
+- Arduino IDE 用戶可直接打開 `src/main.cpp` 編譯上傳
 
 ---
 
@@ -49,13 +36,16 @@ arduino-pt2d/
 
 ### 步驟 1: 準備文件
 
-1. 將以下文件複製到同一個文件夾 `arduino-pt2d/`:
-   - `arduino-pt2d.ino`
-   - `BusServoController.h`
-   - `BusServoController.cpp`
-   - `SerialProtocol.h`（從 include/ 目錄複製）
-   - `SerialProtocol.cpp`（從 src/ 目錄複製）
-   - `config.h`（從 include/ 目錄複製）
+**方式 A: 直接使用 PlatformIO（推薦）**
+1. 使用 VS Code + PlatformIO 擴展
+2. 打開專案資料夾
+3. 點擊「上傳」即可
+
+**方式 B: 使用 Arduino IDE**
+1. 打開 `src/main.cpp`
+2. 將文件另存為 `.ino` 格式（例如 `pt2d_bridge.ino`）
+3. 將 `include/config.h` 複製到同一資料夾
+4. 修改 `#include "config.h"` 為 `#include "config.h"`（Arduino IDE 會自動處理）
 
 ### 步驟 2: 配置舵機參數
 
@@ -75,17 +65,19 @@ arduino-pt2d/
 
 ### 步驟 3: 添加 SoftwareSerial（僅 Uno/Nano）
 
-如果使用 Arduino Uno 或 Nano，需在 `arduino-pt2d.ino` 最上方添加：
+如果使用 Arduino Uno 或 Nano，需在主程式文件最上方確認已有：
 
 ```cpp
 #include <SoftwareSerial.h>
-SoftwareSerial ServoSerial(11, 10); // RX, TX
+SoftwareSerial BUS_SERIAL(SERVO_TX_PIN, SERVO_RX_PIN);
 ```
+
+**注意**: `src/main.cpp` 已包含此配置，無需額外修改。
 
 ### 步驟 4: 編譯與上傳
 
-1. 打開 `arduino-pt2d.ino`
-2. 選擇開發板：**工具 → 開發板 → Arduino Mega 2560** (或 Uno/Nano)
+1. 打開 `src/main.cpp`（或另存為 `.ino` 格式）
+2. 選擇開發板：**工具 → 開發板 → Arduino Uno** (或 Nano/Mega)
 3. 選擇端口：**工具 → 端口 → COM3** (根據實際情況)
 4. 點擊「✓」驗證編譯
 5. 點擊「→」上傳到開發板
@@ -97,7 +89,7 @@ SoftwareSerial ServoSerial(11, 10); // RX, TX
 3. 選擇「換行」模式
 4. 發送測試命令：
    ```
-   <MOVE:120,120>
+   <MOVE:135,90>
    <POS>
    <HOME>
    ```
@@ -106,15 +98,19 @@ SoftwareSerial ServoSerial(11, 10); // RX, TX
 
 ## 🐛 常見問題
 
-### Q1: 編譯錯誤 "ServoSerial was not declared"
+### Q1: 編譯錯誤 "BUS_SERIAL was not declared"
 
 **解決方案**（Uno/Nano 用戶）:
 
-在 `arduino-pt2d.ino` 開頭添加：
+確認 `src/main.cpp` 開頭包含：
 
 ```cpp
+#if !defined(__AVR_ATmega2560__)
 #include <SoftwareSerial.h>
-SoftwareSerial ServoSerial(11, 10); // RX=11, TX=10
+SoftwareSerial BUS_SERIAL(SERVO_TX_PIN, SERVO_RX_PIN);
+#else
+#define BUS_SERIAL Serial1
+#endif
 ```
 
 ### Q2: 上傳失敗 "avrdude: stk500_recv(): programmer is not responding"
