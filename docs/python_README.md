@@ -224,10 +224,10 @@ from pt2d_controller import PT2DController
 with PT2DController('COM3') as pt:
     # 設置到中央位置
     pt.home()
-    
+
     # 移動到指定位置
     pt.move_to(135, 90)
-    
+
     # 獲取當前位置
     pan, tilt = pt.get_position()
     print(f"位置: {pan}°, {tilt}°")
