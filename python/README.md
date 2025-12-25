@@ -34,7 +34,49 @@ with PT2DController('/dev/ttyUSB0') as pt:
     print(f"位置: {pan}°, {tilt}°")
 ```
 
-### 3. 快速啟動
+### 3. AI 檢測器進階功能
+
+#### 儲存中等信心度樣本
+
+啟用自動儲存功能，收集信心度中等的樣本圖片供後續檢驗與再訓練：
+
+```python
+from mosquito_detector import MosquitoDetector
+
+# 啟用中等信心度樣本儲存
+detector = MosquitoDetector(
+    model_path="models/mosquito",
+    save_uncertain_samples=True,          # 啟用儲存功能
+    uncertain_conf_range=(0.35, 0.65),   # 信心度範圍
+    save_dir="uncertain_samples",         # 儲存目錄
+    max_disk_usage_percent=20.0,         # 最大磁碟使用率 20%
+    save_annotations=True,                # 自動生成 YOLO 標註文件
+    save_full_frame=False                 # 僅儲存裁剪區域
+)
+
+# 檢測時會自動儲存中等信心度的樣本
+detections, result = detector.detect(frame)
+```
+
+**功能說明**：
+- 自動儲存信心度在 0.35-0.65 範圍內的檢測結果
+- **自動生成 YOLO 格式標註文件**（.txt），可直接用於再訓練
+- 同步檢查磁碟使用率，超過 20% 自動暫停儲存
+- 每 10 張圖片輸出一次統計資訊
+- 圖片命名格式：`mosquito_時間戳_conf信心度.jpg`
+- 標註檔案格式：`mosquito_時間戳_conf信心度.txt`（YOLO 格式）
+
+**YOLO 標註格式**：
+```
+class_id x_center y_center width height
+```
+所有座標值均歸一化到 0-1 範圍，可直接用於 YOLO 訓練。
+
+**儲存模式選項**：
+- `save_full_frame=False`：僅儲存裁剪區域（適合快速檢視）
+- `save_full_frame=True`：儲存完整畫面並標記檢測框（適合再標註）
+
+### 4. 快速啟動
 
 ```bash
 # 執行完整追蹤系統

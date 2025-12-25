@@ -45,7 +45,13 @@ class MosquitoDetector:
                  confidence_threshold: float = 0.4,
                  iou_threshold: float = 0.45,
                  imgsz: int = 320,
-                 fallback_to_pretrained: bool = True):
+                 fallback_to_pretrained: bool = True,
+                 save_uncertain_samples: bool = False,
+                 uncertain_conf_range: Tuple[float, float] = (0.35, 0.65),
+                 save_dir: str = "uncertain_samples",
+                 max_disk_usage_percent: float = 20.0,
+                 save_annotations: bool = True,
+                 save_full_frame: bool = False):
         """
         初始化AI蚊子偵測器 (Orange Pi 5 優化)
         自動選擇最佳推理引擎：RKNN (NPU) → ONNX (CPU優化) → PyTorch (CPU)
@@ -59,12 +65,37 @@ class MosquitoDetector:
                    - 320: 快速推理，適合 Orange Pi 5 / 嵌入式設備
                    - 640: 高精度，適合 PC 開發環境
             fallback_to_pretrained: 如果找不到自定義模型，是否使用預訓練模型
+            save_uncertain_samples: 是否儲存信心度中等的樣本圖片以便後續檢驗與再訓練
+            uncertain_conf_range: 中等信心度範圍 (min, max)，預設 (0.35, 0.65)
+            save_dir: 儲存中等信心度樣本的目錄
+            max_disk_usage_percent: 最大磁碟使用率百分比，超過則暫停儲存，預設 20%
+            save_annotations: 是否自動生成 YOLO 格式標註文件 (.txt)，預設 True
+            save_full_frame: 是否儲存完整畫面（True）或僅裁剪檢測區域（False），預設 False
         """
         self.confidence_threshold = confidence_threshold
         self.iou_threshold = iou_threshold
         self.imgsz = imgsz
         self.model = None
         self.backend = None  # 'rknn', 'onnx', 'pytorch'
+
+        # 儲存功能配置
+        self.save_uncertain_samples = save_uncertain_samples
+        self.uncertain_conf_range = uncertain_conf_range
+        self.save_dir = Path(save_dir)
+        self.max_disk_usage_percent = max_disk_usage_percent
+        self.save_annotations = save_annotations
+        self.save_full_frame = save_full_frame
+        self.save_counter = 0
+        self.storage_paused = False
+
+        # 創建儲存目錄
+        if self.save_uncertain_samples:
+            self.save_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"中等信心度樣本儲存目錄: {self.save_dir}")
+            logger.info(f"信心度範圍: {uncertain_conf_range[0]:.2f} - {uncertain_conf_range[1]:.2f}")
+            logger.info(f"最大磁碟使用率: {max_disk_usage_percent}%")
+            logger.info(f"自動標註: {'啟用' if save_annotations else '停用'}")
+            logger.info(f"儲存模式: {'完整畫面' if save_full_frame else '裁剪區域'}")
 
         # 自動選擇模型
         actual_model_path = self._auto_select_model(model_path, fallback_to_pretrained)
@@ -179,6 +210,126 @@ class MosquitoDetector:
         self.device = 'cpu'
         logger.info(f"✓ PyTorch CPU 推理已啟用，輸入解析度: {self.imgsz}x{self.imgsz}")
 
+    def _check_disk_usage(self) -> bool:
+        """
+        檢查儲存目錄所在磁碟的使用率
+
+        Returns:
+            True: 可以繼續儲存
+            False: 磁碟使用率超過限制，應暫停儲存
+        """
+        try:
+            import shutil
+            stats = shutil.disk_usage(self.save_dir)
+            used_percent = (stats.used / stats.total) * 100
+
+            if used_percent >= self.max_disk_usage_percent:
+                if not self.storage_paused:
+                    logger.warning(f"⚠ 磁碟使用率已達 {used_percent:.1f}% (限制 {self.max_disk_usage_percent}%)，暫停儲存樣本")
+                    self.storage_paused = True
+                return False
+
+            return True
+        except Exception as e:
+            logger.error(f"無法檢查磁碟使用率: {e}")
+            return False
+
+    def _save_uncertain_sample(self, frame: np.ndarray, detection: Dict):
+        """
+        儲存信心度中等的樣本圖片，並可選生成 YOLO 格式標註文件
+
+        Args:
+            frame: 原始影像
+            detection: 檢測結果（含 bbox, confidence 等資訊）
+        """
+        if self.storage_paused:
+            return
+
+        # 檢查磁碟使用率
+        if not self._check_disk_usage():
+            return
+
+        try:
+            import datetime
+
+            confidence = detection['confidence']
+            x, y, w, h = detection['bbox']
+            class_id = detection.get('class_id', 0)
+
+            # 生成基礎檔名：時間戳_信心度
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            base_filename = f"mosquito_{timestamp}_conf{confidence:.3f}"
+
+            # 決定儲存的圖片內容
+            if self.save_full_frame:
+                # 儲存完整畫面
+                image_to_save = frame.copy()
+                # 在完整畫面上繪製邊界框
+                cv2.rectangle(image_to_save, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                cv2.putText(image_to_save, f"{confidence:.2f}", (x, y - 10),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            else:
+                # 僅裁剪檢測區域（帶安全邊界）
+                margin = 10
+                img_h, img_w = frame.shape[:2]
+                y1 = max(0, y - margin)
+                y2 = min(img_h, y + h + margin)
+                x1 = max(0, x - margin)
+                x2 = min(img_w, x + w + margin)
+                image_to_save = frame[y1:y2, x1:x2].copy()
+
+            # 儲存圖片
+            image_path = self.save_dir / f"{base_filename}.jpg"
+            cv2.imwrite(str(image_path), image_to_save)
+
+            # 生成並儲存 YOLO 格式標註文件
+            if self.save_annotations:
+                annotation_path = self.save_dir / f"{base_filename}.txt"
+                self._save_yolo_annotation(annotation_path, frame.shape, detection)
+
+            self.save_counter += 1
+
+            if self.save_counter % 10 == 0:
+                logger.info(f"已儲存 {self.save_counter} 張中等信心度樣本{'（含標註）' if self.save_annotations else ''}")
+
+        except Exception as e:
+            logger.error(f"儲存樣本失敗: {e}")
+
+    def _save_yolo_annotation(self, annotation_path: Path, frame_shape: Tuple[int, int, int], detection: Dict):
+        """
+        生成並儲存 YOLO 格式標註文件
+
+        YOLO 格式：class_id x_center y_center width height（歸一化座標 0-1）
+
+        Args:
+            annotation_path: 標註文件路徑
+            frame_shape: 原始影像尺寸 (height, width, channels)
+            detection: 檢測結果
+        """
+        try:
+            img_h, img_w = frame_shape[:2]
+            x, y, w, h = detection['bbox']
+            class_id = detection.get('class_id', 0)
+
+            # 計算中心點和尺寸（歸一化到 0-1）
+            x_center = (x + w / 2) / img_w
+            y_center = (y + h / 2) / img_h
+            width_norm = w / img_w
+            height_norm = h / img_h
+
+            # 確保座標在有效範圍內
+            x_center = max(0.0, min(1.0, x_center))
+            y_center = max(0.0, min(1.0, y_center))
+            width_norm = max(0.0, min(1.0, width_norm))
+            height_norm = max(0.0, min(1.0, height_norm))
+
+            # 寫入 YOLO 格式標註（一行一個目標）
+            with open(annotation_path, 'w') as f:
+                f.write(f"{class_id} {x_center:.6f} {y_center:.6f} {width_norm:.6f} {height_norm:.6f}\n")
+
+        except Exception as e:
+            logger.error(f"生成標註文件失敗: {e}")
+
 
     def detect(self, frame: np.ndarray) -> Tuple[List[Dict], np.ndarray]:
         """
@@ -192,13 +343,23 @@ class MosquitoDetector:
         """
         try:
             if self.backend == 'rknn':
-                return self._detect_rknn(frame)
+                detections, result_frame = self._detect_rknn(frame)
             elif self.backend == 'onnx':
-                return self._detect_onnx(frame)
+                detections, result_frame = self._detect_onnx(frame)
             elif self.backend == 'pytorch':
-                return self._detect_pytorch(frame)
+                detections, result_frame = self._detect_pytorch(frame)
             else:
                 raise RuntimeError(f"未知的推理後端: {self.backend}")
+
+            # 儲存信心度中等的樣本
+            if self.save_uncertain_samples and detections:
+                for detection in detections:
+                    conf = detection['confidence']
+                    if self.uncertain_conf_range[0] <= conf <= self.uncertain_conf_range[1]:
+                        self._save_uncertain_sample(frame, detection)
+
+            return detections, result_frame
+
         except RuntimeError as e:
             logger.error(f"AI 推理失敗 (Runtime): {e}")
             return [], frame

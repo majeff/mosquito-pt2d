@@ -81,6 +81,11 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
   - High accuracy mosquito identification
   - Confidence scoring and filtering
   - CPU/NPU inference support (Orange Pi 5 optimized)
+  - **Automatic uncertain sample saving** (v2.3.1 new):
+    - Automatically collects detection samples with medium confidence (0.35-0.65)
+    - For subsequent manual review and model retraining
+    - Disk usage monitoring (auto-pause when exceeds 20%)
+    - Smart filenames with timestamp and confidence information
 - 🎯 **Intelligent tracking**:
   - AI detects mosquito → Automatically switches to tracking mode
   - Real-time offset calculation and pan-tilt control for target alignment
