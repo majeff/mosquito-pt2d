@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20Orange%20Pi%205-red.svg)
 
-An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and **AI deep learning (YOLOv8)** technology for intelligent mosquito detection, tracking, and laser marking.
+An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and **AI deep learning (OrangePi5+YOLOv8)** technology for intelligent mosquito detection, tracking, and laser marking.
 
 ## 📜 Version History
 

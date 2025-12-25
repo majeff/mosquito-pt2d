@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20Orange%20Pi%205-red.svg)
 
-一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能。
+一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（OrangePi5+YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能。
 
 ## 📜 版本歷史
 
