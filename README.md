@@ -207,15 +207,12 @@ sudo apt install python3-pip python3-opencv git -y
 
 **關鍵點:**
 - **Orange Pi 5** 為主控制器，運行所有 Python 程式
-- Orange Pi 5 透過 GPIO UART 直連 Arduino Nano（TXD→D0(RX)、RXD←D1(TX, 需電位轉換 5V→3.3V)）
+- Arduino Nano 透過 USB 連接至 Orange Pi 5（裝置為 `/dev/ttyUSB*` 或 `/dev/ttyACM*`）
 - 雙目 **1080p 攝像頭**透過 USB 3.0 連接至 Orange Pi 5
 - 總線舵機透過軟串口連接 Arduino（Nano D10/D11 → 舵機總線）
-- **1mW 雷射模組**為兩線（VCC/GND）型：預設以 MOSFET/驅動器由 GPIO 控制供電；
-   若模組為 3.3V 且實測穩態電流 ≤8~10mA，可考慮直連由 GPIO 供電（風險自評估），否則請用 MOSFET
+- **1mW 雷射模組**由 Arduino 控制，無需額外 MOSFET
 - 舵機需要獨立供電 (6V-8.4V)
 - 所有 GND 必須共地（Orange Pi、Arduino、舵機、雷射）
- - 替代連線：若使用 Arduino 的 USB 連接至 Orange Pi，免電位轉換（裝置為 `/dev/ttyUSB*`/`/dev/ttyACM*`）
- - 控制器板注意：使用「开源6路机器人机械臂舵机控制器板」時，UART 多為 5V TTL；若無 3.3/5V 跳線或電位轉換，請選 USB 連線或在 Arduino TX→Orange Pi RX 路徑加入電位轉換
 ```
 
 ### 3. 測試硬體連接
@@ -224,11 +221,8 @@ sudo apt install python3-pip python3-opencv git -y
 # 測試攝像頭
 python3 stereo_camera.py
 
-# 測試 Arduino 通訊
+# 測試 Arduino 通訊與雷射控制
 python3 pt2d_controller.py
-
-# 測試 GPIO 雷射控制
-python3 test_laser.py  # 我們稍後會建立這個檔案
 ```
 #### 使用 Arduino IDE
 
@@ -249,13 +243,11 @@ pip install -r requirements.txt
 參考 [docs/hardware.md](docs/hardware.md)
 
 **關鍵點:**
-- Orange Pi 5 透過 GPIO UART 直連 Arduino（TXD→D0, RXD←D1 經電位轉換）
+- Arduino Nano 透過 USB 連接至 Orange Pi 5（裝置為 `/dev/ttyUSB*` 或 `/dev/ttyACM*`）
 - 舵機透過總線連接至 Arduino（Nano D10/D11）
 - 攝像頭透過 USB 連接至 Orange Pi 5
 - 舵機需要獨立供電 (6V-8.4V)
 - 所有 GND 必須共地
- - 替代連線：Arduino 以 USB 連至 Orange Pi 可免電位轉換；裝置為 `/dev/ttyUSB*`/`/dev/ttyACM*`
- - 控制器板注意：6路機械臂控制器板 UART 為 5V TTL；若無 3.3/5V 跳線/電位轉換，請選 USB 或加電位轉換
 
 ---
 
@@ -378,14 +370,13 @@ self.position_update_interval = 0.5 # 位置更新間隔（秒）
 
 ### 引腳配置
 
-#### Orange Pi 5 ↔ Arduino Nano（UART 直連）
+#### Orange Pi 5 ↔ Arduino Nano（USB 連接）
 
 ```
 連接           | 說明
 ---------------|--------------------------------------
-Orange Pi TXD  | → Arduino D0 (RX0)
-Orange Pi RXD  | ← Arduino D1 (TX0, 經電位轉換 5V→3.3V)
-共地           | Orange Pi GND ↔ Arduino GND ↔ 舵機電源 GND
+USB            | Orange Pi USB ↔ Arduino Nano USB (CH340/ATmega328P)
+共地           | 透過 USB 已共地，另需與舵機電源 GND 共地
 Nano D10 (TX)  | → 舵機總線 RX（黃線）
 Nano D11 (RX)  | ← 舵機總線 TX（綠線）
 6V-8.4V        | → 舵機 VCC（外接電源）
@@ -394,18 +385,16 @@ Nano D11 (RX)  | ← 舵機總線 TX（綠線）
 
 ```
 [Orange Pi 5]
-   ├─ UART (GPIO) ──> [Arduino Nano] ──(D10/D11)──> [舵機總線] ──> [Pan 舵機 + Tilt 舵機]
+   ├─ USB ─────────> [Arduino Nano] ──(D10/D11)──> [舵機總線] ──> [Pan 舵機 + Tilt 舵機]
    ├─ USB 3.0 ─────> [左攝像頭 1080p]
-   ├─ USB 3.0 ─────> [右攝像頭 1080p]
-   └─ GPIO Pin 5 ──> [MOSFET Gate]（由 GPIO 控制雷射供電）
+   └─ USB 3.0 ─────> [右攝像頭 1080p]
 
 [舵機電源 6V-8.4V] ──> [舵機總線 VCC]
                               └─> GND ──(共地)──> [Arduino GND] ──> [Orange Pi GND]
 
-[兩線雷射（無 EN）]：
-   3.3V (Pin 1) 或 5V (Pin 2/4) ──> 雷射 VCC（經 MOSFET 控制的供電路徑）
-   GPIO Pin 5  ───> MOSFET Gate（串 100Ω，Gate 對地 10k 下拉）
-   GND (Pin 6/9) ─> MOSFET Source 與系統共地；雷射 GND 接 MOSFET Drain（低側開關）
+[Arduino Nano] ──> 雷射控制
+   ├─ Arduino 數位輸出 ──> 雷射 VCC (經程式控制)
+   └─ GND ──> 雷射 GND
 ```
 
 **系統架構圖**:（見上方「完整系統連接」與引腳配置）
@@ -482,10 +471,6 @@ python3 stereo_camera.py
 
 # 測試 Arduino 通訊
 python3 pt2d_controller.py
-
-# 測試雷射控制（需要 sudo）
-sudo python3 laser_controller.py
-
 # 測試蚊子偵測
 python3 mosquito_detector.py
 ```
@@ -643,22 +628,9 @@ sudo usermod -a -G dialout $USER
 
 **檢查項目**:
 - 檢查 GPIO 引腳是否正確（實體 Pin 5，BOARD 模式）
-- 確認雷射模組為 3.3V、低電流型（建議 ≤10mA），並已共地
+- 確認雷射模組為 5V，並透過繼電器或 MOSFET 控制供電
 - 以萬用表量測 Pin 5 在 ON/OFF 時是否電位切換
-- 若模組需 5V 或電流較大，請改用 MOSFET/驅動器，勿直接接 GPIO
-
-**測試命令**:
-```bash
-sudo python3 laser_controller.py
-```
-
-#### 2. 雷射一直開啟無法關閉
-
-**緊急處理**:
-```bash
-# 立即關閉所有 GPIO
-sudo python3 -c "import OPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.setup(5, GPIO.OUT); GPIO.output(5, GPIO.LOW); GPIO.cleanup()"
-```
+- 確認繼電器或 MOSFET 接線正確，並已共地
 
 ### AI 偵測效果不佳
 

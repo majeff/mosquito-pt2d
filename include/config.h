@@ -8,6 +8,62 @@
 #define CONFIG_H
 
 // ============================================
+// 傳感器接口配置 (DJ0-DJ5)
+// ============================================
+// ZL-KPZ 控制板提供 6 組傳感器接口（對應 Arduino 引腳 D7, D3, D5, D6, D9, D8）
+#define SENSOR_PIN_1        7         // DJ0 - 傳感器 1 信號引腳
+#define SENSOR_PIN_2        3         // DJ1 - 傳感器 2 信號引腳
+#define SENSOR_PIN_3        5         // DJ2 - 傳感器 3 信號引腳
+#define SENSOR_PIN_4        6         // DJ3 - 傳感器 4 信號引腳
+#define SENSOR_PIN_5        9         // DJ4 - 傳感器 5 信號引腳
+#define SENSOR_PIN_6        8         // DJ5 - 傳感器 6 信號引腳
+
+// ============================================
+// 基本控制引腳
+// ============================================
+#define LED_PIN             13        // LED 指示燈（Arduino 內建 LED）
+#define BEEP_PIN            4         // 蜂鳴器引腳
+#define IR_PIN              2         // 紅外接收引腳
+#define KEY1_PIN            A1        // 按鍵 1
+#define KEY2_PIN            A2        // 按鍵 2
+
+// ============================================
+// PS 遊戲手把接口 (PS口10-13)
+// ============================================
+#define PS_CLK_PIN          11        // psCLK - PS口10
+#define PS_ATT_PIN          A3        // psATT - PS口11
+#define PS_CMD_PIN          A0        // psCMD - PS口12
+#define PS_DAT_PIN          12        // psDAT - PS口13
+
+// ============================================
+// 舵機信號接口 (SSA/SSD)
+// ============================================
+// SSA - 舵機 A 信號線
+#define SSA1_PIN            A6        // 舵機組 1-A
+#define SSA2_PIN            A0        // 舵機組 2-A
+#define SSA3_PIN            A2        // 舵機組 3-A
+#define SSA4_PIN            A1        // 舵機組 4-A
+#define SSA5_PIN            A3        // 舵機組 5-A
+#define SSA6_PIN            A4        // 舵機組 6-A
+
+// SSD - 舵機 D 信號線
+#define SSD1_PIN            A7        // 舵機組 1-D
+#define SSD2_PIN            A3        // 舵機組 2-D
+#define SSD3_PIN            A1        // 舵機組 3-D
+#define SSD4_PIN            2         // 舵機組 4-D
+#define SSD5_PIN            A0        // 舵機組 5-D
+#define SSD6_PIN            A5        // 舵機組 6-D
+
+// ============================================
+// 串口引腳
+// ============================================
+#define TXD1_PIN            1         // TX (Serial)
+#define RXD1_PIN            0         // RX (Serial)
+
+// 雷射控制配置
+#define LASER_PIN           SENSOR_PIN_4  // 雷射接在傳感器 4 / DJ3 (Pin D6)
+
+// ============================================
 // 串口配置
 // ============================================
 #define SERIAL_BAUDRATE     115200    // 上位機串口波特率

@@ -18,7 +18,7 @@
 | microSD 卡 | 64GB+ Class 10 | 1 | 系統儲存 |
 | Orange Pi 電源 | 5V/4A USB-C | 1 | 主控供電 |
 | 雙目攝像頭 | 1080p USB | 2 | 左右攝像頭 |
-| 雷射模組 | 1mW 紅光 | 1 | 目標標記（Class II，3.3V 低電流優先） |
+| 雷射模組 | 1mW 紅光 | 1 | 目標標記（Class II，5V 模組） |
 | 杜邦線 | 公對母 | 10+ | GPIO 連接 |
 | 散熱片/風扇 | - | 1 | Orange Pi 5 散熱（建議） |
 
@@ -49,31 +49,24 @@ Orange Pi 5 (實體引腳編號 - BOARD 模式)
 
 ## 連線方式總覽
 
-本系統提供兩種 Arduino 連線方式：
+本系統使用 USB 連接 Arduino：
 
-1) GPIO UART 直連（需電位轉換）
-- Orange Pi 5 的 GPIO 為 3.3V 邏輯、非 5V 容忍；Arduino/Nano/控制板通常為 5V TTL。
-- 因此僅「Arduino TX → Orange Pi RX」方向需要降壓至 3.3V；「Orange Pi TX → Arduino RX」通常不需升壓。
-- 優點：不用佔用 USB 埠；可直接使用 `/dev/ttyS*`。
-- 注意：必須共地、並加入電位轉換（分壓或邏輯電平轉換器）。
+**USB-Serial 連接（推薦）**
+- 使用 Arduino Nano 的 USB（CH340/ATmega328P）與 Orange Pi 的 USB 直連
+- 優點：簡單方便、穩定可靠、無需電位轉換
+- 系統節點：`/dev/ttyUSB*` 或 `/dev/ttyACM*`
+- 注意：仍需與舵機電源共地（透過 USB 已與 Arduino 共地）
+- 線材固定避免鬆動
 
-2) USB-Serial 連接（推薦簡化）
-- 使用 Arduino 的 USB（CH340/CP2102）與 Orange Pi 的 USB 直連。
-- 優點：免電位轉換、驅動成熟；系統節點為 `/dev/ttyUSB*` 或 `/dev/ttyACM*`。
-- 注意：仍需共地（透過 USB 已共地）；線材固定避免鬆動。
+### Arduino USB 連接
 
-### GPIO UART 接線（直連）
-
-| Orange Pi Pin | 功能 | 連接至 |
+| Orange Pi 埠 | 功能 | 連接至 |
 |--------------|------|--------|
-| **Pin 8** (TXD) | UART 傳送 | Arduino Nano `RX0` (D0) |
-| **Pin 10** (RXD) | UART 接收 | Arduino Nano `TX0` (D1) → 經電位轉換至 3.3V |
+| **USB** | Arduino Nano USB | Arduino Nano USB 埠（CH340/ATmega328P） |
 | **Pin 6/9** | GND | Arduino GND / 系統共地 |
-| **Pin 5** (GPIO 3) | 雷射控制輸出 | MOSFET Gate（由 GPIO 控制供電） |
-| **Pin 1** (3.3V) | 3.3V 供電 | 3.3V 雷射 VCC（透過 MOSFET 開關） |
-| **Pin 2/4** (5V) | 5V 供電 | 5V 雷射 VCC（透過 MOSFET/驅動器） |
 
-> 注意：Arduino TX (5V) → Orange Pi RX (3.3V) 必須降壓。可用邏輯電平轉換器或簡易分壓（例如 10k/20k）。
+> 注意：USB 連接無需電位轉換，裝置節點通常為 `/dev/ttyUSB0` 或 `/dev/ttyACM0`。
+> 雷射模組由 Arduino 控制，無需在 Orange Pi 這邊做任何連接。
 
 ---
 
@@ -84,14 +77,10 @@ Orange Pi 5 (實體引腳編號 - BOARD 模式)
 │            Orange Pi 5 主控制器               │
 ├──────────────────────────────────────────────┤
 │                                              │
-│  GPIO UART (TX/RX) ───> Arduino Nano (D0/D1)│
+│  USB Port ─────────────> Arduino Nano        │
 │  USB 3.0 Port 2 ──────> 左攝像頭 (1080p)     │
 │  USB 3.0 Port 3 ──────> 右攝像頭 (1080p)     │
 │                                              │
-│  GPIO Pin 5 ───────────> 雷射控制（3.3V EN 或 MOSFET Gate） │
-│  3.3V (Pin 1) ─────────> 3.3V 雷射 VCC（僅限低電流）        │
-│  5V (Pin 2) ───────────> 5V 雷射 VCC（透過 MOSFET/驅動器） │
-│  GND (Pin 6) ──────────> 系統共地                         │
 │                         │                    │
 └─────────────────────────┼────────────────────┘
                           │
@@ -115,47 +104,6 @@ GPIO/MOSFET → │ 雷射模組   │
 EN/VCC      │ 1mW 紅光   │
           └────────────┘
 ```
-
----
-
-## 🎯 雷射系統詳細接線（兩線雷射，無 EN/控制腳）
-
-兩線雷射（僅 VCC/GND）建議以 MOSFET/驅動器在供電路徑做開關；GPIO 不直接供電雷射。
-
-### 方案：使用 N-MOSFET 低側開關（建議）
-
-條件：雷射為 3.3V 或 5V，工作電流通常 ≥10mA；GPIO 只提供邏輯控制。
-
-接線：
-```
-Orange Pi Pin 5 (GPIO 3) → MOSFET Gate（建議串 100Ω；Gate 對地加 10k 下拉）
-電源（3.3V 或 5V）→ 雷射 VCC
-雷射 GND → MOSFET Drain
-MOSFET Source → 系統 GND（與 Orange Pi/Arduino 共地）
-```
-
-注意：
-- 建議方案為 MOSFET/NPN 驅動，並設定保護電阻與下拉。
-- 測試前以萬用電表確認電壓與導通狀態。
-
-### 例外：3.3V 微載流（≤10mA）直連（僅在確認規格安全時）
-
-條件全部符合才可考慮直連：
-- 雷射模組額定工作電壓為 3.0~3.3V；
-- 實測穩態電流 ≤ 8~10mA（以 8mA 為宜），無明顯浪湧；
-- 系統總 GPIO 電流額度未超出 SoC 規範。
-
-接線（直連供電由 GPIO 提供）：
-```
-Orange Pi Pin 5 (GPIO 3) → 雷射 VCC
-Orange Pi Pin 6/9 (GND) → 雷射 GND
-```
-
-軟體：GPIO 輸出 HIGH = 開，LOW = 關。
-
-風險與注意：
-- 不同板卡 GPIO 允許電流不同，請以 Orange Pi 5 實際 SoC 規格為準；長期建議仍使用 MOSFET；
-- 建議先用萬用電表在 3.3V 量測雷射穩態電流；必要時可在 VCC 串聯 47~100Ω 以限浪湧（會略降亮度）。
 
 ---
 
@@ -411,11 +359,10 @@ camera_height = 720
 ## 🧩 控制器板注意事項（开源6路机器人机械臂舵机控制器板）
 
 - 多數此類開源 6 路機械臂控制器板以 5V TTL UART 與外部通信。
-- 若板上提供「3.3V/5V 跳線」或內建電位轉換，請確認 UART 外接端設定為 3.3V 才能直連 Orange Pi GPIO。
-- 若無內建電位轉換，建議：
-   - 使用 USB 方式連接（免電位轉換，裝置為 `/dev/ttyUSB*`/`/dev/ttyACM*`）。
-   - 或在 Arduino TX→Orange Pi RX 路徑加邏輯電平轉換器/分壓。
-- 舵機與控制板電源通常為 5V/7.4V（視總線舵機要求），務必與 Orange Pi 共地。
+- **建議使用 USB 連接方式**（Arduino Nano USB ↔ Orange Pi 5 USB）：
+   - 簡單穩定，無需電位轉換
+   - 裝置為 `/dev/ttyUSB*`/`/dev/ttyACM*`
+- 舵機與控制板電源通常為 6V-8.4V（視總線舵機要求），務必與 Orange Pi 共地。
 
 ---
 

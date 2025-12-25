@@ -228,15 +228,12 @@ Refer to [docs/hardware.md](docs/hardware.md)
 
 **Key Points:**
 - **Orange Pi 5** is the main controller, runs all Python programs
-- Orange Pi 5 connects to Arduino Nano via GPIO UART (TXD→D0(RX), RXD←D1(TX, needs level conversion 5V→3.3V))
+- Arduino Nano connects to Orange Pi 5 via USB (device is `/dev/ttyUSB*` or `/dev/ttyACM*`)
 - Dual **1080p cameras** connect to Orange Pi 5 via USB 3.0
 - Bus servos connect to Arduino via software serial (Nano D10/D11 → Servo bus)
-- **1mW laser module** is 2-wire (VCC/GND) type: Default controlled by MOSFET/driver via GPIO;
-   If module is 3.3V and measured steady current ≤8~10mA, direct GPIO power can be considered (assess risk), otherwise use MOSFET
+- **1mW laser module** is controlled by Arduino, no external MOSFET needed
 - Servos need independent power (6V-8.4V)
 - All GND must be common (Orange Pi, Arduino, servo, laser)
-- Alternative connection: If Arduino's USB connects to Orange Pi, no level conversion needed (device is `/dev/ttyUSB*`/`/dev/ttyACM*`)
-- Controller board note: When using "6-channel robot arm servo controller board", UART is usually 5V TTL; if no 3.3/5V jumper or level conversion, use USB connection or add level conversion on Arduino TX→Orange Pi RX path
 
 ### 4. Test Hardware Connection
 
@@ -378,14 +375,13 @@ Detailed connection diagram: [docs/hardware.md](docs/hardware.md)
 
 ### Pin Configuration
 
-#### Orange Pi 5 ↔ Arduino Nano (UART Direct)
+#### Orange Pi 5 ↔ Arduino Nano (USB Connection)
 
 ```
 Connection         | Description
 -------------------|--------------------------------------
-Orange Pi TXD      | → Arduino D0 (RX0)
-Orange Pi RXD      | ← Arduino D1 (TX0, with level conversion 5V→3.3V)
-Common Ground      | Orange Pi GND ↔ Arduino GND ↔ Servo Power GND
+USB                | Orange Pi USB ↔ Arduino Nano USB (CH340/ATmega328P)
+Common Ground      | Via USB, also needs common with Servo Power GND
 Nano D10 (TX)      | → Servo Bus RX (yellow wire)
 Nano D11 (RX)      | ← Servo Bus TX (green wire)
 6V-8.4V            | → Servo VCC (external power)
@@ -395,28 +391,21 @@ Nano D11 (RX)      | ← Servo Bus TX (green wire)
 
 ```
 [Orange Pi 5]
-   ├─ UART (GPIO) ──> [Arduino Nano] ──(D10/D11)──> [Servo Bus] ──> [Pan Servo + Tilt Servo]
+   ├─ USB ─────────> [Arduino Nano] ──(D10/D11)──> [Servo Bus] ──> [Pan Servo + Tilt Servo]
    ├─ USB 3.0 ─────> [Left Camera 1080p]
-   ├─ USB 3.0 ─────> [Right Camera 1080p]
-   └─ GPIO Pin 5 ──> [MOSFET Gate] (GPIO controls laser power)
+   └─ USB 3.0 ─────> [Right Camera 1080p]
 
 [Servo Power 6V-8.4V] ──> [Servo Bus VCC]
                               └─> GND ──(common)──> [Arduino GND] ──> [Orange Pi GND]
 
-[2-wire laser (no EN)]:
-   3.3V (Pin 1) or 5V (Pin 2/4) ──> Laser VCC (via MOSFET-controlled power path)
-   GPIO Pin 5  ───> MOSFET Gate (100Ω series, 10k pull-down to ground)
-   GND (Pin 6/9) ─> MOSFET Source and system common ground; Laser GND connects to MOSFET Drain (low-side switch)
+[Arduino Nano] ──> Laser Control
+   ├─ Arduino Digital Output ──> Laser VCC (controlled by program)
+   └─ GND ──> Laser GND
 ```
 
 **System Architecture Diagram**: (See "Complete System Connection" and pin configuration above)
 
-**GPIO Mapping (OrangePi.GPIO library)**:
-- Physical Pin 5 = GPIO 3 = Use Pin 5 in program with `GPIO.setmode(GPIO.BOARD)`
-
-Note:
-- 2-wire laser needs MOSFET in power path; GPIO only for logic control, not direct power.
-- If laser is 5V or high current, must use MOSFET/driver; ensure common ground and add gate pull-down and protection resistor.
+**Note**: Laser is controlled by Arduino, no GPIO or MOSFET needed on Orange Pi side
 
 ### ⚠️ Important Notes
 
@@ -640,9 +629,9 @@ sudo usermod -a -G dialout $USER
 
 **Check items**:
 - Check GPIO pin is correct (physical Pin 5, BOARD mode)
-- Confirm laser module is 3.3V, low current type (recommended ≤10mA), and common ground
+- Confirm laser module is 5V and uses relay/MOSFET for power control
 - Use multimeter to measure Pin 5 voltage switching on ON/OFF
-- If module needs 5V or high current, use MOSFET/driver, do not connect directly to GPIO
+- Verify relay or MOSFET wiring is correct and common ground
 
 **Test command**:
 ```bash

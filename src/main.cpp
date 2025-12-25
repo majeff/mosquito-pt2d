@@ -19,10 +19,6 @@ SoftwareSerial BUS_SERIAL(SERVO_TX_PIN, SERVO_RX_PIN);
 #define BUS_SERIAL Serial1
 #endif
 
-// LED / BEEP 定義（參照範例）
-#define LED_PIN 13
-#define BEEP_PIN 4
-
 // 固定大小緩衝區（避免 String 類的 heap 碎片化）
 static char pcBuf[128];
 static uint8_t pcBufLen = 0;
@@ -65,6 +61,11 @@ static void setup_led() {
 static void setup_beep() {
   pinMode(BEEP_PIN, OUTPUT);
   digitalWrite(BEEP_PIN, HIGH); // 關閉
+}
+
+static void setup_laser() {
+  pinMode(LASER_PIN, OUTPUT);
+  digitalWrite(LASER_PIN, LOW); // 雷射關閉
 }
 
 static void setup_uart() {
@@ -269,6 +270,24 @@ static void handleLed(const char* params) {
 static void handleBeep() {
   beep_short3();
   Serial.println("{\"status\":\"ok\",\"message\":\"BEEP\"}");
+}
+
+// 處理 LASER 命令
+static void handleLaser(const char* params) {
+  char paramsCopy[16];
+  strncpy(paramsCopy, params, 15);
+  paramsCopy[15] = '\0';
+  toUpperCase(paramsCopy);
+
+  if (strcmp(paramsCopy, "ON") == 0) {
+    digitalWrite(LASER_PIN, HIGH);  // 雷射開啟
+    Serial.println("{\"status\":\"ok\",\"message\":\"LASER_ON\"}");
+  } else if (strcmp(paramsCopy, "OFF") == 0) {
+    digitalWrite(LASER_PIN, LOW);   // 雷射關閉
+    Serial.println("{\"status\":\"ok\",\"message\":\"LASER_OFF\"}");
+  } else {
+    sendError("Invalid parameter (ON/OFF)");
+  }
 }
 
 // 處理 SPEED 命令
@@ -527,6 +546,7 @@ static void handlePcLine(const char* line) {
   }
   else if (strcmp(cmdType, "LED") == 0) handleLed(params);
   else if (strcmp(cmdType, "BEEP") == 0) handleBeep();
+  else if (strcmp(cmdType, "LASER") == 0) handleLaser(params);
   else if (strcmp(cmdType, "SPEED") == 0) handleSpeed(params);
   else if (strcmp(cmdType, "SETID") == 0) handleSetId(params);
   else if (strcmp(cmdType, "MOVE") == 0 || strcmp(cmdType, "MOVETO") == 0) handleMove(params);
@@ -576,6 +596,7 @@ void setup() {
 
   setup_led();
   setup_beep();
+  setup_laser();  // 初始化雷射控制
   setup_uart();
   setup_bus();
 

@@ -60,20 +60,12 @@ pip3 install -r requirements.txt
 # RKNN Toolkit 2 需從官方下載
 wget https://github.com/rockchip-linux/rknn-toolkit2/releases/download/v1.5.0/rknn_toolkit2-1.5.0-cp38-cp38-linux_aarch64.whl
 pip3 install rknn_toolkit2-1.5.0-cp38-cp38-linux_aarch64.whl
-
-# 安裝 GPIO 控制庫（雷射控制）
-pip3 install OrangePi.GPIO
-
-# 設定 GPIO 權限
-sudo usermod -a -G gpio $USER
-# 需登出後重新登入生效
 ```
 
 **重要套件:**
 - `ultralytics`: YOLOv8 AI 模型框架
 - `onnxruntime`: ONNX 模型推理引擎（CPU 優化）
 - `opencv-python`: 影像處理
-- `OrangePi.GPIO`: GPIO 控制（雷射）
 
 ### 3. 下載 AI 模型
 
@@ -95,14 +87,13 @@ mkdir -p models
 
 ### 3. 硬體連接
 
-- **Arduino**: 透過 GPIO UART（杜邦線）連接至 Orange Pi 5
-    - Orange Pi TXD → Arduino `RX0` (D0)
-    - Orange Pi RXD ← Arduino `TX0` (D1)（需電位轉換 5V→3.3V）
-    - 共地：Orange Pi GND ↔ Arduino GND ↔ 舵機電源 GND
-    - 可能的裝置節點：`/dev/ttyS1`、`/dev/ttyS3`（用 `dmesg | grep tty` 確認）
-    - 若改用 USB 轉接線，裝置節點通常為 `/dev/ttyUSB0`
+- **Arduino**: 透過 USB 連接至 Orange Pi 5
+    - Arduino Nano USB ↔ Orange Pi 5 USB 埠
+    - 裝置節點通常為：`/dev/ttyUSB0` 或 `/dev/ttyACM0`
+    - 共地：透過 USB 已共地，另需與舵機電源 GND 共地
+    - 用 `dmesg | grep tty` 或 `ls /dev/ttyUSB*` 確認裝置節點
 - **左/右攝像頭**: USB 3.0 連接（UVC 相容）
-- **雷射模組**: GPIO Pin 5 (BOARD 實體引腳 5) 經繼電器控制
+- **雷射模組**: 由 Arduino 控制，無需額外 MOSFET
 
 ### 3. 運行追蹤系統
 
@@ -241,52 +232,7 @@ python3 pt2d_controller.py
 
 ---
 
-### 4. `laser_controller.py` - 雷射標記控制模組
-
-透過 Orange Pi 5 GPIO 控制繼電器來啟動/關閉雷射模組。
-
-**支援功能:**
-- `on()`: 開啟雷射
-- `off()`: 關閉雷射
-- `pulse(duration)`: 發出脈衝
-- `blink(count, on_time, off_time)`: 閃爍
-- `get_state()`: 獲取當前狀態
-
-**使用範例:**
-
-```python
-from laser_controller import LaserController
-
-with LaserController(gpio_pin=5) as laser:
-    # 開啟雷射
-    laser.on()
-    time.sleep(1)
-
-    # 關閉雷射
-    laser.off()
-
-    # 脈衝標記
-    laser.pulse(duration=0.2)
-
-    # 閃爍
-    laser.blink(count=3, on_time=0.1, off_time=0.1)
-```
-
-**測試:**
-
-```bash
-# 需要 GPIO 權限
-sudo python3 laser_controller.py
-```
-
-**安全提醒:**
-- ⚠️ 使用 1mW 紅光雷射（Class II 安全等級）
-- ⚠️ 請勿直視雷射光
-- ⚠️ 確保雷射指向安全方向
-
----
-
-### 5. `mosquito_tracker.py` - AI 主追蹤系統
+### 4. `mosquito_tracker.py` - AI 主追蹤系統
 
 整合所有模組，實現基於 AI 的自動蚊子追蹤。
 
