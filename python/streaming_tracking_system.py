@@ -73,8 +73,8 @@ class StreamingTrackingSystem:
         print("[1/5] 初始化 AI 檢測器...")
         self.detector = MosquitoDetector(
             model_path=model_path,
-            confidence_threshold=0.4,
-            imgsz=320,
+            confidence_threshold=DEFAULT_CONFIDENCE_THRESHOLD,
+            imgsz=DEFAULT_IMGSZ,
             save_uncertain_samples=save_samples,
             uncertain_conf_range=sample_conf_range,
             save_dir="uncertain_samples",

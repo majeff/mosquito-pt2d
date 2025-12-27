@@ -53,8 +53,8 @@ class MosquitoTracker:
         logger.info("初始化 AI 蚊子偵測器...")
         self.detector = MosquitoDetector(
             model_path=None,                           # 自動搜尋模型（.rknn → .onnx → .pt）
-            confidence_threshold=0.4,                  # 信心度閾值
-            imgsz=320                                  # Orange Pi 5 建議使用 320
+            confidence_threshold=DEFAULT_CONFIDENCE_THRESHOLD,
+            imgsz=DEFAULT_IMGSZ                        # 從 config.py 讀取（可統一修改）
         )
 
         # 初始化 Arduino 控制器
@@ -64,11 +64,11 @@ class MosquitoTracker:
         # 追蹤狀態
         self.tracking_active = False
         self.last_detection_time = 0
-        self.no_detection_timeout = 3.0  # 無檢測超時時間（秒）
+        self.no_detection_timeout = DEFAULT_NO_DETECTION_TIMEOUT
 
         # 目標鎖定機制（多目標時保持追蹤同一目標）
         self.locked_target_position = None  # 上次追蹤的目標位置 (x, y)
-        self.target_lock_distance = 100     # 目標鎖定距離閾值（像素）
+        self.target_lock_distance = DEFAULT_TARGET_LOCK_DISTANCE
 
         # 位置緩存（減少串口讀取頻率）
         self.cached_pan = 135
@@ -77,12 +77,16 @@ class MosquitoTracker:
         self.position_update_interval = 0.5  # 每0.5秒更新一次位置
 
         # 蜂鳴器狀態
-        self.beep_cooldown = 2.0  # 蜂鳴冷卻時間（秒），避免頻繁觸發
+        self.beep_cooldown = DEFAULT_BEEP_COOLDOWN
         self.last_beep_time = 0
 
+        # 雷射冷卻時間
+        self.laser_cooldown = DEFAULT_LASER_COOLDOWN
+        self.last_laser_time = 0
+
         # PID 控制參數（簡化版）
-        self.pan_gain = 0.15   # Pan 軸增益
-        self.tilt_gain = 0.15  # Tilt 軸增益
+        self.pan_gain = DEFAULT_PAN_GAIN   # Pan 增益（控制靈敏度）
+        self.tilt_gain = DEFAULT_TILT_GAIN  # Tilt 增益（控制靈敏度）
 
         logger.info("追蹤系統初始化完成")
 

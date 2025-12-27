@@ -28,7 +28,7 @@
 
 ### v2.2.0（2025-12-24）📚 文檔完善
 - 文檔與代碼一致性檢查（100/100 分）
-- AI 參數標準化（`confidence: 0.4`, `imgsz: 320`）
+- AI 參數標準化（`confidence: 0.4`, `imgsz: 640`）
 - 模型自動搜尋機制（RKNN → ONNX → PyTorch）
 
 ---
@@ -348,34 +348,45 @@ python streaming_tracking_system.py
 
 ### 配置參數
 
-編輯 `python/mosquito_tracker.py`：
+系統參數統一在 [python/config.py](python/config.py) 中管理，方便集中修改：
 
 ```python
-# Arduino 串口
-ARDUINO_PORT = 'COM3'  # Windows
-# 對於 Orange Pi 5（GPIO UART 直連）請使用 /dev/ttyS*，如：
-# ARDUINO_PORT = '/dev/ttyS1'  # Linux（請用 dmesg/ls 確認實際節點）
+# ============================================
+# AI 檢測參數
+# ============================================
+DEFAULT_IMGSZ = 640                      # 輸入解析度（320/416/640，預設 640）
+DEFAULT_CONFIDENCE_THRESHOLD = 0.4       # 信心度閾值（0.3-0.7）
+DEFAULT_IOU_THRESHOLD = 0.45             # IoU 閾值
 
-# 攝像頭 ID
-LEFT_CAMERA_ID = 0
-RIGHT_CAMERA_ID = 1
-
-# AI 偵測參數
-detector = MosquitoDetector(
-    model_path=None,                           # 自動搜尋模型（.rknn → .onnx → .pt）
-    confidence_threshold=0.4,                  # 信心度閾值（推薦 0.3-0.7）
-    imgsz=320                                  # 輸入解析度（320/416/640）
-)
-
+# ============================================
 # 追蹤參數
-self.pan_gain = 0.15                # Pan 增益（控制靈敏度）
-self.tilt_gain = 0.15               # Tilt 增益（控制靈敏度）
-self.no_detection_timeout = 3.0     # 無偵測超時（秒）
-self.target_lock_distance = 100     # 目標鎖定距離（像素）
-self.beep_cooldown = 2.0            # 蜂鳴器冷卻時間（秒）
-self.laser_cooldown = 0.5           # 雷射冷卻時間（秒）
-self.position_update_interval = 0.5 # 位置更新間隔（秒）
+# ============================================
+DEFAULT_PAN_GAIN = 0.15                  # Pan 增益（控制靈敏度）
+DEFAULT_TILT_GAIN = 0.15                 # Tilt 增益（控制靈敏度）
+DEFAULT_NO_DETECTION_TIMEOUT = 3.0       # 無偵測超時（秒）
+DEFAULT_TARGET_LOCK_DISTANCE = 100       # 目標鎖定距離（像素）
+
+# ============================================
+# 硬體參數
+# ============================================
+DEFAULT_ARDUINO_PORT = '/dev/ttyUSB0'    # Linux/Orange Pi
+# DEFAULT_ARDUINO_PORT = 'COM3'          # Windows
+DEFAULT_LEFT_CAMERA_ID = 0
+DEFAULT_RIGHT_CAMERA_ID = 1
+
+# ============================================
+# 控制參數
+# ============================================
+DEFAULT_BEEP_COOLDOWN = 2.0              # 蜂鳴器冷卻時間（秒）
+DEFAULT_LASER_COOLDOWN = 0.5             # 雷射冷卻時間（秒）
 ```
+
+**修改方式**：編輯 `python/config.py` 即可統一調整所有模組的參數。
+
+**常用調整**：
+- **提升速度**：將 `DEFAULT_IMGSZ` 改為 `320`（犧牲精度）
+- **提升精度**：將 `DEFAULT_IMGSZ` 改為 `800` 或 `1280`（降低速度）
+- **調整追蹤靈敏度**：修改 `DEFAULT_PAN_GAIN` 和 `DEFAULT_TILT_GAIN`
 
 ---
 
@@ -456,7 +467,7 @@ Nano D11 (RX)  | ← 舵機總線 TX（綠線）
 
 1. **獨立供電**: 總線舵機需要 **6V-8.4V** 供電（推薦 7.4V 鋰電池）
 2. **共地**: 確保 Orange Pi、Arduino、舵機所有 GND 連接在一起
-3. **串口選擇**: Nano 上位機通訊使用 D0/D1（硬體 UART），舵機總線使用 D10/D11（SoftwareSerial）
+3. **串口連接**: Arduino Nano 透過 **USB** 連接 Orange Pi 5（內部使用 D0/D1 硬體 UART），舵機總線使用 D10/D11（SoftwareSerial）
 4. **舵機 ID**: 預設 Pan=ID1, Tilt=ID2，請先確認舵機 ID 設置
 5. **攝像頭**: 雙目 1080p 攝像頭透過 USB 3.0 連接至 Orange Pi 5
 6. **雷射安全**: 使用 1mW 紅光雷射（Class II），避免直視，安裝時注意方向
@@ -479,7 +490,6 @@ Nano D11 (RX)  | ← 舵機總線 TX（綠線）
 | `SPEED` | value | 設置速度 (1-100) | `<SPEED:80>` |
 | `HOME` | - | 回到初始位置 | `<HOME>` |
 | `STOP` | - | 停止移動 | `<STOP>` |
-<!-- 掃描模式已移除，MODE/GETMODE 不再提供 -->
 | `CAL` | - | 執行校準 | `<CAL>` |
 
 ### 響應格式
@@ -552,8 +562,6 @@ sudo python3 quick_start.py
 # 回到初始位置
 <HOME>
 
-# （掃描模式已移除）
-
 # 停止移動
 <STOP>
 ```
@@ -566,7 +574,6 @@ sudo python3 quick_start.py
 |--------|------|------|
 | `q` | 退出系統 | 安全關閉所有資源 |
 | `r` | 重置偵測器 | 清除偵測歷史 |
-<!-- 掃描模式快捷鍵已移除 -->
 | `h` | 回到初始位置 | 雲台歸位 |
 
 ---
@@ -657,12 +664,12 @@ sudo usermod -a -G dialout $USER
    detector = MosquitoDetector(
        model_path='models/mosquito_yolov8n.pt',  # 使用專用模型
        confidence_threshold=0.3,                  # 降低閾值（0.3-0.5）
-       imgsz=320                                  # 優化速度（320/416/640）
+       imgsz=640                                  # 平衡精度與速度（320/416/640）
    )
    ```
-4. **降低解析度** - 提高 AI 推理速度
+4. **降低解析度** - 提高 AI 推理速度（犧牲精度）
    ```python
-   detector = MosquitoDetector(imgsz=320)  # 從 640 降到 320
+   detector = MosquitoDetector(imgsz=320)  # 從預設 640 降到 320 以提升速度
    ```
 5. **轉換為 ONNX/RKNN** - 參見 [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md)
 
@@ -671,8 +678,6 @@ sudo usermod -a -G dialout $USER
 ```
 
 ### Python 控制示例
-
-查看 [docs/python_example.md](docs/python_example.md) 獲取完整的 Python 控制代碼。
 
 ```python
 import serial
@@ -719,10 +724,7 @@ ser.close()
 | HOME | `<HOME>` | 回到初始位置 | `<HOME>` |
 | STOP | `<STOP>` | 停止移動 | `<STOP>` |
 | CAL | `<CAL>` | 執行校準 | `<CAL>` |
-| MODE | `<MODE:0/1>` | 設置模式（0=手動、1=自動掃描） | `<MODE:1>` |
-| GETMODE | `<GETMODE>` | 查詢當前模式 | `<GETMODE>` |
 
-> 註：自動掃描模式僅供手動/單機測試使用，蚊子辨識流程不會觸發或使用掃描模式。
 ## 📁 專案結構
 
 ```
@@ -732,6 +734,7 @@ mosquito-pt2d/
 ├── include/
 │   └── config.h                      # 配置文件（串口、舵機ID、角度範圍）
 ├── python/                           # Python AI 追蹤系統
+│   ├── config.py                     # ⭐ 系統配置參數（統一管理）
 │   ├── streaming_tracking_system.py  # ⭐ 完整系統（AI+追蹤+串流）
 │   ├── streaming_server.py           # HTTP-MJPEG 串流伺服器模組
 │   ├── mosquito_tracker.py           # AI 追蹤主程序
@@ -748,7 +751,6 @@ mosquito-pt2d/
 │   ├── STREAMING_GUIDE.md            # 影像串流指南 ⭐ 新增
 │   ├── hardware.md                   # 硬體連接說明
 │   ├── protocol.md                   # 通訊協議詳細說明
-│   ├── python_example.md             # Python 控制示例
 │   └── arduino_ide_guide.md          # Arduino IDE 使用說明
 ├── platformio.ini                    # PlatformIO 配置
 ├── .gitignore                        # Git 忽略文件
@@ -758,6 +760,17 @@ mosquito-pt2d/
 ## 🛠 開發指南
 
 ### 修改配置
+
+**Python 系統配置**：
+
+編輯 [python/config.py](python/config.py) 統一管理所有 Python 模組參數：
+
+- AI 檢測參數（解析度、信心度閾值）
+- 追蹤參數（增益、超時時間）
+- 硬體參數（串口、攝像頭 ID）
+- 控制參數（蜂鳴器、雷射冷卻時間）
+
+**Arduino 固件配置**：
 
 編輯 [include/config.h](include/config.h) 文件來修改：
 
@@ -837,7 +850,6 @@ DEBUG_PRINT(panAngle);
 | [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI 檢測系統詳細指南 |
 | [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ 影像串流指南（手機觀看） |
 | [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | 蚊子檢測模型說明與下載 |
-| [docs/python_example.md](docs/python_example.md) | Python 範例程式與使用教學 |
 | [docs/python_README.md](docs/python_README.md) | Python 模塊導航文檔 |
 | [python/README.md](python/README.md) | Python 程式目錄說明 |
 
@@ -856,6 +868,7 @@ DEBUG_PRINT(panAngle);
 |------|------|
 | [include/config.h](include/config.h) | Arduino 固件配置參數 |
 | [src/main.cpp](src/main.cpp) | Arduino 橋接固件主程式 |
+| [python/config.py](python/config.py) | ⭐ Python 系統配置參數（統一管理） |
 | [python/streaming_tracking_system.py](python/streaming_tracking_system.py) | ⭐ 完整整合系統（推薦使用） |
 | [python/streaming_server.py](python/streaming_server.py) | HTTP-MJPEG 串流伺服器模組 |
 | [python/mosquito_tracker.py](python/mosquito_tracker.py) | 主追蹤系統 |

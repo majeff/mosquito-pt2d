@@ -28,7 +28,7 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 
 ### v2.2.0 (2025-12-24) 📚 Documentation Enhancement
 - Document-code consistency check (100/100 score)
-- AI parameter standardization (`confidence: 0.4`, `imgsz: 320`)
+- AI parameter standardization (`confidence: 0.4`, `imgsz: 640`)
 - Automatic model search mechanism (RKNN → ONNX → PyTorch)
 
 ---
@@ -369,34 +369,45 @@ After running `mosquito_tracker.py`:
 
 ### Configuration Parameters
 
-Edit `python/mosquito_tracker.py`:
+System parameters are centrally managed in [python/config.py](python/config.py) for easy modification:
 
 ```python
-# Arduino serial port
-ARDUINO_PORT = 'COM3'  # Windows
-# For Orange Pi 5 (GPIO UART direct), use /dev/ttyS*, e.g.:
-# ARDUINO_PORT = '/dev/ttyS1'  # Linux (confirm actual node with dmesg/ls)
+# ============================================
+# AI Detection Parameters
+# ============================================
+DEFAULT_IMGSZ = 640                      # Input resolution (320/416/640, default 640)
+DEFAULT_CONFIDENCE_THRESHOLD = 0.4       # Confidence threshold (0.3-0.7)
+DEFAULT_IOU_THRESHOLD = 0.45             # IoU threshold
 
-# Camera IDs
-LEFT_CAMERA_ID = 0
-RIGHT_CAMERA_ID = 1
+# ============================================
+# Tracking Parameters
+# ============================================
+DEFAULT_PAN_GAIN = 0.15                  # Pan gain (control sensitivity)
+DEFAULT_TILT_GAIN = 0.15                 # Tilt gain (control sensitivity)
+DEFAULT_NO_DETECTION_TIMEOUT = 3.0       # No detection timeout (seconds)
+DEFAULT_TARGET_LOCK_DISTANCE = 100       # Target lock distance (pixels)
 
-# AI detection parameters
-detector = MosquitoDetector(
-    model_path=None,                           # Auto-search model (.rknn → .onnx → .pt)
-    confidence_threshold=0.4,                  # Confidence threshold (recommended 0.3-0.7)
-    imgsz=320                                  # Input resolution (320/416/640)
-)
+# ============================================
+# Hardware Parameters
+# ============================================
+DEFAULT_ARDUINO_PORT = '/dev/ttyUSB0'    # Linux/Orange Pi
+# DEFAULT_ARDUINO_PORT = 'COM3'          # Windows
+DEFAULT_LEFT_CAMERA_ID = 0
+DEFAULT_RIGHT_CAMERA_ID = 1
 
-# Tracking parameters
-self.pan_gain = 0.15                # Pan gain (control sensitivity)
-self.tilt_gain = 0.15               # Tilt gain (control sensitivity)
-self.no_detection_timeout = 3.0     # No detection timeout (seconds)
-self.target_lock_distance = 100     # Target lock distance (pixels)
-self.beep_cooldown = 2.0            # Beep cooldown time (seconds)
-self.laser_cooldown = 0.5           # Laser cooldown time (seconds)
-self.position_update_interval = 0.5 # Position update interval (seconds)
+# ============================================
+# Control Parameters
+# ============================================
+DEFAULT_BEEP_COOLDOWN = 2.0              # Beep cooldown time (seconds)
+DEFAULT_LASER_COOLDOWN = 0.5             # Laser cooldown time (seconds)
 ```
+
+**How to Modify**: Edit `python/config.py` to adjust parameters for all modules.
+
+**Common Adjustments**:
+- **Increase Speed**: Set `DEFAULT_IMGSZ` to `320` (sacrifice accuracy)
+- **Increase Accuracy**: Set `DEFAULT_IMGSZ` to `800` or `1280` (reduce speed)
+- **Adjust Tracking Sensitivity**: Modify `DEFAULT_PAN_GAIN` and `DEFAULT_TILT_GAIN`
 
 ---
 
@@ -712,7 +723,7 @@ sudo usermod -a -G dialout $USER
    detector = MosquitoDetector(
        model_path='models/mosquito_yolov8n.pt',  # Use specific model
        confidence_threshold=0.3,                  # Lower threshold (0.3-0.5)
-       imgsz=320                                  # Optimize speed (320/416/640)
+       imgsz=640                                  # Balance accuracy & speed (320/416/640)
    )
    ```
 4. **Reduce resolution** - Improve AI inference speed
@@ -732,6 +743,7 @@ mosquito-pt2d/
 ├── include/
 │   └── config.h              # Configuration file (serial, servo IDs, angle ranges)
 ├── python/                           # Python AI tracking system
+│   ├── config.py                     # ⭐ System configuration parameters (centralized)
 │   ├── streaming_tracking_system.py  # ⭐ Complete system (AI+tracking+streaming)
 │   ├── streaming_server.py           # HTTP-MJPEG streaming server module
 │   ├── mosquito_tracker.py           # AI tracking main program
@@ -748,7 +760,6 @@ mosquito-pt2d/
 │   ├── STREAMING_GUIDE.md            # Video streaming guide ⭐ New
 │   ├── hardware.md                   # Hardware connection guide
 │   ├── protocol.md                   # Communication protocol details
-│   ├── python_example.md             # Python control examples
 │   └── arduino_ide_guide.md          # Arduino IDE usage guide
 ├── platformio.ini            # PlatformIO configuration
 ├── .gitignore               # Git ignore file
@@ -758,6 +769,17 @@ mosquito-pt2d/
 ## 🛠 Development Guide
 
 ### Modify Configuration
+
+**Python System Configuration**:
+
+Edit [python/config.py](python/config.py) to centrally manage all Python module parameters:
+
+- AI detection parameters (resolution, confidence threshold)
+- Tracking parameters (gain, timeout)
+- Hardware parameters (serial port, camera IDs)
+- Control parameters (beep, laser cooldown)
+
+**Arduino Firmware Configuration**:
 
 Edit [include/config.h](include/config.h) file to modify:
 
@@ -834,8 +856,9 @@ DEBUG_PRINT(panAngle);
 
 | Document | Description |
 |----------|-------------|
-| [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI detection system detailed guide || [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ Video streaming guide (mobile viewing) || [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | Mosquito detection model description and download |
-| [docs/python_example.md](docs/python_example.md) | Python example programs and usage tutorial |
+| [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI detection system detailed guide |
+| [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ Video streaming guide (mobile viewing) |
+| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | Mosquito detection model description and download |
 | [docs/python_README.md](docs/python_README.md) | Python module navigation documentation |
 | [python/README.md](python/README.md) | Python program directory description |
 
@@ -852,7 +875,9 @@ DEBUG_PRINT(panAngle);
 | File | Description |
 |------|-------------|
 | [include/config.h](include/config.h) | Arduino firmware configuration parameters |
-| [src/main.cpp](src/main.cpp) | Arduino bridge firmware main program || [python/streaming_tracking_system.py](python/streaming_tracking_system.py) | ⭐ Complete integrated system (recommended) |
+| [src/main.cpp](src/main.cpp) | Arduino bridge firmware main program |
+| [python/config.py](python/config.py) | ⭐ Python system configuration parameters (centralized) |
+| [python/streaming_tracking_system.py](python/streaming_tracking_system.py) | ⭐ Complete integrated system (recommended) |
 | [python/streaming_server.py](python/streaming_server.py) | HTTP-MJPEG streaming server module |
 | [python/mosquito_tracker.py](python/mosquito_tracker.py) | Main tracking system |
 | [python/mosquito_detector.py](python/mosquito_detector.py) | AI detector module |

@@ -10,6 +10,7 @@ from typing import Optional, List, Tuple, Dict
 import logging
 import os
 from pathlib import Path
+from config import DEFAULT_IMGSZ, DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IOU_THRESHOLD
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,9 +43,9 @@ class MosquitoDetector:
 
     def __init__(self,
                  model_path: Optional[str] = None,
-                 confidence_threshold: float = 0.4,
-                 iou_threshold: float = 0.45,
-                 imgsz: int = 320,
+                 confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+                 iou_threshold: float = DEFAULT_IOU_THRESHOLD,
+                 imgsz: int = DEFAULT_IMGSZ,
                  fallback_to_pretrained: bool = True,
                  save_uncertain_samples: bool = False,
                  uncertain_conf_range: Tuple[float, float] = (0.35, 0.65),
@@ -61,9 +62,9 @@ class MosquitoDetector:
                        例如: "mosquito" 會自動搜尋 mosquito.rknn → mosquito.onnx → mosquito.pt
             confidence_threshold: 信心度閾值（0-1），預設 0.4（推薦範圍 0.3-0.7）
             iou_threshold: IoU閾值（用於NMS），預設 0.45
-            imgsz: 輸入影像大小，預設 320（Orange Pi 5 推薦）
-                   - 320: 快速推理，適合 Orange Pi 5 / 嵌入式設備
-                   - 640: 高精度，適合 PC 開發環境
+            imgsz: 輸入影像大小，預設 640（推薦值）
+                   - 320: 快速推理，適合低效能設備
+                   - 640: 標準精度，推薦使用（Orange Pi 5 可流暢運行）
             fallback_to_pretrained: 如果找不到自定義模型，是否使用預訓練模型
             save_uncertain_samples: 是否儲存信心度中等的樣本圖片以便後續檢驗與再訓練
             uncertain_conf_range: 中等信心度範圍 (min, max)，預設 (0.35, 0.65)
@@ -599,7 +600,7 @@ def test_mosquito_detector():
         detector = MosquitoDetector(
             model_path='models/mosquito',  # 自動選擇最佳格式
             confidence_threshold=0.3,
-            imgsz=320  # Orange Pi 5 建議使用 320
+            imgsz=DEFAULT_IMGSZ  # 從 config.py 讀取，可統一修改
         )
 
         frame_count = 0
