@@ -177,8 +177,8 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 
 | Component | Specification | Quantity | Note |
 |-----------|---------------|----------|------|
-| **Orange Pi 5** | 8GB RAM | 1 | Main controller, runs vision recognition |
-| Power Supply | 5V/4A USB-C | 1 | Orange Pi 5 power |
+| **ARM Development Board** | 8GB RAM + NPU | 1 | Main controller for AI image recognition<br>**Recommended Options**:<br>• Orange Pi 5 (RK3588, 6 TOPS NPU)<br>• Radaxa Potato Pi RDK X5 (More affordable)<br>• Radxa ROCK 5B<br>**Must support RKNN NPU acceleration** |
+| Power Supply | 5V/3-4A USB-C | 1 | Board power (adjust per model) |
 
 ### Vision System
 
@@ -203,22 +203,27 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 
 ## 💻 Software Requirements
 
-### Orange Pi 5
+### ARM Development Board
 
 - **OS**: Ubuntu 22.04 LTS (ARM64) or Armbian
 - **Python**: 3.8+ (usually pre-installed)
+- **NPU Support**: RKNN Toolkit Lite 2.x (for NPU acceleration)
 - **Required Packages**:
   - OpenCV (`opencv-python`)
   - PySerial (`pyserial`)
   - NumPy (`numpy`)
+  - RKNN Toolkit Lite (NPU inference)
 
 
 ```bash
-# Orange Pi 5 Installation
+# ARM Board Installation
 sudo apt update
 sudo apt install python3-pip python3-opencv
 pip3 install -r python/requirements.txt
 
+# Install RKNN Toolkit Lite (version provided by board vendor)
+# Orange Pi 5: Refer to official documentation
+# Radaxa Potato Pi RDK X5: Refer to official SDK
 ```
 
 ### Arduino

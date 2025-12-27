@@ -93,7 +93,8 @@
   - 深度學習物體檢測
   - 高準確度蚊子辨識
   - 信心度評分與過濾
-  - 支援 CPU/NPU 推理（Orange Pi 5 優化）
+  - 支援 CPU/NPU 推理（RKNN NPU 加速優化）
+  - 多種模型格式：RKNN（NPU）、ONNX（CPU）、PyTorch
   - **中等信心度樣本自動儲存** (v2.3.1 新增):
     - 自動收集信心度中等（0.35-0.65）的檢測樣本
     - 供後續人工檢驗與模型再訓練使用
@@ -157,8 +158,8 @@
 
 | 組件 | 規格 | 數量 | 備註 |
 |-----|------|------|------|
-| **Orange Pi 5** | 8GB RAM | 1 | 主控制器，運行影像識別 |
-| 電源供應器 | 5V/4A USB-C | 1 | Orange Pi 5 供電 |
+| **ARM 開發板** | 8GB RAM + NPU | 1 | 主控制器，運行 AI 影像識別<br>**推薦選項**：<br>• Orange Pi 5 (RK3588, 6 TOPS NPU)<br>• 地瓜派 RDK X5 (更便宜)<br>• Radxa ROCK 5B<br>**必須支援 RKNN NPU 加速** |
+| 電源供應器 | 5V/3-4A USB-C | 1 | 開發板供電（依型號調整） |
 
 ### 視覺系統
 
@@ -183,20 +184,26 @@
 
 ## 💻 軟體需求
 
-### Orange Pi 5 端
+### ARM 開發板端
 
 - **作業系統**: Ubuntu 22.04 LTS (ARM64) 或 Armbian
 - **Python**: 3.8+ (通常預裝)
+- **NPU 支援**: RKNN Toolkit Lite 2.x（用於 NPU 加速）
 - **必要套件**:
   - OpenCV (`opencv-python`)
   - PySerial (`pyserial`)
   - NumPy (`numpy`)
+  - RKNN Toolkit Lite（NPU 推理）
 
 ```bash
-# Orange Pi 5 安裝
+# ARM 開發板安裝
 sudo apt update
 sudo apt install python3-pip python3-opencv
 pip3 install -r python/requirements.txt
+
+# 安裝 RKNN Toolkit Lite（依開發板提供的版本）
+# Orange Pi 5: 參考官方文檔
+# 地瓜派 RDK X5: 參考官方 SDK
 ```
 
 ### Arduino 端
@@ -216,7 +223,7 @@ pip3 install -r python/requirements.txt
 
 #### 使用 PlatformIO（推薦）
 
-### 2. Orange Pi 5 系統設置
+### 2. ARM 開發板系統設置
 
 ```bash
 # 更新系統
@@ -231,13 +238,13 @@ sudo apt install python3-pip python3-opencv git -y
 參考 [docs/hardware.md](docs/hardware.md)
 
 **關鍵點:**
-- **Orange Pi 5** 為主控制器，運行所有 Python 程式
-- Arduino Nano 透過 USB 連接至 Orange Pi 5（裝置為 `/dev/ttyUSB*` 或 `/dev/ttyACM*`）
-- 雙目 **1080p 攝像頭**透過 USB 3.0 連接至 Orange Pi 5
+- **ARM 開發板**（Orange Pi 5 / 地瓜派 RDK X5 等）為主控制器，運行所有 Python 程式
+- Arduino Nano 透過 USB 連接至開發板（裝置為 `/dev/ttyUSB*` 或 `/dev/ttyACM*`）
+- 雙目 **1080p 攝像頭**透過 USB 3.0 連接至開發板
 - 總線舵機透過軟串口連接 Arduino（Nano D10/D11 → 舵機總線）
 - **1mW 雷射模組**由 Arduino 控制（透過串口指令）
 - 舍機需要獨立供電 (6V-8.4V)
-- 所有 GND 必須共地（Orange Pi、Arduino、舍機）
+- 所有 GND 必須共地（開發板、Arduino、舍機）
 ```
 
 ### 3. 測試硬體連接
@@ -322,8 +329,8 @@ python streaming_tracking_system.py
 - `h`: 雲台歸位
 
 **手機觀看:**
-1. 確保手機與 Orange Pi 5 在同一網路
-2. 瀏覽器開啟: `http://[Orange_Pi_IP]:5000`
+1. 確保手機與開發板在同一網路
+2. 瀏覽器開啟: `http://[開發板IP]:5000`
 3. 即可看到即時 AI 標註影像
 
 **Web 介面顯示:**
@@ -437,12 +444,12 @@ DEFAULT_LASER_COOLDOWN = 0.5             # 雷射冷卻時間（秒）
 
 ### 引腳配置
 
-#### Orange Pi 5 ↔ Arduino Nano（USB 連接）
+#### ARM 開發板 ↔ Arduino Nano（USB 連接）
 
 ```
 連接           | 說明
 ---------------|--------------------------------------
-USB            | Orange Pi USB ↔ Arduino Nano USB (CH340/ATmega328P)
+USB            | 開發板 USB ↔ Arduino Nano USB (CH340/ATmega328P)
 共地           | 透過 USB 已共地，另需與舵機電源 GND 共地
 Nano D10 (TX)  | → 舵機總線 RX（黃線）
 Nano D11 (RX)  | ← 舵機總線 TX（綠線）
@@ -451,13 +458,13 @@ Nano D11 (RX)  | ← 舵機總線 TX（綠線）
 ### 完整系統連接
 
 ```
-[Orange Pi 5]
+[ARM 開發板] (Orange Pi 5 / 地瓜派 RDK X5 等)
    ├─ USB ─────────> [Arduino Nano] ──(D10/D11)──> [舵機總線] ──> [Pan 舵機 + Tilt 舵機]
    ├─ USB 3.0 ─────> [左攝像頭 1080p]
    └─ USB 3.0 ─────> [右攝像頭 1080p]
 
 [舵機電源 6V-8.4V] ──> [舵機總線 VCC]
-                              └─> GND ──(共地)──> [Arduino GND] ──> [Orange Pi GND]
+                              └─> GND ──(共地)──> [Arduino GND] ──> [開發板 GND]
 
 [Arduino Nano] ──> 雷射控制
    ├─ Arduino 數位輸出 ──> 雷射 VCC (經程式控制)
@@ -470,12 +477,13 @@ Nano D11 (RX)  | ← 舵機總線 TX（綠線）
 
 1. **獨立供電**: 總線舵機需要 **6V-8.4V** 供電（推薦 7.4V 鋰電池）
 2. **共地**: 確保 Orange Pi、Arduino、舵機所有 GND 連接在一起
-3. **串口連接**: Arduino Nano 透過 **USB** 連接 Orange Pi 5（內部使用 D0/D1 硬體 UART），舵機總線使用 D10/D11（SoftwareSerial）
+3. **串口連接**: Arduino Nano 透過 **USB** 連接開發板（內部使用 D0/D1 硬體 UART），舵機總線使用 D10/D11（SoftwareSerial）
 4. **舵機 ID**: 預設 Pan=ID1, Tilt=ID2，請先確認舵機 ID 設置
-5. **攝像頭**: 雙目 1080p 攝像頭透過 USB 3.0 連接至 Orange Pi 5
+5. **攝像頭**: 雙目 1080p 攝像頭透過 USB 3.0 連接至開發板
 6. **雷射安全**: 使用 1mW 紅光雷射（Class II），避免直視，安裝時注意方向
-7. **USB 供電**: Orange Pi 5 使用 USB-C 5V/4A 供電，確保足夠電流
-8. **散熱**: Orange Pi 5 建議加裝散熱片或風扇
+7. **USB 供電**: 開發板使用 USB-C 5V/3-4A 供電（依型號調整），確保足夠電流
+8. **散熱**: 開發板建議加裝散熱片或風扇
+9. **NPU 支援**: 確保開發板支援 RKNN 格式模型（.rknn 文件）以使用 NPU 加速
 
 ---
 
