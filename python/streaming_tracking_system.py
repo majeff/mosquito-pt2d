@@ -18,6 +18,7 @@ from streaming_server import StreamingServer
 from mosquito_detector import MosquitoDetector
 from mosquito_tracker import MosquitoTracker
 from pt2d_controller import PT2DController
+from config import DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ
 import cv2
 import numpy as np
 import sys

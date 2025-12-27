@@ -11,6 +11,11 @@ import time
 import logging
 from typing import Optional
 from pathlib import Path
+try:
+    from config import DEFAULT_DEVICE_IP, DEFAULT_EXTERNAL_URL
+except ImportError:
+    DEFAULT_DEVICE_IP = None
+    DEFAULT_EXTERNAL_URL = None
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,25 +33,25 @@ class StreamingServer:
 
     def __init__(self,
                  http_port: int = 5000,
-                 rtsp_enabled: bool = False,
-                 rtsp_url: str = "rtsp://localhost:8554/mosquito",
                  fps: int = 30,
-                 quality: int = 85):
+                 quality: int = 85,
+                 device_ip: Optional[str] = DEFAULT_DEVICE_IP,
+                 external_url: Optional[str] = DEFAULT_EXTERNAL_URL):
         """
         初始化串流伺服器
 
         Args:
             http_port: HTTP 伺服器端口
-            rtsp_enabled: 是否啟用 RTSP 推流
-            rtsp_url: RTSP 推流地址
             fps: 串流幀率
             quality: JPEG 壓縮品質 (1-100)
+            device_ip: 設備 IP 地址（用於生成訪問說明）
+            external_url: 外部訪問 URL（透過 Nginx Reverse Proxy）
         """
         self.http_port = http_port
-        self.rtsp_enabled = rtsp_enabled
-        self.rtsp_url = rtsp_url
         self.fps = fps
         self.quality = quality
+        self.device_ip = device_ip
+        self.external_url = external_url
 
         # 當前影像（線程安全）
         self.current_frame = None
@@ -68,8 +73,6 @@ class StreamingServer:
 
         logger.info(f"串流伺服器已初始化")
         logger.info(f"HTTP MJPEG: http://0.0.0.0:{http_port}/video")
-        if rtsp_enabled:
-            logger.info(f"RTSP: {rtsp_url}")
 
     def _setup_routes(self):
         """設置 Flask 路由"""
@@ -77,7 +80,22 @@ class StreamingServer:
         @self.app.route('/')
         def index():
             """首頁 - 顯示即時串流"""
-            html = """
+            # 生成訪問地址說明
+            device_ip = self.device_ip if self.device_ip else "[Your_IP]"
+            http_direct_url = f"http://{device_ip}:{self.http_port}"
+
+            # 外部 URL 說明
+            external_info = ""
+            if self.external_url:
+                external_info = f"""
+                        <p><strong>方式 3：外部訪問（透過 Nginx Reverse Proxy）</strong></p>
+                        <p>從外部網路訪問：<code>{self.external_url}</code></p>
+                        <p style="color: #888; font-size: 12px;">
+                            * 需要 Nginx 配置 reverse proxy 指向本機 {self.http_port} 端口
+                        </p>
+                """
+
+            html = f"""
             <!DOCTYPE html>
             <html>
             <head>
@@ -181,14 +199,12 @@ class StreamingServer:
 
                     <div class="info">
                         <h3>📱 手機觀看方式</h3>
-                        <p><strong>方式 1：瀏覽器（推薦）</strong></p>
-                        <p>在手機瀏覽器輸入：<code>http://[Orange_Pi_IP]:5000</code></p>
+                        <p><strong>方式 1：區域網路直連（推薦）</strong></p>
+                        <p>在手機瀏覽器輸入：<code>{http_direct_url}</code></p>
 
-                        <p><strong>方式 2：RTSP 播放器</strong></p>
-                        <p>使用 VLC 或 RTSP Player APP，輸入：<code>rtsp://[Orange_Pi_IP]:8554/mosquito</code></p>
-
+{external_info}
                         <p style="color: #888; font-size: 12px;">
-                            * 請將 [Orange_Pi_IP] 替換為 Orange Pi 5 的實際 IP 地址
+                            * 區域網路訪問需確保設備與 Orange Pi 5 在同一網路
                         </p>
 
                         <h3>🎯 串流內容</h3>
@@ -212,10 +228,10 @@ class StreamingServer:
 
                 <script>
                     // 定期更新統計資訊
-                    function updateStats() {
+                    function updateStats() {{
                         fetch('/stats')
                             .then(response => response.json())
-                            .then(data => {
+                            .then(data => {{
                                 document.getElementById('frames').textContent = data.total_frames;
                                 document.getElementById('clients').textContent = data.clients;
 
@@ -225,9 +241,9 @@ class StreamingServer:
                                 const minutes = Math.floor((uptime % 3600) / 60);
                                 const seconds = uptime % 60;
                                 document.getElementById('uptime').textContent =
-                                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                            });
-                    }
+                                    `${{hours.toString().padStart(2, '0')}}:${{minutes.toString().padStart(2, '0')}}:${{seconds.toString().padStart(2, '0')}}`;
+                            }});
+                    }}
 
                     // 每秒更新一次
                     setInterval(updateStats, 1000);
@@ -290,17 +306,6 @@ class StreamingServer:
         with self.frame_lock:
             self.current_frame = frame
             self.stats['total_frames'] += 1
-
-    def start_rtsp_stream(self):
-        """啟動 RTSP 推流（需要 mediamtx 或 FFmpeg）"""
-        if not self.rtsp_enabled:
-            return
-
-        logger.info("RTSP 推流功能需要安裝 mediamtx 伺服器")
-        logger.info("安裝方式：")
-        logger.info("1. 下載 mediamtx: https://github.com/bluenviron/mediamtx/releases")
-        logger.info("2. 執行: ./mediamtx")
-        logger.info("3. 使用 FFmpeg 推流或直接從 OpenCV 推流")
 
     def run(self, threaded: bool = True):
         """啟動 HTTP 伺服器"""

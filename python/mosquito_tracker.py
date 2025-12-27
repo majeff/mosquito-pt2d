@@ -13,6 +13,16 @@ from typing import Optional, Tuple
 from stereo_camera import StereoCamera
 from mosquito_detector import MosquitoDetector
 from pt2d_controller import PT2DController
+from config import (
+    DEFAULT_CONFIDENCE_THRESHOLD,
+    DEFAULT_IMGSZ,
+    DEFAULT_NO_DETECTION_TIMEOUT,
+    DEFAULT_TARGET_LOCK_DISTANCE,
+    DEFAULT_BEEP_COOLDOWN,
+    DEFAULT_LASER_COOLDOWN,
+    DEFAULT_PAN_GAIN,
+    DEFAULT_TILT_GAIN
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -337,8 +347,6 @@ class MosquitoTracker:
         logger.info("按 'q' 退出")
         logger.info("按 'r' 重置偵測器")
         logger.info("按 'h' 回到初始位置")
-        logger.info("按 'l' 手動切換雷射" if self.enable_laser else "")
-        logger.info("按 'SPACE' 手動標記（短脈衝）" if self.enable_laser else "")
 
         try:
             while True:
@@ -380,34 +388,34 @@ class MosquitoTracker:
                             logger.error(f"繪製檢測結果失敗: {e}")
                             result = display_frame.copy()
 
-                # 顯示狀態資訊
-                mode_text = "AI TRACKING" if self.tracking_active else "AI SCANNING"
-                color = (0, 0, 255) if self.tracking_active else (0, 255, 0)
-                cv2.putText(result, f"Mode: {mode_text}", (10, 30),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-                cv2.putText(result, f"左: {len(left_detections)} | 右: {len(right_detections)}", (10, 60),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                    # 顯示狀態資訊
+                    mode_text = "AI TRACKING" if self.tracking_active else "AI SCANNING"
+                    color = (0, 0, 255) if self.tracking_active else (0, 255, 0)
+                    cv2.putText(result, f"Mode: {mode_text}", (10, 30),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+                    cv2.putText(result, f"左: {len(left_detections)} | 右: {len(right_detections)}", (10, 60),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-                # 獲取當前雲台位置（使用緩存減少串口讀取）
-                current_time = time.time()
-                if current_time - self.last_position_update > self.position_update_interval:
-                    try:
-                        pan, tilt = self.controller.get_position()
-                        if pan is not None and tilt is not None:
-                            self.cached_pan = pan
-                            self.cached_tilt = tilt
-                        self.last_position_update = current_time
-                    except Exception as e:
-                        logger.debug(f"讀取位置失敗，使用緩存值: {e}")
-                pan, tilt = self.cached_pan, self.cached_tilt
+                    # 獲取當前雲台位置（使用緩存減少串口讀取）
+                    current_time = time.time()
+                    if current_time - self.last_position_update > self.position_update_interval:
+                        try:
+                            pan, tilt = self.controller.get_position()
+                            if pan is not None and tilt is not None:
+                                self.cached_pan = pan
+                                self.cached_tilt = tilt
+                            self.last_position_update = current_time
+                        except Exception as e:
+                            logger.debug(f"讀取位置失敗，使用緩存值: {e}")
+                    pan, tilt = self.cached_pan, self.cached_tilt
 
-                # 顯示位置資訊
-                cv2.putText(result, f"Pan: {pan} | Tilt: {tilt}", (10, 90),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                cv2.imshow('AI Mosquito Tracker (Dual Camera)', result)
-                # 可選：顯示左右攝像頭原始畫面
-                # cv2.imshow('Left Camera', left_frame)
-                # cv2.imshow('Right Camera', right_frame)
+                    # 顯示位置資訊
+                    cv2.putText(result, f"Pan: {pan} | Tilt: {tilt}", (10, 90),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                    cv2.imshow('AI Mosquito Tracker (Dual Camera)', result)
+                    # 可選：顯示左右攝像頭原始畫面
+                    # cv2.imshow('Left Camera', left_frame)
+                    # cv2.imshow('Right Camera', right_frame)
 
                 except Exception as loop_error:
                     logger.error(f"主循環發生異常: {loop_error}")
@@ -415,25 +423,19 @@ class MosquitoTracker:
                     time.sleep(0.1)
                     continue
 
-                # 鍵盤控制
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    logger.info("退出追蹤系統")
-                    break
-                elif key == ord('r'):
-                    logger.info("重置偵測器")
-                    self.detector.reset()
-                elif key == ord('h'):
-                    logger.info("回到初始位置")
-                    threading.Thread(target=self._home_async, daemon=True).start()
-                    self.tracking_active = False
-                    self.locked_target_position = None  # 清除目標鎖定
-                        self.laser_marking = True
-                        logger.info("手動開啟雷射")
-                elif key == ord(' ') and self.enable_laser:
-                    # 空白鍵：短脈衝標記
-                    logger.info("手動標記脈衝")
-                    self.laser.pulse(duration=0.2)
+                    # 鍵盤控制
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        logger.info("退出追蹤系統")
+                        break
+                    elif key == ord('r'):
+                        logger.info("重置偵測器")
+                        self.detector.reset()
+                    elif key == ord('h'):
+                        logger.info("回到初始位置")
+                        threading.Thread(target=self._home_async, daemon=True).start()
+                        self.tracking_active = False
+                        self.locked_target_position = None  # 清除目標鎖定
 
         except KeyboardInterrupt:
             logger.info("收到中斷信號")
@@ -444,12 +446,6 @@ class MosquitoTracker:
     def cleanup(self):
         """清理資源"""
         logger.info("清理資源...")
-
-        # 關閉雷射
-        if self.enable_laser and self.laser is not None:
-            if self.laser_marking:
-                self.laser.off()
-            self.laser.cleanup()
 
         # 釋放攝像頭
         self.camera.release()
@@ -478,9 +474,7 @@ def main():
         camera_left_id=LEFT_CAMERA_ID,
         camera_right_id=RIGHT_CAMERA_ID,
         camera_width=1920,  # 1080p
-        camera_height=1080,
-        enable_laser=True,  # 啟用雷射標記
-        laser_gpio_pin=5    # Orange Pi 5 Pin 5 (GPIO 3)
+        camera_height=1080
     )
 
     tracker.run()

@@ -76,10 +76,22 @@ DEFAULT_SAVE_DIR = "uncertain_samples"
 DEFAULT_MAX_DISK_USAGE_PERCENT = 20.0
 
 # ============================================
+# 網路配置
+# ============================================
+
+# Orange Pi 5 IP 地址（用於生成訪問說明）
+# 設為 None 時會顯示 [Your_IP] 提示
+DEFAULT_DEVICE_IP = None  # 例如: "192.168.1.100"
+
+# 外部訪問 URL（透過 Nginx Reverse Proxy）
+# 設為 None 時不顯示外部 URL
+DEFAULT_EXTERNAL_URL = None  # 例如: "https://mosquito.ma7.in"
+
+# ============================================
 # 串流伺服器參數
 # ============================================
 
-# 串流伺服器端口
+# HTTP 串流伺服器端口
 DEFAULT_STREAM_PORT = 5000
 
 # 串流品質（1-100）
