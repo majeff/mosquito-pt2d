@@ -682,7 +682,19 @@ sudo usermod -a -G dialout $USER
    ```python
    detector = MosquitoDetector(imgsz=320)  # 從預設 640 降到 320 以提升速度
    ```
-5. **轉換為 ONNX/RKNN** - 參見 [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md)
+5. **部署與導出**
+     - 推薦使用單一 Python 腳本完成部署與導出：
+
+         ```sh
+         python python/deploy_model.py --imgsz 320
+         # 預設同時導出 RKNN；如需覆寫目標（Orange Pi 5：rk3588）：
+         python python/deploy_model.py --imgsz 320 --rknn-target rk3588
+         ```
+
+                 選項：`--imgsz <int>`（預設取自 config.DEFAULT_IMGSZ）、`--skip-onnx`（略過 ONNX）、`--skip-rknn`（略過 RKNN）、`--export-rknn`（強制 RKNN）、`--rknn-target <str>`（預設 rk3588）、`--rknn-no-quant`
+         - RKNN 量化：
+             - 預設自動：導出 RKNN 時，會從已標註樣本自動生成 `dataset.txt`
+             - 自訂覆寫：`--rknn-quant-dataset <txt>`（覆寫自動清單；每行為影像路徑）
 
 # 執行校準
 <CAL>

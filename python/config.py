@@ -76,6 +76,26 @@ DEFAULT_SAVE_DIR = "uncertain_samples"
 DEFAULT_MAX_DISK_USAGE_PERCENT = 20.0
 
 # ============================================
+# 樣本標註參數
+# ============================================
+
+# 樣本標註目錄結構
+SAMPLE_COLLECTION_DIR = "sample_collection"
+MEDIUM_CONFIDENCE_DIR = "sample_collection/medium_confidence"
+CONFIRMED_MOSQUITO_DIR = "sample_collection/confirmed/mosquito"
+CONFIRMED_NOT_MOSQUITO_DIR = "sample_collection/confirmed/not_mosquito"
+
+# 樣本搬遷目標目錄（用於備份或遷移樣本）
+# 預設指向本機 Google Drive（我的雲端硬碟/Colab Notebooks）下的專案搬遷目錄
+# 注意：如您的 Google Drive 掛載磁碟代號不是 G:\，請手動調整下列路徑
+RELOCATION_BASE_DIR = r"G:\我的雲端硬碟\Colab Notebooks\mosquito-training\relocated"
+RELOCATION_MOSQUITO_DIR = f"{RELOCATION_BASE_DIR}/mosquito"
+RELOCATION_NOT_MOSQUITO_DIR = f"{RELOCATION_BASE_DIR}/not_mosquito"
+
+# Colab Notebook 同步目標目錄（根目錄：我的雲端硬碟/Colab Notebooks）
+COLAB_NOTEBOOK_DEST_DIR = r"G:\我的雲端硬碟\Colab Notebooks"
+
+# ============================================
 # 網路配置
 # ============================================
 

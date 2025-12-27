@@ -99,6 +99,13 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
     - For subsequent manual review and model retraining
     - Disk usage monitoring (auto-pause when exceeds 20%)
     - Smart filenames with timestamp and confidence information
+- 🔧 **Model improvement tools** (v2.4 new):
+  - `label_samples.py`: Interactive sample annotation tool
+  - `prepare_dataset.py`: YOLO dataset preparation script
+  - `train_model.py`: Model fine-tuning training script
+  - `evaluate_model.py`: Model performance evaluation tool
+  - `compare_models.py`: Old vs new model comparison tool
+  - Complete workflow: Collect → Label → Train → Evaluate → Deploy
 - 🎯 **Intelligent tracking**:
   - AI detects mosquito → Automatically switches to tracking mode
   - Real-time offset calculation and pan-tilt control for target alignment
@@ -738,7 +745,18 @@ sudo usermod -a -G dialout $USER
    ```python
    detector = MosquitoDetector(imgsz=320)  # From 640 down to 320
    ```
-5. **Convert to ONNX/RKNN** - See [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md)
+5. **Deploy & Export**
+     - Prefer using a single Python script to deploy and export ONNX/RKNN:
+
+         ```sh
+         python python/deploy_model.py --imgsz 320
+         # Default also exports RKNN; override target if needed (rk3588 for Orange Pi 5)
+         python python/deploy_model.py --imgsz 320 --rknn-target rk3588
+         ```
+                 Options: `--imgsz <int>` (default from config.DEFAULT_IMGSZ), `--skip-onnx` (skip ONNX), `--skip-rknn` (skip RKNN), `--export-rknn` (force RKNN), `--rknn-target <str>` (default rk3588), `--rknn-no-quant`
+         - RKNN quantization:
+             - Auto: generates `dataset.txt` from confirmed samples by default when exporting RKNN
+             - Custom: `--rknn-quant-dataset <txt>` (override auto list; each line is an image path)
 
 ---
 
@@ -1197,9 +1215,9 @@ Complete Nginx configuration examples are included in the documentation. For mor
 |----------|-------------|
 | [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI detection system detailed guide |
 | [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ Video streaming guide (mobile viewing) |
-| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | Mosquito detection model description and download |
+| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | ⭐ Model continuous improvement guide (sample collection → training) |
 | [docs/python_README.md](docs/python_README.md) | Python module navigation documentation |
-| [python/README.md](python/README.md) | Python program directory description |
+| [python/README.md](python/README.md) | Python program directory description (includes model improvement tools) |
 
 ### 🧪 Test & Validation Documents
 
@@ -1208,6 +1226,16 @@ Complete Nginx configuration examples are included in the documentation. For mor
 | [python/test_serial_protocol.py](python/test_serial_protocol.py) | Serial protocol test script |
 | [python/test_tracking_logic.py](python/test_tracking_logic.py) | Tracking logic validation script |
 | [python/test_multi_target_tracking.py](python/test_multi_target_tracking.py) | Multi-target tracking test script |
+
+### 🔧 Model Improvement Tools
+
+| Script | Description |
+|--------|-------------|
+| [python/label_samples.py](python/label_samples.py) | Interactive sample annotation tool |
+| [python/prepare_dataset.py](python/prepare_dataset.py) | Convert labeled samples to YOLO format |
+| [python/train_model.py](python/train_model.py) | Fine-tune model with collected samples |
+| [python/evaluate_model.py](python/evaluate_model.py) | Evaluate model performance metrics |
+| [python/compare_models.py](python/compare_models.py) | Compare old vs new model performance |
 
 ### 📁 Code Files
 
