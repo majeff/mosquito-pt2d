@@ -1,13 +1,23 @@
 # Arduino 2D Pan-Tilt Control System + AI Mosquito Auto-Tracking
 
-![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20Orange%20Pi%205-red.svg)
 
-An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and **AI deep learning (OrangePi5+YOLOv8)** technology for intelligent mosquito detection, tracking, and laser marking.
+An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and **AI deep learning (OrangePi5+YOLOv8)** technology for intelligent mosquito detection, tracking, and laser marking with real-time monitoring.
 
 ## 📜 Version History
+
+### v2.4.0 (2025-12-27) 📱 Real-time Monitoring Upgrade
+- New: Video streaming system (HTTP-MJPEG) for real-time mobile viewing
+- New: Integrated program `streaming_tracking_system.py` (AI+tracking+streaming in one)
+- New: Three dual-camera streaming modes (side-by-side/single/independent)
+- New: Web interface with real-time statistics
+- Documentation: Complete streaming guide `STREAMING_GUIDE.md`
+- Features: All AI annotations (detection boxes, confidence) included in stream
+
+---
 
 ### v2.3.0 (2025-12-25) 🚀 Stability Upgrade
 - Firmware: Memory optimization (fixed buffers), function modularization (↓75% code), watchdog timer (2s), timeout protection
@@ -90,7 +100,13 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
   - AI detects mosquito → Automatically switches to tracking mode
   - Real-time offset calculation and pan-tilt control for target alignment
   - Low confidence/target lost → Automatically switches back to monitoring mode
-- 📊 **Visual display**: Real-time display of AI detection results, bounding boxes, confidence scores
+- � **Real-time Video Streaming** (v2.4.0 new):
+  - HTTP-MJPEG streaming server for real-time mobile browser viewing
+  - Complete AI annotations included in stream (detection boxes, confidence, tracking status)
+  - Dual camera support (side-by-side display/single view/independent streams)
+  - Web interface with real-time statistics (FPS, detections, connections)
+  - Multi-client simultaneous viewing support
+- �📊 **Visual display**: Real-time display of AI detection results, bounding boxes, confidence scores
 - 🔧 **Adjustable parameters**: AI model path, confidence threshold, input resolution, tracking gain
 
 ## 🏗️ System Architecture
@@ -98,6 +114,29 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 ```
 ┌──────────────────┐
 │  Dual USB Cameras│ (3840×1080 @ 60fps)
+└────────┬─────────┘
+         │ Image Capture
+         ▼
+┌──────────────────┐
+│  AI Detector      │ (YOLOv8 Deep Learning)
+│  mosquito_detector│ (Confidence + Bounding Box)
+└────────┬─────────┘
+         │ Target Coordinates + Confidence
+         ├─────────────────────┐
+         │                     │ AI Annotated Image
+         ▼                     ▼
+┌──────────────────┐  ┌──────────────────┐
+│  AI Tracker       │  │  Streaming Server │ 📱
+│  mosquito_tracker │  │ StreamingServer  │ → Mobile/Browser
+│ (Confidence Filter)│  │ (HTTP-MJPEG)     │    Real-time View
+└────────┬─────────┘  └──────────────────┘
+         │ Serial Commands (TX/RX)
+         ▼
+┌──────────────────┐
+│  Arduino Pan-Tilt │ (Initial Static / AI Tracking)
+│  PT2D Controller  │
+└──────────────────┘
+```
 └────────┬─────────┘
          │ Image Capture
          ▼
@@ -126,7 +165,8 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 3. **Confidence Filtering**: Only tracks high-confidence targets > threshold (e.g., 0.4)
 4. **Tracking Phase**: Calculates offset and controls pan-tilt for alignment, continuous tracking
 5. **Laser Marking**: Target near center + high confidence → Activates laser marking
-6. **Target Lost**: Low confidence or no detection → Returns to monitoring mode
+6. **Video Streaming**: Annotated images pushed to streaming server in real-time for mobile viewing
+7. **Target Lost**: Low confidence or no detection → Returns to monitoring mode
 
 ## 🔧 Hardware Requirements
 
@@ -282,10 +322,42 @@ python3 pt2d_controller.py
 3. **Run tracking system**:
 
 ```bash
-sudo python3 mosquito_tracker.py
+# Option A: Complete system (AI + tracking + streaming) ⭐ Recommended
+python3 streaming_tracking_system.py
+# Open in mobile browser: http://[Orange_Pi_IP]:5000
+
+# Option B: Basic tracking system (no streaming)
+python3 mosquito_tracker.py
 ```
 
 ### Operation Guide
+
+#### Option A: Complete System (streaming_tracking_system.py) ⭐ Recommended
+
+```bash
+python3 streaming_tracking_system.py
+```
+
+**Hotkeys:**
+- `q`: Exit system
+- `t`: Toggle tracking mode
+- `s`: Save screenshot
+- `l`: Toggle laser (manual)
+- `h`: Home pan-tilt
+
+**Mobile Viewing:**
+1. Ensure mobile and Orange Pi 5 are on same network
+2. Open in browser: `http://[Orange_Pi_IP]:5000`
+3. View real-time AI annotated video
+
+**Web Interface Shows:**
+- Real-time video (with AI detection boxes, confidence)
+- FPS, detection count, tracking status
+- Connected client count
+
+---
+
+#### Option B: Basic Tracking System (mosquito_tracker.py)
 
 After running `mosquito_tracker.py`:
 
@@ -680,20 +752,27 @@ mosquito-pt2d/
 │   └── main.cpp              # Bridge firmware main program
 ├── include/
 │   └── config.h              # Configuration file (serial, servo IDs, angle ranges)
-├── python/                   # Python AI tracking system
-│   ├── pt2d_controller.py    # Arduino serial controller
-│   ├── mosquito_tracker.py   # AI tracking main program
-│   ├── mosquito_detector.py  # YOLOv8 mosquito detector
-│   ├── stereo_camera.py      # Dual camera control
-│   ├── laser_controller.py   # Laser control (GPIO)
-│   └── quick_start.py        # Quick start script
-├── models/                   # AI model directory
-│   └── mosquito.pt           # YOLOv8 mosquito detection model
-├── docs/                     # Documentation directory
-│   ├── hardware.md           # Hardware connection instructions
-│   ├── protocol.md           # Communication protocol details
-│   ├── python_example.md     # Python control examples
-│   └── arduino_ide_guide.md  # Arduino IDE usage guide
+├── python/                           # Python AI tracking system
+│   ├── streaming_tracking_system.py  # ⭐ Complete system (AI+tracking+streaming)
+│   ├── streaming_server.py           # HTTP-MJPEG streaming server
+│   ├── streaming_dual_camera.py      # Dual camera streaming example
+│   ├── mosquito_tracker.py           # AI tracking main program
+│   ├── mosquito_detector.py          # YOLOv8 mosquito detector
+│   ├── pt2d_controller.py            # Arduino serial controller
+│   ├── stereo_camera.py              # Stereo camera control
+│   ├── laser_controller.py           # Laser control (GPIO)
+│   ├── quick_start.py                # Quick start script
+│   └── test_*.py                     # Test scripts
+├── models/                           # AI model directory
+│   ├── mosquito.rknn                 # RKNN model (NPU acceleration)
+│   ├── mosquito.onnx                 # ONNX model (CPU optimized)
+│   └── mosquito.pt                   # PyTorch model
+├── docs/                             # Documentation directory
+│   ├── STREAMING_GUIDE.md            # Video streaming guide ⭐ New
+│   ├── hardware.md                   # Hardware connection guide
+│   ├── protocol.md                   # Communication protocol details
+│   ├── python_example.md             # Python control examples
+│   └── arduino_ide_guide.md          # Arduino IDE usage guide
 ├── platformio.ini            # PlatformIO configuration
 ├── .gitignore               # Git ignore file
 └── README.md                # This file (Chinese version)
@@ -778,8 +857,7 @@ DEBUG_PRINT(panAngle);
 
 | Document | Description |
 |----------|-------------|
-| [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI detection system detailed guide |
-| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | Mosquito detection model description and download |
+| [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI detection system detailed guide || [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ Video streaming guide (mobile viewing) || [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | Mosquito detection model description and download |
 | [docs/python_example.md](docs/python_example.md) | Python example programs and usage tutorial |
 | [docs/python_README.md](docs/python_README.md) | Python module navigation documentation |
 | [python/README.md](python/README.md) | Python program directory description |
@@ -797,8 +875,9 @@ DEBUG_PRINT(panAngle);
 | File | Description |
 |------|-------------|
 | [include/config.h](include/config.h) | Arduino firmware configuration parameters |
-| [src/main.cpp](src/main.cpp) | Arduino bridge firmware main program |
-| [python/mosquito_tracker.py](python/mosquito_tracker.py) | Main tracking system |
+| [src/main.cpp](src/main.cpp) | Arduino bridge firmware main program || [python/streaming_tracking_system.py](python/streaming_tracking_system.py) | ⭐ Complete integrated system (recommended) |
+| [python/streaming_server.py](python/streaming_server.py) | HTTP-MJPEG streaming server |
+| [python/streaming_dual_camera.py](python/streaming_dual_camera.py) | Dual camera streaming example || [python/mosquito_tracker.py](python/mosquito_tracker.py) | Main tracking system |
 | [python/mosquito_detector.py](python/mosquito_detector.py) | AI detector module |
 | [python/pt2d_controller.py](python/pt2d_controller.py) | Arduino controller interface |
 | [python/stereo_camera.py](python/stereo_camera.py) | Dual camera module |

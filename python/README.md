@@ -92,6 +92,7 @@ python quick_start.py
 | `mosquito_tracker.py` | 蚊子追蹤邏輯 |
 | `laser_controller.py` | 雷射控制器 |
 | `stereo_camera.py` | 立體相機處理 |
+| `streaming_server.py` | 影像串流伺服器（HTTP-MJPEG） |
 | `quick_start.py` | 快速啟動腳本 |
 | `test_serial_protocol.py` | Serial 通訊測試腳本 |
 | `test_tracking_logic.py` | 追蹤邏輯測試腳本 |
@@ -103,3 +104,4 @@ python quick_start.py
 - [硬體連接說明](../docs/hardware.md)
 - [Orange Pi 5 配置](../docs/orangepi5_hardware.md)
 - [通訊協議說明](../docs/protocol.md)
+- [影像串流指南](../docs/STREAMING_GUIDE.md) - 讓手機觀看即時影像

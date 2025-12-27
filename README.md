@@ -1,13 +1,23 @@
 # Arduino 2D 雲台控制系統 + AI 蚊子自動追蹤
 
-![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20Orange%20Pi%205-red.svg)
 
-一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（OrangePi5+YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能。
+一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（OrangePi5+YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能並提供即時觀測。
 
 ## 📜 版本歷史
+
+### v2.4.0（2025-12-27）📱 即時觀測升級
+- 新增：影像串流系統（HTTP-MJPEG），手機即時觀看
+- 新增：整合程式 `streaming_tracking_system.py`（AI+追蹤+串流一體）
+- 新增：雙目攝像頭三種串流模式（並排/單一/獨立）
+- 新增：Web 介面顯示即時統計資訊
+- 文檔：完整串流指南 `STREAMING_GUIDE.md`
+- 功能：所有 AI 標註（檢測框、信心度）包含在串流中
+
+---
 
 ### v2.3.0（2025-12-25）🚀 穩定性升級
 - 固件：內存優化（固定緩衝區）、函數模組化（↓75% 代碼量）、看門狗定時器（2秒）、超時保護
@@ -90,7 +100,13 @@
   - AI 偵測到蚊子 → 自動切換至追蹤模式
   - 實時計算偏移並控制雲台對準
   - 信心度過低/失去目標 → 自動切回監控模式
-- 📊 **視覺化顯示**: 實時顯示 AI 偵測結果、邊界框、信心度
+- � **即時影像串流** (v2.4.0 新增):
+  - HTTP-MJPEG 串流伺服器，手機瀏覽器即時觀看
+  - 完整 AI 標註包含在串流中（檢測框、信心度、追蹤狀態）
+  - 支援雙目攝像頭（並排顯示/單一視角/獨立串流）
+  - Web 介面顯示即時統計（FPS、檢測數、連線數）
+  - 多客戶端同時觀看支援
+- �📊 **視覺化顯示**: 實時顯示 AI 偵測結果、邊界框、信心度
 - 🔧 **參數可調**: AI 模型路徑、信心度閾值、輸入解析度、追蹤增益
 
 ## 🏗️ 系統架構
@@ -106,11 +122,14 @@
 │  mosquito_detector│ (信心度 + 邊界框)
 └────────┬─────────┘
          │ 目標座標 + 信心度
-         ▼
-┌──────────────────┐
-│  AI 追蹤控制器    │ (智能追蹤 + PID 控制)
-│  mosquito_tracker │ (信心度過濾)
-└────────┬─────────┘
+         ├─────────────────────┐
+         │                     │ AI 標註影像
+         ▼                     ▼
+┌──────────────────┐  ┌──────────────────┐
+│  AI 追蹤控制器    │  │  串流伺服器       │ 📱
+│  mosquito_tracker │  │ StreamingServer  │ → 手機/瀏覽器
+│ (信心度過濾)      │  │ (HTTP-MJPEG)     │    即時觀看
+└────────┬─────────┘  └──────────────────┘
          │ 串口命令 (TX/RX)
          ▼
 ┌──────────────────┐
@@ -126,7 +145,8 @@
 3. **信心度過濾**: 僅追蹤信心度 > 閾值（如 0.4）的高可信度目標
 4. **追蹤階段**: 計算偏移量並控制雲台對準，持續追蹤
 5. **雷射標記**: 目標接近中心 + 高信心度 → 啟動雷射標記
-6. **失去目標**: 信心度過低或無檢測 → 返回監控模式
+6. **影像串流**: 標註後的影像即時推送至串流伺服器，手機可觀看
+7. **失去目標**: 信心度過低或無檢測 → 返回監控模式
 
 ## 🔧 硬體需求
 
@@ -279,10 +299,42 @@ python pt2d_controller.py
 3. **運行追蹤系統**：
 
 ```bash
+# 方案 A: 完整系統（AI + 追蹤 + 串流）⭐ 推薦
+python streaming_tracking_system.py
+# 手機瀏覽器開啟: http://[Orange_Pi_IP]:5000
+
+# 方案 B: 基本追蹤系統（無串流）
 python mosquito_tracker.py
 ```
 
 ### 操作指南
+
+#### 方案 A: 完整系統（streaming_tracking_system.py）⭐ 推薦
+
+```bash
+python streaming_tracking_system.py
+```
+
+**快捷鍵:**
+- `q`: 退出系統
+- `t`: 切換追蹤模式
+- `s`: 儲存截圖
+- `l`: 切換雷射（手動）
+- `h`: 雲台歸位
+
+**手機觀看:**
+1. 確保手機與 Orange Pi 5 在同一網路
+2. 瀏覽器開啟: `http://[Orange_Pi_IP]:5000`
+3. 即可看到即時 AI 標註影像
+
+**Web 介面顯示:**
+- 即時影像（包含 AI 檢測框、信心度）
+- FPS、檢測數、追蹤狀態
+- 連線客戶端數量
+
+---
+
+#### 方案 B: 基本追蹤系統（mosquito_tracker.py）
 
 運行 `mosquito_tracker.py` 後：
 
@@ -290,6 +342,8 @@ python mosquito_tracker.py
 - `q`: 退出系統
 - `r`: 重置偵測器
 - `h`: 回到初始位置
+- `l`: 切換雷射
+- `SPACE`: 雷射脈衝
 
 **視窗說明:**
 - **Mosquito Tracker**: 主視窗，顯示偵測與追蹤結果
@@ -718,26 +772,33 @@ ser.close()
 ```
 mosquito-pt2d/
 ├── src/
-│   └── main.cpp              # 橋接固件主程序
+│   └── main.cpp                      # 橋接固件主程序
 ├── include/
-│   └── config.h              # 配置文件（串口、舵機ID、角度範圍）
-├── python/                   # Python AI 追蹤系統
-│   ├── pt2d_controller.py    # Arduino 串口控制器
-│   ├── mosquito_tracker.py   # AI 追蹤主程序
-│   ├── mosquito_detector.py  # YOLOv8 蚊子偵測器
-│   ├── stereo_camera.py      # 雙目攝像頭控制
-│   ├── laser_controller.py   # 雷射控制（GPIO）
-│   └── quick_start.py        # 快速啟動腳本
-├── models/                   # AI 模型目錄
-│   └── mosquito.pt           # YOLOv8 蚊子偵測模型
-├── docs/                     # 文檔目錄
-│   ├── hardware.md           # 硬體連接說明
-│   ├── protocol.md           # 通訊協議詳細說明
-│   ├── python_example.md     # Python 控制示例
-│   └── arduino_ide_guide.md  # Arduino IDE 使用說明
-├── platformio.ini            # PlatformIO 配置
-├── .gitignore               # Git 忽略文件
-└── README.md                # 本文件
+│   └── config.h                      # 配置文件（串口、舵機ID、角度範圍）
+├── python/                           # Python AI 追蹤系統
+│   ├── streaming_tracking_system.py  # ⭐ 完整系統（AI+追蹤+串流）
+│   ├── streaming_server.py           # HTTP-MJPEG 串流伺服器
+│   ├── streaming_dual_camera.py      # 雙目串流範例
+│   ├── mosquito_tracker.py           # AI 追蹤主程序
+│   ├── mosquito_detector.py          # YOLOv8 蚊子偵測器
+│   ├── pt2d_controller.py            # Arduino 串口控制器
+│   ├── stereo_camera.py              # 雙目攝像頭控制
+│   ├── laser_controller.py           # 雷射控制（GPIO）
+│   ├── quick_start.py                # 快速啟動腳本
+│   └── test_*.py                     # 測試腳本
+├── models/                           # AI 模型目錄
+│   ├── mosquito.rknn                 # RKNN 模型（NPU 加速）
+│   ├── mosquito.onnx                 # ONNX 模型（CPU 優化）
+│   └── mosquito.pt                   # PyTorch 模型
+├── docs/                             # 文檔目錄
+│   ├── STREAMING_GUIDE.md            # 影像串流指南 ⭐ 新增
+│   ├── hardware.md                   # 硬體連接說明
+│   ├── protocol.md                   # 通訊協議詳細說明
+│   ├── python_example.md             # Python 控制示例
+│   └── arduino_ide_guide.md          # Arduino IDE 使用說明
+├── platformio.ini                    # PlatformIO 配置
+├── .gitignore                        # Git 忽略文件
+└── README.md                         # 本文件
 ```
 
 ## 🛠 開發指南
@@ -820,6 +881,7 @@ DEBUG_PRINT(panAngle);
 | 文檔 | 說明 |
 |------|------|
 | [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI 檢測系統詳細指南 |
+| [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ 影像串流指南（手機觀看） |
 | [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | 蚊子檢測模型說明與下載 |
 | [docs/python_example.md](docs/python_example.md) | Python 範例程式與使用教學 |
 | [docs/python_README.md](docs/python_README.md) | Python 模塊導航文檔 |
@@ -840,6 +902,9 @@ DEBUG_PRINT(panAngle);
 |------|------|
 | [include/config.h](include/config.h) | Arduino 固件配置參數 |
 | [src/main.cpp](src/main.cpp) | Arduino 橋接固件主程式 |
+| [python/streaming_tracking_system.py](python/streaming_tracking_system.py) | ⭐ 完整整合系統（推薦使用） |
+| [python/streaming_server.py](python/streaming_server.py) | HTTP-MJPEG 串流伺服器 |
+| [python/streaming_dual_camera.py](python/streaming_dual_camera.py) | 雙目串流範例 |
 | [python/mosquito_tracker.py](python/mosquito_tracker.py) | 主追蹤系統 |
 | [python/mosquito_detector.py](python/mosquito_detector.py) | AI 檢測器模組 |
 | [python/pt2d_controller.py](python/pt2d_controller.py) | Arduino 控制器介面 |
