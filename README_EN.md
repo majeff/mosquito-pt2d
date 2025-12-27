@@ -62,7 +62,7 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 - [Development Guide](#development-guide)
 - [Nginx Reverse Proxy Configuration](#nginx-reverse-proxy-configuration)
 - [Common Issues](#common-issues)
-- [Complete Documentation Index](#complete-documentation-index)
+- [Complete Documentation Index](#-complete-documentation-index)
 
 ## ✨ Features
 
