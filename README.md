@@ -60,6 +60,9 @@
 - [通訊協議](#通訊協議)
 - [專案結構](#專案結構)
 - [開發指南](#開發指南)
+- [Nginx 反向代理配置](#nginx-反向代理配置)
+- [常見問題](#常見問題)
+- [完整文檔索引](#完整文檔索引)
 
 ## ✨ 功能特點
 
@@ -802,6 +805,337 @@ mosquito-pt2d/
 DEBUG_PRINTLN("Current position: ");
 DEBUG_PRINT(panAngle);
 ```
+
+---
+
+## 🌐 Nginx 反向代理配置
+
+系統支援透過 Nginx 反向代理實現外部訪問，提供更好的安全性和靈活性。
+
+### 為什麼使用 Nginx？
+
+- ✅ **統一入口**：單一域名同時處理 HTTP 和 RTSP 串流
+- ✅ **SSL/TLS 加密**：HTTPS 安全傳輸（HTTP 串流）
+- ✅ **負載均衡**：支援多設備分流（未來擴展）
+- ✅ **存取控制**：IP 白名單、基本認證
+- ✅ **頻寬優化**：壓縮、緩存策略
+
+### 架構圖
+
+```
+外部網路                 防火牆/路由器               內網（Orange Pi 5）
+─────────────────────────────────────────────────────────────────────
+
+https://mosquito.ma7.in ──┐
+                          │
+                          ├──> Nginx (443)  ──┐
+                          │    - SSL 卸載     │
+rtsp://mosquito.ma7.in ───┤    - 反向代理     ├──> HTTP (5000)
+                          │    - 存取控制     │    └─> Flask Server
+                          │                   │
+                          └──> Nginx (1935) ─┘
+                               - RTSP 代理
+                                                ──> RTSP (8554)
+                                                    └─> MediaMTX
+```
+
+### 安裝 Nginx
+
+#### Orange Pi 5 / Ubuntu
+
+```bash
+# 安裝 Nginx 及 RTMP 模組
+sudo apt update
+sudo apt install nginx libnginx-mod-rtmp
+
+# 驗證安裝
+nginx -v
+```
+
+#### 其他平台
+
+```bash
+# Debian/Raspberry Pi
+sudo apt install nginx nginx-full
+
+# CentOS/RHEL
+sudo yum install nginx
+```
+
+### HTTP 串流反向代理配置
+
+創建配置檔 `/etc/nginx/sites-available/mosquito-http`：
+
+```nginx
+# HTTP-MJPEG 串流反向代理
+upstream mosquito_backend {
+    server 127.0.0.1:5000;  # Flask 串流伺服器
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name mosquito.ma7.in;  # 修改為你的域名或 IP
+
+    # 如果使用 SSL（推薦）
+    # listen 443 ssl http2;
+    # ssl_certificate /etc/letsencrypt/live/mosquito.ma7.in/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/mosquito.ma7.in/privkey.pem;
+
+    # 首頁與 Web 介面
+    location / {
+        proxy_pass http://mosquito_backend;
+        proxy_http_version 1.1;
+
+        # WebSocket 支援（未來擴展用）
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # 標準代理頭
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # MJPEG 串流（關鍵配置）
+    location /video {
+        proxy_pass http://mosquito_backend;
+        proxy_http_version 1.1;
+
+        # 禁用緩衝（即時串流必需）
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_request_buffering off;
+
+        # 超時設定
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+
+        # 串流頭設定
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Connection "";
+
+        # 關閉壓縮（已壓縮的 JPEG）
+        gzip off;
+    }
+
+    # API 端點（統計資訊）
+    location /stats {
+        proxy_pass http://mosquito_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+
+    # 存取控制（可選）
+    # location / {
+    #     auth_basic "Mosquito Tracking System";
+    #     auth_basic_user_file /etc/nginx/.htpasswd;
+    #     proxy_pass http://mosquito_backend;
+    # }
+
+    # IP 白名單（可選）
+    # allow 192.168.1.0/24;  # 允許內網
+    # deny all;              # 拒絕其他
+}
+```
+
+### RTSP 串流反向代理配置
+
+創建配置檔 `/etc/nginx/nginx.conf`（添加 RTMP 區塊）：
+
+```nginx
+# 在 nginx.conf 最後添加（與 http 區塊同級）
+rtmp {
+    server {
+        listen 1935;           # RTMP/RTSP 端口
+        chunk_size 4096;
+
+        application live {
+            live on;
+            record off;
+
+            # 從 MediaMTX 拉流
+            pull rtsp://127.0.0.1:8554/mosquito;
+
+            # 存取控制（可選）
+            # allow publish 127.0.0.1;
+            # allow play all;
+
+            # 轉碼設定（可選，降低延遲）
+            exec ffmpeg -i rtsp://127.0.0.1:8554/mosquito
+                -c:v copy
+                -f flv rtmp://localhost/live/mosquito;
+        }
+    }
+}
+```
+
+**注意**：RTSP 原生不支援 HTTP/HTTPS 代理，需使用 RTMP 協議或直接暴露 RTSP 端口。
+
+### 替代方案：RTSP over HTTP Tunneling
+
+如果需要透過 HTTPS 訪問 RTSP，可使用 WebRTC 或 HTTP-FLV：
+
+```nginx
+# 使用 HTTP-FLV 串流（需安裝 nginx-rtmp-module）
+location /live {
+    flv_live on;
+    chunked_transfer_encoding on;
+    add_header Access-Control-Allow-Origin *;
+}
+```
+
+客戶端使用 flv.js 播放：`https://mosquito.ma7.in/live/mosquito.flv`
+
+### 啟用配置
+
+```bash
+# 創建符號連結
+sudo ln -s /etc/nginx/sites-available/mosquito-http /etc/nginx/sites-enabled/
+
+# 測試配置
+sudo nginx -t
+
+# 重新載入 Nginx
+sudo systemctl reload nginx
+
+# 設定開機自啟
+sudo systemctl enable nginx
+```
+
+### 防火牆設定
+
+```bash
+# 允許 HTTP/HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# 允許 RTSP（如需外部訪問）
+sudo ufw allow 8554/tcp
+
+# 允許 RTMP（如使用 Nginx RTMP）
+sudo ufw allow 1935/tcp
+```
+
+### SSL/TLS 證書（Let's Encrypt）
+
+```bash
+# 安裝 Certbot
+sudo apt install certbot python3-certbot-nginx
+
+# 自動配置 SSL
+sudo certbot --nginx -d mosquito.ma7.in
+
+# 自動更新證書
+sudo certbot renew --dry-run
+```
+
+### 配置測試
+
+#### HTTP 串流測試
+
+```bash
+# 內部測試
+curl http://localhost/
+
+# 外部測試
+curl https://mosquito.ma7.in/stats
+```
+
+瀏覽器訪問：`https://mosquito.ma7.in`
+
+#### RTSP 串流測試
+
+```bash
+# 使用 ffplay 測試
+ffplay rtsp://mosquito.ma7.in:8554/mosquito
+
+# 使用 VLC
+vlc rtsp://mosquito.ma7.in:8554/mosquito
+```
+
+### Python 配置更新
+
+更新 [python/config.py](python/config.py)：
+
+```python
+# 網路配置
+DEFAULT_DEVICE_IP = "192.168.1.100"              # 內網 IP
+DEFAULT_EXTERNAL_URL = "https://mosquito.ma7.in"  # 外部訪問 URL
+DEFAULT_RTSP_URL = "rtsp://0.0.0.0:8554/mosquito" # RTSP 推流地址
+```
+
+### 效能優化建議
+
+```nginx
+# 添加到 http 區塊
+http {
+    # 緩存設定
+    proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=stream_cache:10m max_size=100m;
+
+    # 連接優化
+    keepalive_timeout 65;
+    keepalive_requests 100;
+
+    # 壓縮（靜態資源）
+    gzip on;
+    gzip_types text/html text/css application/json;
+
+    # 限流（防止濫用）
+    limit_req_zone $binary_remote_addr zone=stream_limit:10m rate=10r/s;
+
+    server {
+        # 在 location /video 添加限流
+        location /video {
+            limit_req zone=stream_limit burst=5;
+            # ... 其他配置
+        }
+    }
+}
+```
+
+### 監控與日誌
+
+```bash
+# 查看訪問日誌
+sudo tail -f /var/log/nginx/access.log
+
+# 查看錯誤日誌
+sudo tail -f /var/log/nginx/error.log
+
+# 即時連線統計
+sudo nginx -V 2>&1 | grep -o with-http_stub_status_module
+
+# 添加狀態頁面（nginx.conf）
+location /nginx_status {
+    stub_status on;
+    access_log off;
+    allow 127.0.0.1;
+    deny all;
+}
+```
+
+### 故障排除
+
+| 問題 | 解決方案 |
+|------|---------|
+| **502 Bad Gateway** | 檢查後端服務是否運行：`netstat -tulpn \| grep 5000` |
+| **連線超時** | 確認防火牆規則、proxy_read_timeout 設定 |
+| **串流卡頓** | 調整 proxy_buffering off、增加頻寬 |
+| **SSL 證書錯誤** | 更新證書：`sudo certbot renew` |
+| **RTSP 無法連接** | 檢查 MediaMTX 是否運行、端口是否開放 |
+
+### 完整配置範例
+
+完整的 Nginx 配置範例已包含在文檔中。如需更多細節，請參考：
+
+- [Nginx 官方文檔](https://nginx.org/en/docs/)
+- [RTMP 模組文檔](https://github.com/arut/nginx-rtmp-module)
+- [Let's Encrypt 指南](https://letsencrypt.org/getting-started/)
+
+---
 
 ## 🐛 常見問題
 

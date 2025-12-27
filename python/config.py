@@ -99,3 +99,8 @@ DEFAULT_STREAM_QUALITY = 80
 
 # 串流 FPS
 DEFAULT_STREAM_FPS = 15
+
+# RTSP 配置（需外部 MediaMTX 伺服器）
+DEFAULT_RTSP_URL = "rtsp://0.0.0.0:8554/mosquito"  # RTSP 目標地址（0.0.0.0 允許外部訪問）
+DEFAULT_RTSP_BITRATE = 2000  # kbps
+DEFAULT_RTSP_PRESET = "ultrafast"  # FFmpeg 編碼預設

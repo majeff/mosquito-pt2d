@@ -60,6 +60,9 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 - [Communication Protocol](#communication-protocol)
 - [Project Structure](#project-structure)
 - [Development Guide](#development-guide)
+- [Nginx Reverse Proxy Configuration](#nginx-reverse-proxy-configuration)
+- [Common Issues](#common-issues)
+- [Complete Documentation Index](#complete-documentation-index)
 
 ## ✨ Features
 
@@ -811,6 +814,337 @@ Edit [include/config.h](include/config.h) file to modify:
 DEBUG_PRINTLN("Current position: ");
 DEBUG_PRINT(panAngle);
 ```
+
+---
+
+## 🌐 Nginx Reverse Proxy Configuration
+
+The system supports external access through Nginx reverse proxy for better security and flexibility.
+
+### Why Use Nginx?
+
+- ✅ **Unified Entry Point**: Single domain for both HTTP and RTSP streaming
+- ✅ **SSL/TLS Encryption**: HTTPS secure transmission (HTTP streaming)
+- ✅ **Load Balancing**: Multi-device distribution support (future expansion)
+- ✅ **Access Control**: IP whitelist, basic authentication
+- ✅ **Bandwidth Optimization**: Compression, caching strategies
+
+### Architecture Diagram
+
+```
+External Network          Firewall/Router             Internal Network (Orange Pi 5)
+─────────────────────────────────────────────────────────────────────────────────
+
+https://mosquito.ma7.in ──┐
+                          │
+                          ├──> Nginx (443)  ──┐
+                          │    - SSL Offload  │
+rtsp://mosquito.ma7.in ───┤    - Reverse Proxy├──> HTTP (5000)
+                          │    - Access Control│    └─> Flask Server
+                          │                   │
+                          └──> Nginx (1935) ─┘
+                               - RTSP Proxy
+                                                ──> RTSP (8554)
+                                                    └─> MediaMTX
+```
+
+### Install Nginx
+
+#### Orange Pi 5 / Ubuntu
+
+```bash
+# Install Nginx with RTMP module
+sudo apt update
+sudo apt install nginx libnginx-mod-rtmp
+
+# Verify installation
+nginx -v
+```
+
+#### Other Platforms
+
+```bash
+# Debian/Raspberry Pi
+sudo apt install nginx nginx-full
+
+# CentOS/RHEL
+sudo yum install nginx
+```
+
+### HTTP Streaming Reverse Proxy Configuration
+
+Create config file `/etc/nginx/sites-available/mosquito-http`:
+
+```nginx
+# HTTP-MJPEG Streaming Reverse Proxy
+upstream mosquito_backend {
+    server 127.0.0.1:5000;  # Flask streaming server
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name mosquito.ma7.in;  # Change to your domain or IP
+
+    # If using SSL (recommended)
+    # listen 443 ssl http2;
+    # ssl_certificate /etc/letsencrypt/live/mosquito.ma7.in/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/mosquito.ma7.in/privkey.pem;
+
+    # Homepage and Web Interface
+    location / {
+        proxy_pass http://mosquito_backend;
+        proxy_http_version 1.1;
+
+        # WebSocket support (for future expansion)
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Standard proxy headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # MJPEG Streaming (Critical Configuration)
+    location /video {
+        proxy_pass http://mosquito_backend;
+        proxy_http_version 1.1;
+
+        # Disable buffering (required for real-time streaming)
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_request_buffering off;
+
+        # Timeout settings
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+
+        # Streaming headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Connection "";
+
+        # Disable compression (already compressed JPEG)
+        gzip off;
+    }
+
+    # API Endpoint (Statistics)
+    location /stats {
+        proxy_pass http://mosquito_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+
+    # Access Control (Optional)
+    # location / {
+    #     auth_basic "Mosquito Tracking System";
+    #     auth_basic_user_file /etc/nginx/.htpasswd;
+    #     proxy_pass http://mosquito_backend;
+    # }
+
+    # IP Whitelist (Optional)
+    # allow 192.168.1.0/24;  # Allow internal network
+    # deny all;              # Deny others
+}
+```
+
+### RTSP Streaming Reverse Proxy Configuration
+
+Create config file `/etc/nginx/nginx.conf` (add RTMP block):
+
+```nginx
+# Add to end of nginx.conf (same level as http block)
+rtmp {
+    server {
+        listen 1935;           # RTMP/RTSP port
+        chunk_size 4096;
+
+        application live {
+            live on;
+            record off;
+
+            # Pull from MediaMTX
+            pull rtsp://127.0.0.1:8554/mosquito;
+
+            # Access Control (Optional)
+            # allow publish 127.0.0.1;
+            # allow play all;
+
+            # Transcoding settings (optional, reduce latency)
+            exec ffmpeg -i rtsp://127.0.0.1:8554/mosquito
+                -c:v copy
+                -f flv rtmp://localhost/live/mosquito;
+        }
+    }
+}
+```
+
+**Note**: RTSP natively doesn't support HTTP/HTTPS proxy, need to use RTMP protocol or directly expose RTSP port.
+
+### Alternative: RTSP over HTTP Tunneling
+
+If you need HTTPS access to RTSP, use WebRTC or HTTP-FLV:
+
+```nginx
+# Use HTTP-FLV streaming (requires nginx-rtmp-module)
+location /live {
+    flv_live on;
+    chunked_transfer_encoding on;
+    add_header Access-Control-Allow-Origin *;
+}
+```
+
+Client uses flv.js to play: `https://mosquito.ma7.in/live/mosquito.flv`
+
+### Enable Configuration
+
+```bash
+# Create symbolic link
+sudo ln -s /etc/nginx/sites-available/mosquito-http /etc/nginx/sites-enabled/
+
+# Test configuration
+sudo nginx -t
+
+# Reload Nginx
+sudo systemctl reload nginx
+
+# Enable auto-start on boot
+sudo systemctl enable nginx
+```
+
+### Firewall Settings
+
+```bash
+# Allow HTTP/HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Allow RTSP (if external access needed)
+sudo ufw allow 8554/tcp
+
+# Allow RTMP (if using Nginx RTMP)
+sudo ufw allow 1935/tcp
+```
+
+### SSL/TLS Certificate (Let's Encrypt)
+
+```bash
+# Install Certbot
+sudo apt install certbot python3-certbot-nginx
+
+# Auto-configure SSL
+sudo certbot --nginx -d mosquito.ma7.in
+
+# Auto-renew certificate
+sudo certbot renew --dry-run
+```
+
+### Configuration Testing
+
+#### HTTP Streaming Test
+
+```bash
+# Internal test
+curl http://localhost/
+
+# External test
+curl https://mosquito.ma7.in/stats
+```
+
+Browser access: `https://mosquito.ma7.in`
+
+#### RTSP Streaming Test
+
+```bash
+# Test with ffplay
+ffplay rtsp://mosquito.ma7.in:8554/mosquito
+
+# Test with VLC
+vlc rtsp://mosquito.ma7.in:8554/mosquito
+```
+
+### Python Configuration Update
+
+Update [python/config.py](python/config.py):
+
+```python
+# Network configuration
+DEFAULT_DEVICE_IP = "192.168.1.100"              # Internal IP
+DEFAULT_EXTERNAL_URL = "https://mosquito.ma7.in"  # External access URL
+DEFAULT_RTSP_URL = "rtsp://0.0.0.0:8554/mosquito" # RTSP push address
+```
+
+### Performance Optimization
+
+```nginx
+# Add to http block
+http {
+    # Cache settings
+    proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=stream_cache:10m max_size=100m;
+
+    # Connection optimization
+    keepalive_timeout 65;
+    keepalive_requests 100;
+
+    # Compression (static resources)
+    gzip on;
+    gzip_types text/html text/css application/json;
+
+    # Rate limiting (prevent abuse)
+    limit_req_zone $binary_remote_addr zone=stream_limit:10m rate=10r/s;
+
+    server {
+        # Add rate limiting to location /video
+        location /video {
+            limit_req zone=stream_limit burst=5;
+            # ... other config
+        }
+    }
+}
+```
+
+### Monitoring and Logs
+
+```bash
+# View access logs
+sudo tail -f /var/log/nginx/access.log
+
+# View error logs
+sudo tail -f /var/log/nginx/error.log
+
+# Real-time connection statistics
+sudo nginx -V 2>&1 | grep -o with-http_stub_status_module
+
+# Add status page (nginx.conf)
+location /nginx_status {
+    stub_status on;
+    access_log off;
+    allow 127.0.0.1;
+    deny all;
+}
+```
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| **502 Bad Gateway** | Check if backend service is running: `netstat -tulpn \| grep 5000` |
+| **Connection Timeout** | Confirm firewall rules, proxy_read_timeout settings |
+| **Streaming Lag** | Adjust proxy_buffering off, increase bandwidth |
+| **SSL Certificate Error** | Update certificate: `sudo certbot renew` |
+| **RTSP Connection Failed** | Check if MediaMTX is running, port is open |
+
+### Complete Configuration Examples
+
+Complete Nginx configuration examples are included in the documentation. For more details, refer to:
+
+- [Nginx Official Documentation](https://nginx.org/en/docs/)
+- [RTMP Module Documentation](https://github.com/arut/nginx-rtmp-module)
+- [Let's Encrypt Guide](https://letsencrypt.org/getting-started/)
+
+---
 
 ## 🐛 Common Issues
 
