@@ -103,13 +103,13 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
   - AI detects mosquito → Automatically switches to tracking mode
   - Real-time offset calculation and pan-tilt control for target alignment
   - Low confidence/target lost → Automatically switches back to monitoring mode
-- � **Real-time Video Streaming** (v2.4.0 new):
+- 📺 **Real-time Video Streaming** (v2.4.0 new):
   - HTTP-MJPEG streaming server for real-time mobile browser viewing
   - Complete AI annotations included in stream (detection boxes, confidence, tracking status)
   - Dual camera support (side-by-side display/single view/independent streams)
   - Web interface with real-time statistics (FPS, detections, connections)
   - Multi-client simultaneous viewing support
-- �📊 **Visual display**: Real-time display of AI detection results, bounding boxes, confidence scores
+- 📊 **Visual display**: Real-time display of AI detection results, bounding boxes, confidence scores
 - 🔧 **Adjustable parameters**: AI model path, confidence threshold, input resolution, tracking gain
 
 ## 🏗️ System Architecture
