@@ -176,8 +176,7 @@
 
 | 組件 | 規格 | 數量 | 備註 |
 |-----|------|------|------|
-| **雷射模組** | 1mW 紅光雷射 | 1 | 目標標記用（安全等級） |
-| 杜邦線 | 公對母 | 若干 | GPIO 連接 |
+| **雷射模組** | 1mW 紅光雷射 | 1 | 目標標記用（安全等級）<br>由 Arduino 控制 |
 
 ## 💻 軟體需求
 
@@ -189,14 +188,12 @@
   - OpenCV (`opencv-python`)
   - PySerial (`pyserial`)
   - NumPy (`numpy`)
-  - RPi.GPIO 或 OrangePi.GPIO (GPIO 控制)
 
 ```bash
 # Orange Pi 5 安裝
 sudo apt update
 sudo apt install python3-pip python3-opencv
 pip3 install -r python/requirements.txt
-pip3 install OrangePi.GPIO  # GPIO 控制雷射
 ```
 
 ### Arduino 端
@@ -235,9 +232,9 @@ sudo apt install python3-pip python3-opencv git -y
 - Arduino Nano 透過 USB 連接至 Orange Pi 5（裝置為 `/dev/ttyUSB*` 或 `/dev/ttyACM*`）
 - 雙目 **1080p 攝像頭**透過 USB 3.0 連接至 Orange Pi 5
 - 總線舵機透過軟串口連接 Arduino（Nano D10/D11 → 舵機總線）
-- **1mW 雷射模組**由 Arduino 控制，無需額外 MOSFET
-- 舵機需要獨立供電 (6V-8.4V)
-- 所有 GND 必須共地（Orange Pi、Arduino、舵機、雷射）
+- **1mW 雷射模組**由 Arduino 控制（透過串口指令）
+- 舍機需要獨立供電 (6V-8.4V)
+- 所有 GND 必須共地（Orange Pi、Arduino、舍機）
 ```
 
 ### 3. 測試硬體連接
@@ -246,7 +243,7 @@ sudo apt install python3-pip python3-opencv git -y
 # 測試攝像頭
 python3 stereo_camera.py
 
-# 測試 Arduino 通訊與雷射控制
+# 測試 Arduino 通訊
 python3 pt2d_controller.py
 ```
 #### 使用 Arduino IDE
@@ -319,7 +316,6 @@ python streaming_tracking_system.py
 - `q`: 退出系統
 - `t`: 切換追蹤模式
 - `s`: 儲存截圖
-- `l`: 切換雷射（手動）
 - `h`: 雲台歸位
 
 **手機觀看:**
@@ -342,8 +338,6 @@ python streaming_tracking_system.py
 - `q`: 退出系統
 - `r`: 重置偵測器
 - `h`: 回到初始位置
-- `l`: 切換雷射
-- `SPACE`: 雷射脈衝
 
 **視窗說明:**
 - **Mosquito Tracker**: 主視窗，顯示偵測與追蹤結果
@@ -458,17 +452,10 @@ Nano D11 (RX)  | ← 舵機總線 TX（綠線）
 
 **系統架構圖**:（見上方「完整系統連接」與引腳配置）
 
-**GPIO 對應 (OrangePi.GPIO 庫)**:
-- 實體 Pin 5 = GPIO 3 = 程式中使用 `GPIO.setmode(GPIO.BOARD)` 後為 Pin 5
-
-注意：
-- 兩線雷射需用 MOSFET 在供電路徑切換；GPIO 僅作邏輯控制，不直接供電。
-- 若雷射為 5V 或電流較大，務必使用 MOSFET/驅動器；請共地並加入 Gate 下拉與保護電阻。
-
 ### ⚠️ 重要注意事項
 
 1. **獨立供電**: 總線舵機需要 **6V-8.4V** 供電（推薦 7.4V 鋰電池）
-2. **共地**: 確保 Orange Pi、Arduino、舵機、雷射模組所有 GND 連接在一起
+2. **共地**: 確保 Orange Pi、Arduino、舵機所有 GND 連接在一起
 3. **串口選擇**: Nano 上位機通訊使用 D0/D1（硬體 UART），舵機總線使用 D10/D11（SoftwareSerial）
 4. **舵機 ID**: 預設 Pan=ID1, Tilt=ID2，請先確認舵機 ID 設置
 5. **攝像頭**: 雙目 1080p 攝像頭透過 USB 3.0 連接至 Orange Pi 5
@@ -581,8 +568,6 @@ sudo python3 quick_start.py
 | `r` | 重置偵測器 | 清除偵測歷史 |
 <!-- 掃描模式快捷鍵已移除 -->
 | `h` | 回到初始位置 | 雲台歸位 |
-| `l` | 切換雷射 | 手動開關雷射 |
-| `SPACE` | 雷射脈衝 | 0.2 秒標記脈衝 |
 
 ---
 
@@ -632,26 +617,7 @@ sudo python3 quick_start.py
 
 ### Orange Pi 5 相關問題
 
-#### 1. GPIO 權限不足
-
-**錯誤**: `PermissionError: [Errno 13] Permission denied`
-
-**解決方法**:
-```bash
-# 方法 1: 使用 sudo
-sudo python3 mosquito_tracker.py
-
-# 方法 2: 加入 gpio 群組
-sudo usermod -a -G gpio $USER
-# 登出後重新登入
-
-# 方法 3: 設定 GPIO 權限規則
-sudo nano /etc/udev/rules.d/99-gpio.rules
-# 加入: SUBSYSTEM=="gpio", MODE="0660", GROUP="gpio"
-sudo udevadm control --reload-rules
-```
-
-#### 2. 攝像頭無法開啟
+#### 1. 攝像頭無法開啟
 
 **檢查方法**:
 ```bash
@@ -666,7 +632,7 @@ sudo chmod 666 /dev/video0
 sudo chmod 666 /dev/video1
 ```
 
-#### 3. Arduino 無法連接
+#### 2. Arduino 無法連接
 
 **檢查方法**:
 ```bash
@@ -680,16 +646,6 @@ dmesg | grep tty
 sudo chmod 666 /dev/ttyS1   # 依你的實際裝置節點調整
 sudo usermod -a -G dialout $USER
 ```
-
-### 雷射相關問題
-
-#### 1. 雷射無法啟動
-
-**檢查項目**:
-- 檢查 GPIO 引腳是否正確（實體 Pin 5，BOARD 模式）
-- 確認雷射模組為 5V，並透過繼電器或 MOSFET 控制供電
-- 以萬用表量測 Pin 5 在 ON/OFF 時是否電位切換
-- 確認繼電器或 MOSFET 接線正確，並已共地
 
 ### AI 偵測效果不佳
 
@@ -777,13 +733,11 @@ mosquito-pt2d/
 │   └── config.h                      # 配置文件（串口、舵機ID、角度範圍）
 ├── python/                           # Python AI 追蹤系統
 │   ├── streaming_tracking_system.py  # ⭐ 完整系統（AI+追蹤+串流）
-│   ├── streaming_server.py           # HTTP-MJPEG 串流伺服器
-│   ├── streaming_dual_camera.py      # 雙目串流範例
+│   ├── streaming_server.py           # HTTP-MJPEG 串流伺服器模組
 │   ├── mosquito_tracker.py           # AI 追蹤主程序
 │   ├── mosquito_detector.py          # YOLOv8 蚊子偵測器
 │   ├── pt2d_controller.py            # Arduino 串口控制器
 │   ├── stereo_camera.py              # 雙目攝像頭控制
-│   ├── laser_controller.py           # 雷射控制（GPIO）
 │   ├── quick_start.py                # 快速啟動腳本
 │   └── test_*.py                     # 測試腳本
 ├── models/                           # AI 模型目錄
@@ -903,13 +857,11 @@ DEBUG_PRINT(panAngle);
 | [include/config.h](include/config.h) | Arduino 固件配置參數 |
 | [src/main.cpp](src/main.cpp) | Arduino 橋接固件主程式 |
 | [python/streaming_tracking_system.py](python/streaming_tracking_system.py) | ⭐ 完整整合系統（推薦使用） |
-| [python/streaming_server.py](python/streaming_server.py) | HTTP-MJPEG 串流伺服器 |
-| [python/streaming_dual_camera.py](python/streaming_dual_camera.py) | 雙目串流範例 |
+| [python/streaming_server.py](python/streaming_server.py) | HTTP-MJPEG 串流伺服器模組 |
 | [python/mosquito_tracker.py](python/mosquito_tracker.py) | 主追蹤系統 |
 | [python/mosquito_detector.py](python/mosquito_detector.py) | AI 檢測器模組 |
 | [python/pt2d_controller.py](python/pt2d_controller.py) | Arduino 控制器介面 |
 | [python/stereo_camera.py](python/stereo_camera.py) | 雙目相機模組 |
-| [python/laser_controller.py](python/laser_controller.py) | 雷射控制模組 |
 | [python/quick_start.py](python/quick_start.py) | 快速啟動腳本 |
 
 **提示**: 所有文檔均以 Markdown 格式編寫，可直接在 GitHub 或任何 Markdown 編輯器中閱讀。

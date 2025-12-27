@@ -90,7 +90,6 @@ python quick_start.py
 | `pt2d_controller.py` | 雲台控制器（含重試機制） |
 | `mosquito_detector.py` | AI 蚊子檢測器 |
 | `mosquito_tracker.py` | 蚊子追蹤邏輯 |
-| `laser_controller.py` | 雷射控制器 |
 | `stereo_camera.py` | 立體相機處理 |
 | `streaming_server.py` | 影像串流伺服器（HTTP-MJPEG） |
 | `quick_start.py` | 快速啟動腳本 |

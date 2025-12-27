@@ -18,7 +18,6 @@ from streaming_server import StreamingServer
 from mosquito_detector import MosquitoDetector
 from mosquito_tracker import MosquitoTracker
 from pt2d_controller import PT2DController
-from laser_controller import LaserController
 import cv2
 import numpy as np
 import sys
@@ -36,8 +35,6 @@ class StreamingTrackingSystem:
                  http_port: int = 5000,
                  dual_camera: bool = True,
                  stream_mode: str = "single",
-                 enable_laser: bool = True,
-                 laser_gpio_pin: int = 5,
                  save_samples: bool = True,
                  sample_conf_range: tuple = (0.35, 0.65)):
         """
@@ -50,8 +47,6 @@ class StreamingTrackingSystem:
             http_port: HTTP 串流端口
             dual_camera: 是否為雙目攝像頭
             stream_mode: 串流模式 ("side_by_side", "single", "dual_stream")
-            enable_laser: 是否啟用雷射標記
-            laser_gpio_pin: 雷射 GPIO 引腳（實體 Pin 5）
             save_samples: 是否儲存中等信心度樣本
             sample_conf_range: 樣本信心度範圍 (min, max)
         """
@@ -64,7 +59,6 @@ class StreamingTrackingSystem:
         self.dual_camera = dual_camera
         self.stream_mode = stream_mode
         self.camera_id = camera_id
-        self.enable_laser = enable_laser
 
         # 統計資訊
         self.stats = {
@@ -72,7 +66,6 @@ class StreamingTrackingSystem:
             'detections': 0,
             'tracking_active': False,
             'samples_saved': 0,
-            'laser_activations': 0,
             'start_time': time.time()
         }
 
@@ -108,44 +101,20 @@ class StreamingTrackingSystem:
             self.has_pt = False
             self.pt_controller = None
 
-        # 3. 初始化雷射控制器
-        print("[3/5] 初始化雷射控制器...")
-        if enable_laser:
-            try:
-                self.laser = LaserController(gpio_pin=laser_gpio_pin)
-                if self.laser.is_initialized:
-                    print(f"      ✓ 雷射控制器已就緒 (GPIO Pin {laser_gpio_pin})")
-                    self.has_laser = True
-                else:
-                    print(f"      ⚠ 雷射控制器初始化失敗")
-                    self.has_laser = False
-            except Exception as e:
-                print(f"      ⚠ 雷射控制器錯誤: {e}")
-                self.has_laser = False
-                self.laser = None
-        else:
-            self.has_laser = False
-            self.laser = None
-            print(f"      ⊘ 雷射功能已停用")
-
-        # 4. 初始化追蹤器
-        print("[4/5] 初始化追蹤器...")
+        # 3. 初始化追蹤器
+        print("[3/5] 初始化追蹤器...")
         if self.has_pt:
             self.tracker = MosquitoTracker(
                 detector=self.detector,
                 pt_controller=self.pt_controller
             )
-            # 如果有雷射，設定到追蹤器
-            if self.has_laser:
-                self.tracker.laser = self.laser
-                self.tracker.enable_laser = True
             print(f"      ✓ 追蹤器已就緒")
         else:
             self.tracker = None
             print(f"      ⚠ 追蹤器未啟用（需要雲台連接）")
 
-        # 5. 初始化串流伺服器
-        print("[5/5] 初始化串流伺服器...")
+        # 4. 初始化串流伺服器
+        print("[4/4] 初始化串流伺服器...")
         self.server = StreamingServer(http_port=http_port, fps=30)
         self.server.run(threaded=True)
         print(f"      ✓ 串流伺服器已啟動 (端口 {http_port})")
@@ -337,17 +306,6 @@ class StreamingTrackingSystem:
                     filename = f"capture_{int(time.time())}.jpg"
                     cv2.imwrite(filename, display)
                     print(f"已儲存: {filename}")
-                elif key == ord('l'):
-                    if self.has_laser:
-                        if self.laser.is_on:
-                            self.laser.off()
-                            print("雷射: 關閉")
-                        else:
-                            self.laser.on()
-                            print("雷射: 開啟")
-                            self.stats['laser_activations'] += 1
-                    else:
-                        print("雷射功能未啟用")
                 elif key == ord('h'):
                     if self.pt_controller:
                         self.pt_controller.home()
@@ -364,8 +322,6 @@ class StreamingTrackingSystem:
             cv2.destroyAllWindows()
             if self.pt_controller:
                 self.pt_controller.close()
-            if self.laser:
-                self.laser.cleanup()
 
             # 顯示統計
             print()
@@ -376,8 +332,6 @@ class StreamingTrackingSystem:
             print(f"總檢測: {self.stats['detections']}")
             if hasattr(self.detector, 'saved_sample_count'):
                 print(f"已儲存樣本: {self.detector.saved_sample_count}")
-            if self.has_laser:
-                print(f"雷射啟動次數: {self.stats['laser_activations']}")
             elapsed = time.time() - self.stats['start_time']
             print(f"運行時間: {elapsed:.1f} 秒")
             print(f"平均 FPS: {self.stats['total_frames'] / elapsed:.1f}")

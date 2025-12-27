@@ -196,8 +196,7 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 
 | Component | Specification | Quantity | Note |
 |-----------|---------------|----------|------|
-| **Laser Module** | 1mW Red Laser | 1 | Target marking (safety class) |
-| Dupont Wires | Male-Female | Several | GPIO connection |
+| **Laser Module** | 1mW Red Laser | 1 | Target marking (safety class)<br>Controlled by Arduino |
 
 ## 💻 Software Requirements
 
@@ -209,14 +208,14 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
   - OpenCV (`opencv-python`)
   - PySerial (`pyserial`)
   - NumPy (`numpy`)
-  - RPi.GPIO or OrangePi.GPIO (GPIO control)
+
 
 ```bash
 # Orange Pi 5 Installation
 sudo apt update
 sudo apt install python3-pip python3-opencv
 pip3 install -r python/requirements.txt
-pip3 install OrangePi.GPIO  # GPIO control for laser
+
 ```
 
 ### Arduino
@@ -264,7 +263,6 @@ cd mosquito-pt2d/python
 
 # Install Python dependencies
 pip3 install -r requirements.txt
-pip3 install OrangePi.GPIO
 ```
 
 ### 3. Hardware Connection
@@ -288,9 +286,6 @@ python3 stereo_camera.py
 
 # Test Arduino communication
 python3 pt2d_controller.py
-
-# Test GPIO laser control (needs sudo)
-sudo python3 laser_controller.py
 
 # Test mosquito detection
 python3 mosquito_detector.py
@@ -342,7 +337,6 @@ python3 streaming_tracking_system.py
 - `q`: Exit system
 - `t`: Toggle tracking mode
 - `s`: Save screenshot
-- `l`: Toggle laser (manual)
 - `h`: Home pan-tilt
 
 **Mobile Viewing:**
@@ -365,8 +359,6 @@ After running `mosquito_tracker.py`:
 - `q`: Exit system
 - `r`: Reset detector
 - `h`: Return to home position
-- `l`: Toggle laser
-- `SPACE`: Laser pulse (0.2s marking pulse)
 
 **Windows:**
 - **Mosquito Tracker**: Main window, displays detection and tracking results
@@ -546,9 +538,6 @@ python3 stereo_camera.py
 # Test Arduino communication
 python3 pt2d_controller.py
 
-# Test laser control (needs sudo)
-sudo python3 laser_controller.py
-
 # Test mosquito detection
 python3 mosquito_detector.py
 ```
@@ -705,23 +694,13 @@ sudo usermod -a -G dialout $USER
 #### 1. Laser Cannot Start
 
 **Check items**:
-- Check GPIO pin is correct (physical Pin 5, BOARD mode)
-- Confirm laser module is 5V and uses relay/MOSFET for power control
-- Use multimeter to measure Pin 5 voltage switching on ON/OFF
-- Verify relay or MOSFET wiring is correct and common ground
-
-**Test command**:
-```bash
-sudo python3 laser_controller.py
-```
+- Laser is now controlled by Arduino via serial commands
+- Check Arduino firmware includes laser control functions
+- Test laser using streaming_tracking_system.py
 
 #### 2. Laser Always On Cannot Turn Off
 
-**Emergency procedure**:
-```bash
-# Immediately close all GPIO
-sudo python3 -c "import OPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.setup(5, GPIO.OUT); GPIO.output(5, GPIO.LOW); GPIO.cleanup()"
-```
+**Note**: Laser is now controlled by Arduino. Use Arduino commands to control laser state.
 
 ### AI Detection Poor Performance
 
@@ -754,13 +733,11 @@ mosquito-pt2d/
 │   └── config.h              # Configuration file (serial, servo IDs, angle ranges)
 ├── python/                           # Python AI tracking system
 │   ├── streaming_tracking_system.py  # ⭐ Complete system (AI+tracking+streaming)
-│   ├── streaming_server.py           # HTTP-MJPEG streaming server
-│   ├── streaming_dual_camera.py      # Dual camera streaming example
+│   ├── streaming_server.py           # HTTP-MJPEG streaming server module
 │   ├── mosquito_tracker.py           # AI tracking main program
 │   ├── mosquito_detector.py          # YOLOv8 mosquito detector
 │   ├── pt2d_controller.py            # Arduino serial controller
 │   ├── stereo_camera.py              # Stereo camera control
-│   ├── laser_controller.py           # Laser control (GPIO)
 │   ├── quick_start.py                # Quick start script
 │   └── test_*.py                     # Test scripts
 ├── models/                           # AI model directory
@@ -876,12 +853,11 @@ DEBUG_PRINT(panAngle);
 |------|-------------|
 | [include/config.h](include/config.h) | Arduino firmware configuration parameters |
 | [src/main.cpp](src/main.cpp) | Arduino bridge firmware main program || [python/streaming_tracking_system.py](python/streaming_tracking_system.py) | ⭐ Complete integrated system (recommended) |
-| [python/streaming_server.py](python/streaming_server.py) | HTTP-MJPEG streaming server |
-| [python/streaming_dual_camera.py](python/streaming_dual_camera.py) | Dual camera streaming example || [python/mosquito_tracker.py](python/mosquito_tracker.py) | Main tracking system |
+| [python/streaming_server.py](python/streaming_server.py) | HTTP-MJPEG streaming server module |
+| [python/mosquito_tracker.py](python/mosquito_tracker.py) | Main tracking system |
 | [python/mosquito_detector.py](python/mosquito_detector.py) | AI detector module |
 | [python/pt2d_controller.py](python/pt2d_controller.py) | Arduino controller interface |
 | [python/stereo_camera.py](python/stereo_camera.py) | Dual camera module |
-| [python/laser_controller.py](python/laser_controller.py) | Laser control module |
 | [python/quick_start.py](python/quick_start.py) | Quick start script |
 
 **Tip**: All documents are written in Markdown format and can be read directly on GitHub or any Markdown editor.

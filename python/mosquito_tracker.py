@@ -13,7 +13,6 @@ from typing import Optional, Tuple
 from stereo_camera import StereoCamera
 from mosquito_detector import MosquitoDetector
 from pt2d_controller import PT2DController
-from laser_controller import LaserController
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,9 +26,7 @@ class MosquitoTracker:
                  camera_left_id: int = 0,
                  camera_right_id: int = 1,
                  camera_width: int = 640,
-                 camera_height: int = 480,
-                 enable_laser: bool = True,
-                 laser_gpio_pin: int = 5):
+                 camera_height: int = 480):
         """
         初始化追蹤系統
 
@@ -39,12 +36,9 @@ class MosquitoTracker:
             camera_right_id: 右攝像頭 ID
             camera_width: 攝像頭寬度
             camera_height: 攝像頭高度
-            enable_laser: 是否啟用雷射標記
-            laser_gpio_pin: 雷射控制 GPIO 引腳
         """
         self.camera_width = camera_width
         self.camera_height = camera_height
-        self.enable_laser = enable_laser
 
         # 初始化雙目攝像頭
         logger.info("初始化雙目攝像頭...")
@@ -67,17 +61,6 @@ class MosquitoTracker:
         logger.info(f"連接 Arduino ({arduino_port})...")
         self.controller = PT2DController(arduino_port)
 
-        # 初始化雷射控制器
-        if self.enable_laser:
-            logger.info("初始化雷射控制器...")
-            self.laser = LaserController(gpio_pin=laser_gpio_pin)
-            if not self.laser.is_initialized:
-                logger.warning("雷射控制器初始化失敗，雷射標記功能將被停用")
-                self.enable_laser = False
-        else:
-            self.laser = None
-            logger.info("雷射標記功能已停用")
-
         # 追蹤狀態
         self.tracking_active = False
         self.last_detection_time = 0
@@ -96,11 +79,6 @@ class MosquitoTracker:
         # 蜂鳴器狀態
         self.beep_cooldown = 2.0  # 蜂鳴冷卻時間（秒），避免頻繁觸發
         self.last_beep_time = 0
-
-        # 雷射標記狀態
-        self.laser_marking = False
-        self.last_laser_time = 0
-        self.laser_cooldown = 0.5  # 雷射冷卻時間（秒）
 
         # PID 控制參數（簡化版）
         self.pan_gain = 0.15   # Pan 軸增益
@@ -316,42 +294,6 @@ class MosquitoTracker:
                        (target_x - 50, target_y + h + 20),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-            # 雷射標記：當目標接近中心且信心度足夠高時啟動雷射
-            if self.enable_laser and self.laser.is_initialized:
-                current_time = time.time()
-                # 檢查目標是否在中心區域（±30 像素）且信心度 > 0.5
-                center_threshold = 30
-                confidence_threshold = 0.5
-                error_x = abs(target_x - self.camera_width // 2)
-                error_y = abs(target_y - self.camera_height // 2)
-
-                if (error_x < center_threshold and error_y < center_threshold
-                    and confidence > confidence_threshold):
-                    # 目標在中心且信心度高，啟動雷射標記
-                    if not self.laser_marking and (current_time - self.last_laser_time > self.laser_cooldown):
-                        try:
-                            self.laser.on()
-                            self.laser_marking = True
-                            self.last_laser_time = current_time
-                            logger.info(f"🎯 雷射標記啟動 [{camera_side}] 信心度: {confidence:.2f}")
-                        except Exception as e:
-                            logger.error(f"雷射啟動失敗: {e}")
-
-                    # 標記中心區域
-                    cv2.circle(frame, (self.camera_width // 2, self.camera_height // 2),
-                             center_threshold, (0, 255, 0), 2)
-                    cv2.putText(frame, f"LASER ON [{camera_side}]", (target_x - 60, target_y + h + 40),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                else:
-                    # 目標偏離中心或信心度不足，關閉雷射
-                    if self.laser_marking:
-                        try:
-                            self.laser.off()
-                            self.laser_marking = False
-                            logger.info("雷射標記關閉（目標偏離或信心度不足）")
-                        except Exception as e:
-                            logger.error(f"雷射關閉失敗: {e}")
-
             # 返回使用的幀用於顯示
             return frame
 
@@ -364,11 +306,6 @@ class MosquitoTracker:
                 if time_since_last_detection > self.no_detection_timeout:
                     # 超時，判定為失去目標
                     logger.info(f"AI 持續 {time_since_last_detection:.1f}s 未檢測到目標，失去追蹤...")
-
-                    # 關閉雷射
-                    if self.enable_laser and self.laser_marking:
-                        self.laser.off()
-                        self.laser_marking = False
 
                     # 非同步回到初始位置繼續監控（避免阻塞主循環）
                     logger.info("雲台回到初始位置繼續監控...")
@@ -460,19 +397,9 @@ class MosquitoTracker:
                         logger.debug(f"讀取位置失敗，使用緩存值: {e}")
                 pan, tilt = self.cached_pan, self.cached_tilt
 
-                # 顯示雷射狀態
-                if self.enable_laser:
-                    laser_status = "LASER: ON" if self.laser_marking else "LASER: OFF"
-                    laser_color = (0, 255, 0) if self.laser_marking else (128, 128, 128)
-                    cv2.putText(result, laser_status, (10, 90),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, laser_color, 2)
-                    cv2.putText(result, f"Pan: {pan} | Tilt: {tilt}", (10, 120),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                else:
-                    cv2.putText(result, f"Pan: {pan} | Tilt: {tilt}", (10, 90),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
-                # 顯示影像
+                # 顯示位置資訊
+                cv2.putText(result, f"Pan: {pan} | Tilt: {tilt}", (10, 90),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 cv2.imshow('AI Mosquito Tracker (Dual Camera)', result)
                 # 可選：顯示左右攝像頭原始畫面
                 # cv2.imshow('Left Camera', left_frame)
@@ -497,17 +424,6 @@ class MosquitoTracker:
                     threading.Thread(target=self._home_async, daemon=True).start()
                     self.tracking_active = False
                     self.locked_target_position = None  # 清除目標鎖定
-                    if self.enable_laser and self.laser_marking:
-                        self.laser.off()
-                        self.laser_marking = False
-                elif key == ord('l') and self.enable_laser:
-                    # 手動切換雷射
-                    if self.laser_marking:
-                        self.laser.off()
-                        self.laser_marking = False
-                        logger.info("手動關閉雷射")
-                    else:
-                        self.laser.on()
                         self.laser_marking = True
                         logger.info("手動開啟雷射")
                 elif key == ord(' ') and self.enable_laser:

@@ -476,9 +476,6 @@ sudo usermod -a -G gpio $USER
 
 # 或使用 sudo 運行
 sudo python3 mosquito_tracker.py
-
-# 測試 GPIO
-sudo python3 laser_controller.py
 ```
 
 ### 5. 追蹤反應過慢或過快
