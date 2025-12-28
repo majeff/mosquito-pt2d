@@ -20,7 +20,7 @@ Arduino PT2D 控制器 Python 介面
 import serial
 import json
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -351,24 +351,22 @@ class PT2DController:
         speed = max(1, min(100, speed))  # 限制範圍
         return self.send_command(f'SPEED:{speed}')
 
-    def set_servo_id(self, pan_id: int, tilt_id: int) -> Dict:
+    def config_servo_id(self, servo_id: int) -> Dict:
         """
-        手動設置舵機 ID
+        配置舵機硬件 ID（固件 <CONFIGSERVO:id>，透過廣播 #255PIDXXX!）
+
+        注意：此命令需在單一舵機連接到總線時執行，以避免多機同時被改ID。
 
         Args:
-            pan_id: Pan 軸舵機 ID (1-5)
-            tilt_id: Tilt 軸舵機 ID (1-5)
+            servo_id: 目標舵機硬件 ID（1-254）
 
         Returns:
-            響應字典
+            響應字典（含狀態與提示訊息）
         """
-        if not (1 <= pan_id <= 5 and 1 <= tilt_id <= 5):
-            return {'error': 'Servo ID must be between 1 and 5'}
-        if pan_id == tilt_id:
-            return {'error': 'Pan and Tilt IDs must be different'}
-
-        logger.info(f"設置舵機 ID: Pan={pan_id}, Tilt={tilt_id}")
-        return self.send_command(f'SETID:{pan_id},{tilt_id}')
+        if not (1 <= servo_id <= 254):
+            return {'error': 'Servo ID must be between 1 and 254'}
+        logger.info(f"配置舵機硬件 ID: {servo_id}")
+        return self.send_command(f'CONFIGSERVO:{servo_id}')
 
     def get_info(self) -> Dict:
         """
@@ -431,9 +429,25 @@ class PT2DController:
         """停止移動"""
         return self.send_command('STOP')
 
-    def calibrate(self) -> Dict:
-        """執行校準"""
-        return self.send_command('CAL')
+    def set_led(self, state: Union[bool, str]) -> Dict:
+        """
+        設置 LED 狀態（固件 <LED:ON|OFF>）
+
+        Args:
+            state: True/'ON' 開啟，False/'OFF' 關閉
+        """
+        val = 'ON' if (isinstance(state, bool) and state or (isinstance(state, str) and state.upper() == 'ON')) else 'OFF'
+        return self.send_command(f'LED:{val}')
+
+    def set_laser(self, state: Union[bool, str]) -> Dict:
+        """
+        設置雷射狀態（固件 <LASER:ON|OFF>）
+
+        Args:
+            state: True/'ON' 開啟，False/'OFF' 關閉
+        """
+        val = 'ON' if (isinstance(state, bool) and state or (isinstance(state, str) and state.upper() == 'ON')) else 'OFF'
+        return self.send_command(f'LASER:{val}')
 
     # 總線指令快捷方法（橋接模式）
     def bus_move(self, servo_id: int, position: int, time_ms: int) -> Dict:
@@ -467,10 +481,6 @@ class PT2DController:
     def read_status(self) -> Dict:
         """讀取雙軸完整狀態（位置+電壓+溫度），對應固件 <STATUS>"""
         return self.send_command("STATUS")
-
-    def calibrate(self) -> Dict:
-        """執行校準"""
-        return self.send_command('CAL')
 
     def swing_test(self) -> bool:
         """
@@ -527,14 +537,7 @@ class PT2DController:
             logger.error(f"擺動測試失敗: {e}")
             return False
 
-    def beep(self) -> Dict:
-        """
-        觸發蜂鳴器響聲
 
-        Returns:
-            響應字典
-        """
-        return self.send_command('BEEP')
 
     # 提示：韌體已移除掃描模式，以下模式相關命令不再提供
 

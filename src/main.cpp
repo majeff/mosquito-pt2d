@@ -46,10 +46,12 @@ static BusCmdType lastBusCmd = BUS_NONE;
 static int lastBusId = -1;
 
 // 動態舵機 ID（執行時可修改）
-// 初始化為 0（無效值），必須通過 autoDetectServoId() 進行自動掃描
+// 初始化為 0（無效值），必須通過 verifyServoPresence() 進行自動掃描
 static int panServoId = 0;
 static int tiltServoId = 0;
 static boolean servoIdDetected = false;
+static boolean servoDisabled = false;  // 軟停機：舵機ID無效時僅禁用舵機相關命令
+static unsigned long lastErrorNotify = 0; // 非阻塞錯誤提示節流
 
 // 移動參數（全局）
 static int moveSpeed = DEFAULT_SPEED;
@@ -78,6 +80,16 @@ static void setup_led() {
 static void setup_beep() {
   pinMode(BEEP_PIN, OUTPUT);
   digitalWrite(BEEP_PIN, HIGH); // 關閉
+}
+
+// 蜂鳴器輔助函數：發出短促蜂鳴聲（3次）
+static void beep_short3() {
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(BEEP_PIN, LOW);   // 開啟蜂鳴器
+    delay(100);
+    digitalWrite(BEEP_PIN, HIGH);  // 關閉蜂鳴器
+    delay(100);
+  }
 }
 
 static void setup_laser() {
@@ -362,6 +374,7 @@ static void handleConfigServo(const char* params) {
 
 // 處理 MOVE/MOVETO 命令
 static void handleMove(const char* params) {
+  if (servoDisabled) { sendError("Servo disabled"); return; }
   int panAngle, tiltAngle;
   if (!parseTwoInts(params, panAngle, tiltAngle)) {
     sendError("Invalid parameter");
@@ -386,6 +399,7 @@ static void handleMove(const char* params) {
 
 // 處理 STOP 命令
 static void handleStop() {
+  if (servoDisabled) { sendError("Servo disabled"); return; }
   char buf[24];
   snprintf(buf, sizeof(buf), "#%03dPDST!", panServoId);
   sendBus(buf);
@@ -396,6 +410,7 @@ static void handleStop() {
 
 // 處理 HOME 命令
 static void handleHome() {
+  if (servoDisabled) { sendError("Servo disabled"); return; }
   uint16_t panPos = angleToPosition(PAN_INIT_ANGLE);
   uint16_t tiltPos = angleToPosition(TILT_INIT_ANGLE);
   char buf[32];
@@ -408,6 +423,7 @@ static void handleHome() {
 
 // 處理 POS/GETPOS 命令（啟動聚合讀取雙軸角度）
 static void handleGetPos() {
+  if (servoDisabled) { sendError("Servo disabled"); return; }
   aggType = AGG_POS_BOTH;
   aggPhase = 0;
   aggPanAngle = aggTiltAngle = -1;
@@ -421,6 +437,7 @@ static void handleGetPos() {
 
 // 處理 STATUS/INFO 命令（啟動聚合讀取雙軸完整狀態）
 static void handleStatus() {
+  if (servoDisabled) { sendError("Servo disabled"); return; }
   aggType = AGG_STATUS_BOTH;
   aggPhase = 0;
   aggPanAngle = aggTiltAngle = -1;
@@ -488,6 +505,7 @@ static void handleReadVolTemp(const char* params) {
 
 // 處理 MOVER/MOVEBY 命令（相對移動）
 static void handleMoveBy(const char* params) {
+  if (servoDisabled) { sendError("Servo disabled"); return; }
   int panDelta, tiltDelta;
   if (!parseTwoInts(params, panDelta, tiltDelta)) {
     sendError("Invalid parameter");
@@ -515,51 +533,6 @@ static void handleMoveBy(const char* params) {
   sendBus(buf);
   sendOk();
 }
-
-// 處理 CAL/CALIBRATE 命令
-static void handleCalibrate() {
-  char buf[32];
-
-  // 移動到中心位置 (135°, 90°)
-  uint16_t centerPan = angleToPosition(135);
-  uint16_t centerTilt = angleToPosition(90);
-  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, centerPan, 2000);
-  sendBus(buf);
-  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, centerTilt, 2000);
-  sendBus(buf);
-  delay(2500);
-
-  // Pan 最小 (0°)
-  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, 0, 2000);
-  sendBus(buf);
-  delay(2500);
-
-  // Pan 最大 (270°)
-  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, 1000, 2000);
-  sendBus(buf);
-  delay(2500);
-
-  // Tilt 最小 (0°)
-  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, 0, 2000);
-  sendBus(buf);
-  delay(2500);
-
-  // Tilt 最大 (180°)
-  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, 1000, 2000);
-  sendBus(buf);
-  delay(2500);
-
-  // 回到初始位置
-  uint16_t panPos = angleToPosition(PAN_INIT_ANGLE);
-  uint16_t tiltPos = angleToPosition(TILT_INIT_ANGLE);
-  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", panServoId, panPos, 2000);
-  sendBus(buf);
-  snprintf(buf, sizeof(buf), "#%03dP%04dT%04d!", tiltServoId, tiltPos, 2000);
-  sendBus(buf);
-
-  sendOk();
-}
-
 // ============================================
 // 主命令處理函數（重構為簡潔的命令分發器）
 // ============================================
@@ -622,6 +595,7 @@ static void handlePcLine(const char* line) {
   else if (strcmp(cmdType, "MOVER") == 0 || strcmp(cmdType, "MOVEBY") == 0) handleMoveBy(params);
   else if (strcmp(cmdType, "READ") == 0 || strcmp(cmdType, "READPOS") == 0) handleGetPos();
   else if (strcmp(cmdType, "TEMP") == 0 || strcmp(cmdType, "TEMPERATURE") == 0) {
+    if (servoDisabled) { sendError("Servo disabled"); return; }
     // 復用 STATUS 流程但只輸出溫度
     aggType = AGG_STATUS_BOTH;
     aggPhase = 0;
@@ -635,6 +609,7 @@ static void handlePcLine(const char* line) {
     sendBus(buf);
   }
   else if (strcmp(cmdType, "VOLT") == 0 || strcmp(cmdType, "VOLTAGE") == 0) {
+    if (servoDisabled) { sendError("Servo disabled"); return; }
     // 復用 STATUS 流程但只輸出電壓
     aggType = AGG_STATUS_BOTH;
     aggPhase = 0;
@@ -647,7 +622,6 @@ static void handlePcLine(const char* line) {
     snprintf(buf, sizeof(buf), "#%03dPRTV!", panServoId);
     sendBus(buf);
   }
-  else if (strcmp(cmdType, "CAL") == 0 || strcmp(cmdType, "CALIBRATE") == 0) handleCalibrate();
   else {
     sendError("Unknown command");
   }
@@ -680,7 +654,7 @@ void setup() {
 
   // 檢查舵機 ID 是否有效
   if (panServoId == 0 || tiltServoId == 0 || panServoId == tiltServoId) {
-    // 舵機設置失敗，通知上位機
+    // 舵機設置失敗，通知上位機，啟用軟停機（不阻塞）
     Serial.print(F("{\"status\":\"error\",\"message\":\"舵機ID設置失敗\",\"pan_id\":"));
     Serial.print(panServoId);
     Serial.print(F(",\"tilt_id\":"));
@@ -688,22 +662,7 @@ void setup() {
     Serial.println(F("}"));
 
     Serial.println(F("{\"status\":\"error\",\"message\":\"舵機控制已禁用，請檢查硬體連接\"}"));
-
-    // 舵機ID無效時，持續蜂鳴和輸出錯誤信息，直到重啟
-    Serial.println(F("{\"status\":\"error\",\"message\":\"開始蜂鳴警示，請檢查舵機連接...\"}"));
-    while (1) {
-      // 持續蜂鳴（蜂鳴3聲）
-      for (int i = 0; i < 3; i++) {
-        digitalWrite(BEEP_PIN, LOW);   // 蜂鳴開啟
-        delay(100);
-        digitalWrite(BEEP_PIN, HIGH);  // 蜂鳴關閉
-        delay(100);
-      }
-
-      // 等待3秒後重複
-      delay(3000);
-      Serial.println(F("{\"status\":\"error\",\"message\":\"舵機ID未檢測到，請重啟Arduino...\"}"));
-    }
+    servoDisabled = true;
   }
 
   Serial.print(F("{\"status\":\"ok\",\"message\":\"舵機ID已設置\",\"pan_id\":"));
@@ -728,6 +687,15 @@ void setup() {
 void loop() {
   // 0) 重置看門狗（防止超時重啟）
   wdt_reset();
+
+  // 0.2) 軟停機提示（非阻塞，節流輸出）
+  if (servoDisabled) {
+    unsigned long now = millis();
+    if (now - lastErrorNotify > 3000) {
+      Serial.println(F("{\"status\":\"error\",\"message\":\"舵機ID無效，舵機相關命令已禁用\"}"));
+      lastErrorNotify = now;
+    }
+  }
 
   // 0.5) 檢查按鍵
   if (digitalRead(KEY1_PIN) == LOW) {
@@ -758,7 +726,20 @@ void loop() {
     if (digitalRead(KEY2_PIN) == LOW) {
       Serial.println(F("{\"status\":\"info\",\"message\":\"KEY2：重新掃描舵機ID\"}"));
       beep_short3();
-      autoDetectServoId();
+      verifyServoPresence();
+
+      // 更新軟停機狀態
+      if (panServoId != 0 && tiltServoId != 0 && panServoId != tiltServoId) {
+        servoDisabled = false;
+        Serial.print(F("{\"status\":\"ok\",\"message\":\"舵機ID已設置\",\"pan_id\":"));
+        Serial.print(panServoId);
+        Serial.print(F(",\"tilt_id\":"));
+        Serial.print(tiltServoId);
+        Serial.println(F("}"));
+      } else {
+        servoDisabled = true;
+        Serial.println(F("{\"status\":\"error\",\"message\":\"舵機ID仍無效\"}"));
+      }
 
       // 等待按鍵釋放
       while (digitalRead(KEY2_PIN) == LOW) {

@@ -11,7 +11,7 @@ Arduino 2D舵機控制系統使用 UART 串口通信，採用簡潔的文本協�
 
 - **內存優化**: 使用固定大小的 `char[]` 緩衝區代替 `String` 類，消除 heap 碎片風險
 - **參數驗證**: 完整的輸入參數驗證，角度範圍檢查，舵機ID整數解析
-- **代碼模塊化**: 將350行的 `handlePcLine()` 分割為13個獨立函數，提高可維護性
+- **代碼模塊化**: 將350行的 `handlePcLine()` 分割為15個獨立函數，提高可維護性
 - **超時保護**: 所有命令增加2秒超時限制，防止系統死鎖
 - **看門狗定時器**: 採用2秒周期，系統異常時自動重啟
 - **緩衝區保護**: 防止緩衝區溢出，命令長度限制為64字元
@@ -159,51 +159,165 @@ controller.move_to(pan=90, tilt=90)  # 移動到Pan 90°，Tilt 90°
 
 ---
 
-### 2. PAN - 控制Pan軸
+### 2. MOVER/MOVEBY - 相對移動
 
 **命令**:
 ```
-<PAN:angle>
+<MOVER:pan_delta,tilt_delta>
+或
+<MOVEBY:pan_delta,tilt_delta>
 ```
 
 **參數**:
-- `angle`: Pan軸目標角度（0-270）
+- `pan_delta`: Pan軸相對移動角度（-270 到 +270）
+- `tilt_delta`: Tilt軸相對移動角度（-180 到 +180）
+
+**說明**: 從當前位置相對移動指定角度
 
 **返回成功**:
 ```json
-{"status":"ok","message":"Pan軸已移動"}
+{"status":"ok","message":"相對移動命令已接受"}
+```
+
+**返回失敗**:
+```json
+{"status":"error","message":"角度超出範圍"}
 ```
 
 **Python用法**:
 ```python
-controller.set_pan(angle=135)
+controller.move_by(pan=20, tilt=-10)  # Pan向右移20°，Tilt向下移10°
 ```
 
 ---
 
-### 3. TILT - 控制Tilt軸
+### 3. LASER - 雷射控制
 
 **命令**:
 ```
-<TILT:angle>
+<LASER:state>
 ```
 
 **參數**:
-- `angle`: Tilt軸目標角度（15-165）
+- `state`: 0 = 關閉，1 = 開啟
+
+**說明**: 控制雷射標記模組
 
 **返回成功**:
 ```json
-{"status":"ok","message":"Tilt軸已移動"}
+{"status":"ok","message":"雷射已開啟"}
 ```
 
 **Python用法**:
 ```python
-controller.set_tilt(angle=90)
+controller.laser_on()   # 開啟雷射
+controller.laser_off()  # 關閉雷射
 ```
 
 ---
 
-### 4. POS - 查詢當前位置
+### 4. LED - LED控制
+
+**命令**:
+```
+<LED:state>
+```
+
+**參數**:
+- `state`: 0 = 關閉，1 = 開啟
+
+**說明**: 控制指示LED
+
+**返回成功**:
+```json
+{"status":"ok","message":"LED已開啟"}
+```
+
+---
+
+### 5. SPEED - 速度設置
+
+**命令**:
+```
+<SPEED:value>
+```
+
+**參數**:
+- `value`: 移動速度（1-100）
+
+**說明**: 設置舵機運動速度
+
+**返回成功**:
+```json
+{"status":"ok","message":"速度已設置為 80"}
+```
+
+**返回失敗**:
+```json
+{"status":"error","message":"速度範圍1-100"}
+```
+
+---
+
+### 6. CONFIGSERVO - 舵機配置
+
+**命令**:
+```
+<CONFIGSERVO:pan_id,tilt_id>
+```
+
+**參數**:
+- `pan_id`: Pan軸舵機ID（1-5）
+- `tilt_id`: Tilt軸舵機ID（1-5）
+
+**說明**: 手動設置舵機ID（通常自動檢測，不需使用）
+
+**返回成功**:
+```json
+{"status":"ok","message":"舵機已配置","pan_id":1,"tilt_id":2}
+```
+
+---
+
+### 7. READANGLE - 讀取角度
+
+**命令**:
+```
+<READANGLE:servo_id>
+```
+
+**參數**:
+- `servo_id`: 舵機ID（1-5）
+
+**說明**: 讀取指定舵機的當前角度
+
+**返回成功**:
+```json
+{"status":"ok","servo_id":1,"angle":135}
+```
+
+---
+
+### 8. READVOLTTEMP - 讀取電壓溫度
+
+**命令**:
+```
+<READVOLTTEMP:servo_id>
+```
+
+**參數**:
+- `servo_id`: 舵機ID（1-5）
+
+**說明**: 讀取舵機的電壓和溫度
+
+**返回成功**:
+```json
+{"status":"ok","servo_id":1,"voltage":7.2,"temperature":35}
+```
+
+---
+
+### 9. POS - 查詢當前位置
 
 **命令**:
 ```
@@ -229,7 +343,7 @@ pan_angle, tilt_angle = controller.get_position()
 
 ---
 
-### 5. BEEP - 蜂鳴控制
+### 10. BEEP - 蜂鳴控制
 
 **命令**:
 ```
@@ -250,7 +364,7 @@ controller.beep()
 
 ---
 
-### 6. HOME - 歸位
+### 11. HOME - 歸位
 
 **命令**:
 ```
@@ -271,39 +385,39 @@ controller.home()
 
 ---
 
-### 7. SLEEP - 進入睡眠模式
+### 12. STOP - 停止運動
 
 **命令**:
 ```
-<SLEEP>
+<STOP>
 ```
 
-**說明**: 進入低功耗睡眠模式，舵機斷電
+**說明**: 立即停止舵機運動
 
 **返回**:
 ```json
-{"status":"ok","message":"系統進入睡眠"}
+{"status":"ok","message":"舵機已停止"}
 ```
 
 ---
 
-### 9. WAKE - 喚醒系統
+### 13. STATUS - 查詢系統狀態
 
 **命令**:
 ```
-<WAKE>
+<STATUS>
 ```
 
-**說明**: 從睡眠模式喚醒，重新初始化舵機
+**說明**: 查詢舵機電壓和溫度
 
 **返回成功**:
 ```json
-{"status":"ok","message":"系統已喚醒"}
+{"status":"ok","pan_volt":7.2,"pan_temp":35,"tilt_volt":7.2,"tilt_temp":34}
 ```
 
 ---
 
-### 10. HELP - 幫助信息
+### 14. HELP - 幫助信息
 
 **命令**:
 ```
@@ -314,7 +428,7 @@ controller.home()
 
 **返回**:
 ```json
-{"status":"ok","message":"支持的命令: MOVE, PAN, TILT, POS, BEEP, HOME, CONFIGSERVO, SLEEP, WAKE, HELP, GETINFO"}
+{"status":"ok","message":"支持的命令: GETINFO, MOVE, MOVER, POS, STATUS, BEEP, LASER, LED, SPEED, CONFIGSERVO, STOP, HOME, READANGLE, READVOLTTEMP, HELP"}
 ```
 
 ---

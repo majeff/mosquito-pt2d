@@ -73,7 +73,7 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 - ✅ **Firmware stability and feature enhancements** (v2.4.0):
    - ✅ Memory optimization: Fixed buffers, no heap fragmentation
    - ✅ Parameter validation: Complete input checking and error handling
-   - ✅ Modular architecture: 13 dedicated command handler functions
+   - ✅ Modular architecture: 15 dedicated command handler functions
    - ✅ Timeout protection: 2-second timeout for aggregate commands
    - ✅ Watchdog: 2-second automatic restart protection
    - ✅ Servo configuration: Auto-detection and validation, dynamic angle limit management
@@ -528,7 +528,6 @@ Command format: `<CMD:param1,param2,...>\n`
 | `SPEED` | value | Set speed (1-100) | `<SPEED:80>` |
 | `HOME` | - | Return to home position | `<HOME>` |
 | `STOP` | - | Stop movement | `<STOP>` |
-| `CAL` | - | Execute calibration | `<CAL>` |
 
 ### Response Format
 
@@ -600,8 +599,7 @@ Test Arduino via serial monitor (baud rate 115200):
 # Stop movement
 <STOP>
 
-# Execute calibration
-<CAL>
+# (Calibration command deprecated)
 ```
 
 ### 4. System Operation Hotkeys
@@ -1182,7 +1180,7 @@ Complete Nginx configuration examples are included in the documentation. For mor
 
 ### Q4: Angle range incorrect
 
-**A**: Execute calibration command `<CAL>`, or adjust angle range in `config.h`.
+**A**: Adjust angle range in `include/config.h`, or use the host-side swing test to verify mechanical limits and correct manually.
 
 ---
 

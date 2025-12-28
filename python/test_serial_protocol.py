@@ -64,17 +64,15 @@ def test_basic_commands(controller: PT2DController):
     response = controller.send_command('SPEED:50')
     print_result('<SPEED:50>', response, ['status', 'message'])
 
-def test_setid_command(controller: PT2DController):
-    """測試 SETID 命令（直接設置 Pan 和 Tilt ID）"""
-    print_test_header("SETID 命令測試")
+def test_configservo_command(controller: PT2DController):
+    """測試 CONFIGSERVO 命令（配置單一舵機硬件 ID）"""
+    print_test_header("CONFIGSERVO 命令測試")
 
-    response = controller.send_command('SETID:1,2')
-    print_result('<SETID:1,2>', response, ['status'])
+    response = controller.send_command('CONFIGSERVO:3')
+    print_result('<CONFIGSERVO:3>', response, ['status'])
 
-    if 'status' in response and response['status'] == 'ok':
-        print(f"✅ SETID 執行成功")
-        if 'pan_id' in response and 'tilt_id' in response:
-            print(f"   Pan ID: {response['pan_id']}, Tilt ID: {response['tilt_id']}")
+    if 'status' in response:
+        print(f"收到狀態: {response['status']}")
 
 
 def test_movement_commands(controller: PT2DController):
@@ -148,8 +146,8 @@ def test_error_handling(controller: PT2DController):
     print_result('<INVALID_COMMAND>', response, ['status', 'message'])
 
     # 2. 無效參數
-    response = controller.send_command('SETID:invalid')
-    print_result('<SETID:invalid>', response, ['status', 'message'])
+    response = controller.send_command('CONFIGSERVO:invalid')
+    print_result('<CONFIGSERVO:invalid>', response, ['status', 'message'])
 
     # 3. 缺少參數
     response = controller.send_command('MOVE:135')
@@ -214,7 +212,7 @@ def run_all_tests():
 
             # 執行所有測試
             test_basic_commands(controller)
-            test_setid_command(controller)
+            # test_configservo_command(controller) 此命令會重設舵機ID 不測試
             test_movement_commands(controller)
             test_position_queries(controller)
             test_status_queries(controller)

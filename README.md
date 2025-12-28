@@ -88,7 +88,7 @@
 - ✅ **固件穩定性與功能增強** (v2.4.0):
    - ✅ 內存優化：使用固定緩衝區，無 heap 碎片化
    - ✅ 參數驗證：完整的輸入檢查與錯誤處理
-   - ✅ 模組化架構：13 個專用命令處理函數
+   - ✅ 模組化架構：15 個專用命令處理函數
    - ✅ 超時保護：聚合命令 2 秒超時機制
    - ✅ 看門狗：2 秒自動重啟保護
    - ✅ 伺服馬達配置：自動檢測與驗證、動態角度限制管理
@@ -517,7 +517,6 @@ Nano D11 (RX)  | ← 舵機總線 TX（綠線）
 | `SPEED` | value | 設置速度 (1-100) | `<SPEED:80>` |
 | `HOME` | - | 回到初始位置 | `<HOME>` |
 | `STOP` | - | 停止移動 | `<STOP>` |
-| `CAL` | - | 執行校準 | `<CAL>` |
 
 ### 響應格式
 
@@ -709,11 +708,8 @@ sudo usermod -a -G dialout $USER
                  選項：`--imgsz <int>`（預設取自 config.DEFAULT_IMGSZ）、`--skip-onnx`（略過 ONNX）、`--skip-rknn`（略過 RKNN）、`--export-rknn`（強制 RKNN）、`--rknn-target <str>`（Linux 自動偵測，否則預設 rk3588）、`--rknn-no-quant`、`--onnx-opset <int>`、`--onnx-dynamic`、`--onnx-half`
          - RKNN 量化：
              - 預設自動：導出 RKNN 時，會從已標註樣本自動生成 `dataset.txt`
-             - 自訂覆寫：`--rknn-quant-dataset <txt>`（覆寫自動清單；每行為影像路徑）
+            - 自訂覆寫：`--rknn-quant-dataset <txt>`（覆寫自動清單；每行為影像路徑）
 
-# 執行校準
-<CAL>
-```
 
 ### Python 控制示例
 
@@ -761,7 +757,6 @@ ser.close()
 | SPEED | `<SPEED:value>` | 設置速度 (1-100) | `<SPEED:50>` |
 | HOME | `<HOME>` | 回到初始位置 | `<HOME>` |
 | STOP | `<STOP>` | 停止移動 | `<STOP>` |
-| CAL | `<CAL>` | 執行校準 | `<CAL>` |
 
 ## 📁 專案結構
 
@@ -1187,7 +1182,7 @@ location /nginx_status {
 
 ### Q4: 角度範圍不正確
 
-**A**: 執行校準命令 `<CAL>`，或在 `config.h` 中調整角度範圍。
+**A**: 請在 `include/config.h` 中調整角度範圍，或使用上位機的擺動測試以確認機構極限並手動校正。
 
 ---
 

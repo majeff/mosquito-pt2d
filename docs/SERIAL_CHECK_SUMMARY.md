@@ -7,7 +7,7 @@
 
 ### 1. 固件端（main.cpp）
 - [x] 啟動訊息統一為 JSON 格式
-- [x] SETID 響應改為結構化 JSON：`{"status":"ok","pan_id":1,"tilt_id":2}`
+ - [x] CONFIGSERVO 響應為結構化 JSON（含狀態與目標ID）：`{"status":"ok","message":"舵機硬件ID配置命令已發送","target_id":N}`
 - [x] 所有命令響應保持 JSON 格式
 - [x] 位置和狀態查詢返回結構化 JSON
 
@@ -34,7 +34,7 @@
 | 單軸角度 | `{"id":N,"angle":M}` | `{"id":1,"angle":135}` |
 | 單軸狀態 | `{"id":N,"voltage":V,"temp":T}` | `{"id":1,"voltage":750,"temp":32}` |
 | 完整狀態 | `{"pan":N,"tilt":M,"pan_temp":T1,...}` | 見下方 |
-| SETID響應 | `{"status":"ok","pan_id":N,"tilt_id":M}` | `{"status":"ok","pan_id":1,"tilt_id":2}` |
+| CONFIGSERVO響應 | `{"status":"ok","message":"舵機硬件ID配置命令已發送","target_id":N}` | `{"status":"ok","message":"舵機硬件ID配置命令已發送","target_id":3}` |
 | 總線透傳 | `{'raw': <字串>}` | `{'raw': '#001PRAD135!'}` |
 
 ### 完整狀態格式（STATUS/TEMP/VOLT）
@@ -58,7 +58,7 @@
 | `<LED:ON>` | `{"status":"ok","message":"LED"}` | `send_command('LED:ON')` |
 | `<BEEP>` | `{"status":"ok","message":"BEEP"}` | `send_command('BEEP')` 或 `beep()` |
 | `<SPEED:50>` | `{"status":"ok","message":"OK"}` | `set_speed(50)` |
-| `<SETID:1,2>` | `{"status":"ok","pan_id":1,"tilt_id":2}` | `send_command('SETID:1,2')` |
+| `<CONFIGSERVO:3>` | `{"status":"ok","message":"舵機硬件ID配置命令已發送","target_id":3}` | `config_servo_id(3)` |
 
 ### 移動命令
 
@@ -68,7 +68,6 @@
 | `<MOVER:10,5>` | `{"status":"ok","message":"OK"}` | `move_by(10, 5)` |
 | `<HOME>` | `{"status":"ok","message":"OK"}` | `home()` |
 | `<STOP>` | `{"status":"ok","message":"OK"}` | `stop()` |
-| `<CAL>` | `{"status":"ok","message":"OK"}` | `calibrate()` |
 
 ### 查詢命令
 
@@ -141,7 +140,7 @@ with PT2DController('COM3') as pt:
 - [x] 所有 Serial.print 輸出為有效 JSON（除了總線透傳）
 - [x] Python 能正確解析所有響應
 - [x] 啟動訊息不會干擾命令響應
-- [x] SETID 使用結構化 JSON 格式
+ - [x] CONFIGSERVO 使用結構化 JSON 格式
 - [x] 位置和狀態查詢返回完整數據
 - [x] 錯誤響應統一格式
 - [ ] **待測試：** 實際硬件測試所有命令
@@ -185,7 +184,7 @@ with PT2DController('COM3') as pt:
 
 ### 已修復的問題
 ✅ 啟動訊息格式化
-✅ SETID 響應結構化
+✅ CONFIGSERVO 響應結構化
 ✅ Python 端處理啟動訊息
 
 ### 狀態

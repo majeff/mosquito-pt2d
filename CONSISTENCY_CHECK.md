@@ -206,7 +206,7 @@ imgsz: 輸入影像大小，預設 320（Orange Pi 5 推薦）
 | `<HOME>` | `{"status":"ok","message":"OK"}` | ✅ json.loads() | ✅ | ✅ |
 | `<BEEP>` | `{"status":"ok","message":"BEEP"}` | ✅ json.loads() | ✅ | ✅ |
 | `<LED>` | `{"status":"ok","message":"LED"}` | ✅ json.loads() | ✅ | ✅ |
-| `<SETID>` | `{"status":"ok","pan_id":1,"tilt_id":2}` | ✅ json.loads() | ✅ | ✅ |
+| `<CONFIGSERVO>` | `{"status":"ok","message":"舵機硬件ID配置命令已發送","target_id":N}` | ✅ json.loads() | ✅ | ✅ |
 | `<POS>` | `{"status":"ok","pan":135,"tilt":90}` | ✅ get_position() | ✅ | ✅ |
 | `<STATUS>` | `{"status":"ok","pan_volt":...}` | ✅ get_status() | ✅ | ✅ |
 
