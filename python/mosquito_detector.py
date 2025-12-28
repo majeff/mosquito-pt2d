@@ -1,3 +1,17 @@
+# Copyright 2025 Arduino PT2D Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 蚊子影像識別模組
 使用深度學習AI模型（YOLO）偵測蚊子
@@ -10,7 +24,13 @@ from typing import Optional, List, Tuple, Dict
 import logging
 import os
 from pathlib import Path
-from config import DEFAULT_IMGSZ, DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IOU_THRESHOLD
+from config import (
+    DEFAULT_IMGSZ,
+    DEFAULT_CONFIDENCE_THRESHOLD,
+    DEFAULT_IOU_THRESHOLD,
+    DEFAULT_DETECTION_MODE,
+    DEFAULT_TILE_OVERLAP,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,6 +66,8 @@ class MosquitoDetector:
                  confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
                  iou_threshold: float = DEFAULT_IOU_THRESHOLD,
                  imgsz: int = DEFAULT_IMGSZ,
+                 detection_mode: str = DEFAULT_DETECTION_MODE,  # 'tiling' 或 'whole'
+                 tile_overlap: float = DEFAULT_TILE_OVERLAP,
                  fallback_to_pretrained: bool = True,
                  save_uncertain_samples: bool = False,
                  uncertain_conf_range: Tuple[float, float] = (0.35, 0.65),
@@ -78,6 +100,18 @@ class MosquitoDetector:
         self.imgsz = imgsz
         self.model = None
         self.backend = None  # 'rknn', 'onnx', 'pytorch'
+
+        # 偵測模式
+        self.detection_mode = detection_mode.lower() if isinstance(detection_mode, str) else 'tiling'
+        if self.detection_mode not in ('tiling', 'whole'):
+            logger.warning(f"未知的偵測模式: {self.detection_mode}，改用 'tiling'")
+            self.detection_mode = 'tiling'
+        # 平鋪重疊比例
+        try:
+            self.tile_overlap = float(tile_overlap)
+        except Exception:
+            self.tile_overlap = DEFAULT_TILE_OVERLAP
+        self.tile_overlap = max(0.0, min(0.5, self.tile_overlap))
 
         # 儲存功能配置
         self.save_uncertain_samples = save_uncertain_samples
@@ -343,14 +377,17 @@ class MosquitoDetector:
             (偵測結果列表，包含bbox和confidence，處理後的影像)
         """
         try:
-            if self.backend == 'rknn':
-                detections, result_frame = self._detect_rknn(frame)
-            elif self.backend == 'onnx':
-                detections, result_frame = self._detect_onnx(frame)
-            elif self.backend == 'pytorch':
-                detections, result_frame = self._detect_pytorch(frame)
+            if self.detection_mode == 'tiling':
+                detections, result_frame = self._detect_tiled(frame)
             else:
-                raise RuntimeError(f"未知的推理後端: {self.backend}")
+                if self.backend == 'rknn':
+                    detections, result_frame = self._detect_rknn(frame)
+                elif self.backend == 'onnx':
+                    detections, result_frame = self._detect_onnx(frame)
+                elif self.backend == 'pytorch':
+                    detections, result_frame = self._detect_pytorch(frame)
+                else:
+                    raise RuntimeError(f"未知的推理後端: {self.backend}")
 
             # 儲存信心度中等的樣本
             if self.save_uncertain_samples and detections:
@@ -370,6 +407,119 @@ class MosquitoDetector:
         except Exception as e:
             logger.error(f"AI 偵測發生未預期錯誤: {e}")
             return [], frame
+
+    def _run_backend_once(self, img: np.ndarray) -> List[Dict]:
+        """
+        使用目前後端在單張影像上推理（回傳偵測結果，座標相對於 img）。
+        """
+        if self.backend == 'rknn':
+            dets, _ = self._detect_rknn(img)
+            return dets
+        elif self.backend == 'onnx':
+            dets, _ = self._detect_onnx(img)
+            return dets
+        elif self.backend == 'pytorch':
+            dets, _ = self._detect_pytorch(img)
+            return dets
+        else:
+            raise RuntimeError(f"未知的推理後端: {self.backend}")
+
+    def _detect_tiled(self, frame: np.ndarray) -> Tuple[List[Dict], np.ndarray]:
+        """
+        平鋪(tiling)推理：
+        - 以 imgsz 為方形視窗對原圖滑動，視窗間有一定重疊
+        - 各視窗內獨立推理，轉換回全域座標
+        - 以全域 NMS 合併重疊框，避免重複計數
+        """
+        h, w = frame.shape[:2]
+        tile = int(self.imgsz)
+        # 重疊比例轉為步長（像素）
+        stride = max(1, int(tile * (1.0 - self.tile_overlap)))
+
+        merged: List[Dict] = []
+
+        # 產生滑動視窗的起點（確保覆蓋到邊界）
+        xs = list(range(0, max(1, w - tile + 1), stride))
+        ys = list(range(0, max(1, h - tile + 1), stride))
+        if len(xs) == 0:
+            xs = [0]
+        if len(ys) == 0:
+            ys = [0]
+        if xs[-1] != max(0, w - tile):
+            xs.append(max(0, w - tile))
+        if ys[-1] != max(0, h - tile):
+            ys.append(max(0, h - tile))
+
+        for y0 in ys:
+            for x0 in xs:
+                x1 = min(w, x0 + tile)
+                y1 = min(h, y0 + tile)
+                patch = frame[y0:y1, x0:x1]
+
+                # 在子影像上推理（座標相對於 patch）
+                dets = self._run_backend_once(patch)
+
+                # 轉為全域座標並暫存
+                for d in dets:
+                    bx, by, bw, bh = d['bbox']
+                    cx, cy = d['center']
+                    nd = d.copy()
+                    nd['bbox'] = (bx + x0, by + y0, bw, bh)
+                    nd['center'] = (cx + x0, cy + y0)
+                    merged.append(nd)
+
+        # 全域 NMS 合併
+        merged = self._nms(merged, self.iou_threshold)
+        return merged, frame
+
+    def _nms(self, detections: List[Dict], iou_thresh: float) -> List[Dict]:
+        """簡單的全域 NMS（按信心度排序，移除 IoU 過高的重疊框）"""
+        if not detections:
+            return []
+
+        # 轉為 (x1,y1,x2,y2,conf,idx)
+        boxes = []
+        for i, d in enumerate(detections):
+            x, y, w, h = d['bbox']
+            boxes.append((x, y, x + w, y + h, d['confidence'], i))
+
+        # 依信心度由高到低排序
+        boxes.sort(key=lambda b: b[4], reverse=True)
+
+        keep = []
+        suppressed = set()
+        for i in range(len(boxes)):
+            if i in suppressed:
+                continue
+            keep.append(detections[boxes[i][5]])
+            xi1, yi1, xi2, yi2, ci, _ = boxes[i]
+            for j in range(i + 1, len(boxes)):
+                if j in suppressed:
+                    continue
+                xj1, yj1, xj2, yj2, cj, _ = boxes[j]
+                if self._iou((xi1, yi1, xi2, yi2), (xj1, yj1, xj2, yj2)) > iou_thresh:
+                    suppressed.add(j)
+
+        return keep
+
+    @staticmethod
+    def _iou(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> float:
+        """計算兩個框的 IoU，框格式為 (x1,y1,x2,y2)"""
+        ax1, ay1, ax2, ay2 = a
+        bx1, by1, bx2, by2 = b
+        inter_x1 = max(ax1, bx1)
+        inter_y1 = max(ay1, by1)
+        inter_x2 = min(ax2, bx2)
+        inter_y2 = min(ay2, by2)
+        inter_w = max(0, inter_x2 - inter_x1)
+        inter_h = max(0, inter_y2 - inter_y1)
+        inter = inter_w * inter_h
+        area_a = max(0, ax2 - ax1) * max(0, ay2 - ay1)
+        area_b = max(0, bx2 - bx1) * max(0, by2 - by1)
+        union = area_a + area_b - inter
+        if union <= 0:
+            return 0.0
+        return inter / union
 
     def _detect_pytorch(self, frame: np.ndarray) -> Tuple[List[Dict], np.ndarray]:
         """使用 PyTorch (Ultralytics YOLO) 推理"""
@@ -634,7 +784,8 @@ def test_mosquito_detector():
             # 顯示偵測數量和FPS
             cv2.putText(result, f"Detections: {len(detections)} | FPS: {fps:.1f}",
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-            cv2.putText(result, f"Backend: {detector.backend.upper()} | ImgSz: {detector.imgsz}",
+            mode_text = 'TILING' if detector.detection_mode == 'tiling' else 'WHOLE'
+            cv2.putText(result, f"Backend: {detector.backend.upper()} | ImgSz: {detector.imgsz} | Mode: {mode_text}",
                        (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
             # 如果有偵測到，高亮最佳結果

@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20Orange%20Pi%205-red.svg)
 
 一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（OrangePi5+YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能並提供即時觀測。
@@ -687,11 +687,11 @@ sudo usermod -a -G dialout $USER
 
          ```sh
          python python/deploy_model.py --imgsz 320
-         # 預設同時導出 RKNN；如需覆寫目標（Orange Pi 5：rk3588）：
+         # 預設同時導出 RKNN；Linux 部署機會自動偵測目標。可覆寫：
          python python/deploy_model.py --imgsz 320 --rknn-target rk3588
          ```
 
-                 選項：`--imgsz <int>`（預設取自 config.DEFAULT_IMGSZ）、`--skip-onnx`（略過 ONNX）、`--skip-rknn`（略過 RKNN）、`--export-rknn`（強制 RKNN）、`--rknn-target <str>`（預設 rk3588）、`--rknn-no-quant`
+                 選項：`--imgsz <int>`（預設取自 config.DEFAULT_IMGSZ）、`--skip-onnx`（略過 ONNX）、`--skip-rknn`（略過 RKNN）、`--export-rknn`（強制 RKNN）、`--rknn-target <str>`（Linux 自動偵測，否則預設 rk3588）、`--rknn-no-quant`、`--onnx-opset <int>`、`--onnx-dynamic`、`--onnx-half`
          - RKNN 量化：
              - 預設自動：導出 RKNN 時，會從已標註樣本自動生成 `dataset.txt`
              - 自訂覆寫：`--rknn-quant-dataset <txt>`（覆寫自動清單；每行為影像路徑）
@@ -1186,7 +1186,8 @@ location /nginx_status {
 | [README.md](README.md) | 專案主文檔（本文件） |
 | [CONSISTENCY_CHECK.md](CONSISTENCY_CHECK.md) | 文件與程式一致性檢查報告 |
 | [SERIAL_PROTOCOL_MAPPING.md](SERIAL_PROTOCOL_MAPPING.md) | 串口通訊協議完整對照表 |
-| [LICENSE](LICENSE) | MIT 授權條款 |
+| [LICENSE](LICENSE) | Apache 2.0 授權條款 |
+| [NOTICE](NOTICE) | 版權與第三方相依標註 |
 
 ### 🔧 硬體與配置文檔
 
@@ -1237,7 +1238,7 @@ location /nginx_status {
 
 ## 📄 授權
 
-本專案採用 MIT 授權 - 詳見 [LICENSE](LICENSE) 文件
+本專案採用 Apache 2.0 授權 - 詳見 [LICENSE](LICENSE) 與 [NOTICE](NOTICE) 文件
 
 ## 👥 貢獻
 

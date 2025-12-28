@@ -1,3 +1,17 @@
+# Copyright 2025 Arduino PT2D Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 系統配置參數
 統一管理系統中的關鍵參數，方便調整和維護
@@ -20,6 +34,14 @@ DEFAULT_CONFIDENCE_THRESHOLD = 0.4
 
 # IoU 閾值（Non-Maximum Suppression）
 DEFAULT_IOU_THRESHOLD = 0.45
+
+# 偵測模式（預設使用平鋪推理以保留高解析度細節）
+# 可選值：'tiling'（平鋪，建議預設）或 'whole'（整張影像）
+DEFAULT_DETECTION_MODE = 'tiling'
+
+# 平鋪重疊比例（0.0-0.5 建議範圍），避免邊界漏檢
+# 例如 0.25 代表平鋪視窗彼此重疊 25% 邊長
+DEFAULT_TILE_OVERLAP = 0.25
 
 # ============================================
 # 追蹤參數

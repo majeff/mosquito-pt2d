@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20Orange%20Pi%205-red.svg)
 
 An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and **AI deep learning (OrangePi5+YOLOv8)** technology for intelligent mosquito detection, tracking, and laser marking with real-time monitoring.
@@ -750,10 +750,10 @@ sudo usermod -a -G dialout $USER
 
          ```sh
          python python/deploy_model.py --imgsz 320
-         # Default also exports RKNN; override target if needed (rk3588 for Orange Pi 5)
+         # Default also exports RKNN; auto-detects target on Linux. Override if needed:
          python python/deploy_model.py --imgsz 320 --rknn-target rk3588
          ```
-                 Options: `--imgsz <int>` (default from config.DEFAULT_IMGSZ), `--skip-onnx` (skip ONNX), `--skip-rknn` (skip RKNN), `--export-rknn` (force RKNN), `--rknn-target <str>` (default rk3588), `--rknn-no-quant`
+                 Options: `--imgsz <int>` (default from config.DEFAULT_IMGSZ), `--skip-onnx` (skip ONNX), `--skip-rknn` (skip RKNN), `--export-rknn` (force RKNN), `--rknn-target <str>` (auto-detected on Linux, else defaults rk3588), `--rknn-no-quant`, `--onnx-opset <int>`, `--onnx-dynamic`, `--onnx-half`
          - RKNN quantization:
              - Auto: generates `dataset.txt` from confirmed samples by default when exporting RKNN
              - Custom: `--rknn-quant-dataset <txt>` (override auto list; each line is an image path)
@@ -1198,7 +1198,8 @@ Complete Nginx configuration examples are included in the documentation. For mor
 | [README.md](README.md) | Project main documentation (Chinese) |
 | [README_EN.md](README_EN.md) | Project main documentation (English, this file) |
 | [CONSISTENCY_CHECK.md](CONSISTENCY_CHECK.md) | Document-code consistency check report |
-| [LICENSE](LICENSE) | MIT License |
+| [LICENSE](LICENSE) | Apache 2.0 License |
+| [NOTICE](NOTICE) | Project and third-party notices |
 
 ### 🔧 Hardware & Configuration Documents
 
@@ -1258,7 +1259,7 @@ Complete Nginx configuration examples are included in the documentation. For mor
 
 ## 📄 License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file
+This project is licensed under the Apache 2.0 License - see [LICENSE](LICENSE) and [NOTICE](NOTICE)
 
 ## 👥 Contributing
 

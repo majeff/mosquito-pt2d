@@ -1,3 +1,17 @@
+# Copyright 2025 Arduino PT2D Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 自動蚊子追蹤主程式
 整合雙目攝像頭、蚊子偵測與 Arduino 雲台控制
@@ -36,7 +50,8 @@ class MosquitoTracker:
                  camera_left_id: int = 0,
                  camera_right_id: int = 1,
                  camera_width: int = 640,
-                 camera_height: int = 480):
+                 camera_height: int = 480,
+                 streaming_server: Optional[object] = None):
         """
         初始化追蹤系統
 
@@ -97,6 +112,9 @@ class MosquitoTracker:
         # PID 控制參數（簡化版）
         self.pan_gain = DEFAULT_PAN_GAIN   # Pan 增益（控制靈敏度）
         self.tilt_gain = DEFAULT_TILT_GAIN  # Tilt 增益（控制靈敏度）
+
+        # 串流伺服器（可選）
+        self.streaming_server = streaming_server
 
         logger.info("追蹤系統初始化完成")
 
@@ -412,6 +430,22 @@ class MosquitoTracker:
                     # 顯示位置資訊
                     cv2.putText(result, f"Pan: {pan} | Tilt: {tilt}", (10, 90),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+                    # 顯示偵測模式（tiling/whole）
+                    try:
+                        mode_text = 'TILING' if getattr(self.detector, 'detection_mode', 'tiling') == 'tiling' else 'WHOLE'
+                        cv2.putText(result, f"Detect: {mode_text}", (10, 120),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 255, 200), 2)
+                    except Exception:
+                        pass
+
+                    # 串流輸出（若有提供伺服器）
+                    try:
+                        if self.streaming_server is not None:
+                            self.streaming_server.update_frame(result)
+                    except Exception as e:
+                        logger.debug(f"更新串流影像失敗: {e}")
+
                     cv2.imshow('AI Mosquito Tracker (Dual Camera)', result)
                     # 可選：顯示左右攝像頭原始畫面
                     # cv2.imshow('Left Camera', left_frame)

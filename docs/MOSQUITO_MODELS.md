@@ -98,7 +98,7 @@ python python/label_samples.py
 
 ```sh
 python python/deploy_model.py
-# 預設目標 rk3588（Orange Pi 5），可覆寫：
+# 預設目標由系統自動判斷（Linux 部署機）；可覆寫：
 python python/deploy_model.py --imgsz 320 --rknn-target rk3588
 # 預設自動量化（從已標註樣本生成 dataset.txt）；如需停用量化：
 python python/deploy_model.py --imgsz 320 --rknn-no-quant
@@ -111,7 +111,8 @@ python python/deploy_model.py --imgsz 320 --rknn-quant-dataset path/to/dataset.t
 - `--skip-onnx`：略過 ONNX 導出（僅複製模型）
  - `--export-rknn`：強制導出 RKNN（一般不需使用）
  - `--skip-rknn`：略過 RKNN 導出（預設會導出）
- - `--rknn-target <str>`：RKNN 目標平台（預設 rk3588）
+  - `--rknn-target <str>`：RKNN 目標平台（未提供則自動偵測，否則預設 rk3588）
+  - `--onnx-opset <int>` / `--onnx-dynamic` / `--onnx-half`：覆寫 ONNX 導出參數（依目標平台帶入保守預設）
  - `--rknn-quant-dataset <txt>`：覆寫量化資料集清單（選填）
  - `--rknn-no-quant`：禁用 RKNN 量化（不生成 dataset.txt）
 

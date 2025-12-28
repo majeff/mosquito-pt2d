@@ -1,0 +1,36 @@
+Arduino 2D Pan-Tilt Control System + AI Mosquito Auto-Tracking (mosquito-pt2d)
+Copyright 2025 Arduino PT2D Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this work except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+---
+Third-Party Notices
+
+As of this release, no third-party components requiring attribution are bundled directly with this repository.
+If you add external libraries or assets in the future, please record them below following the sample format.
+
+Sample entry format:
+- Name: <Library or Asset Name>
+  Version: <x.y.z>
+  License: <e.g., MIT, Apache-2.0, BSD-3-Clause>
+  Homepage: <URL>
+  Copyright: <Owner/Author>
+  Notes: <Brief usage context in this project>
+
+Example:
+- Name: OpenCV
+  Version: 4.9.0
+  License: BSD-3-Clause
+  Homepage: https://opencv.org/
+  Copyright: OpenCV team
+  Notes: Used for image capture and drawing annotations

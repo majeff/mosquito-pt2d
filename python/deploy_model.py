@@ -1,4 +1,18 @@
 #!/usr/bin/env python3
+# Copyright 2025 Arduino PT2D Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 部署新模型（單一 Python 腳本）
 
@@ -18,6 +32,7 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 import argparse
+import platform
 
 try:
     import config  # 專案內 python/config.py
@@ -56,15 +71,22 @@ def copy_new_model_from_drive(local_models_dir: Path) -> Path:
     print(f"[OK] 已複製新模型到: {dst}")
     return dst
 
-def export_onnx(model_path: Path, imgsz: int) -> Path:
+def export_onnx(model_path: Path, imgsz: int, opset: int | None = None, dynamic: bool = False, half: bool = False) -> Path:
     try:
         from ultralytics import YOLO
     except Exception as e:
         raise RuntimeError(f"Ultralytics 未安裝或載入失敗: {e}\n請先執行: pip install ultralytics")
 
-    print(f"[INFO] 導出 ONNX，imgsz={imgsz}…")
+    print(f"[INFO] 導出 ONNX，imgsz={imgsz}，opset={opset or 'default'}，dynamic={dynamic}，half={half}…")
     m = YOLO(str(model_path))
-    m.export(format="onnx", imgsz=imgsz, simplify=True)
+    export_kwargs = {"format": "onnx", "imgsz": imgsz, "simplify": True}
+    if opset is not None:
+        export_kwargs["opset"] = opset
+    if dynamic:
+        export_kwargs["dynamic"] = True
+    if half:
+        export_kwargs["half"] = True
+    m.export(**export_kwargs)
     onnx_out = model_path.with_suffix(".onnx")
     print(f"[OK] ONNX 導出完成: {onnx_out}")
     return onnx_out
@@ -141,7 +163,45 @@ def generate_rknn_dataset_txt(output_path: Path, max_images: int = 1000) -> Opti
     return str(output_path)
 
 
-    #（移除錯誤的中段程式碼）
+def auto_detect_rknn_target() -> Optional[str]:
+    """在部署機上自動偵測 RKNN 目標平台（僅 Linux）。"""
+    try:
+        if platform.system().lower() != 'linux':
+            return None
+        # 嘗試從裝置資訊判斷 SoC 型號
+        candidates = []
+        for p in ('/proc/device-tree/model', '/proc/cpuinfo'):
+            try:
+                text = Path(p).read_text(encoding='utf-8', errors='ignore').lower()
+                candidates.append(text)
+            except Exception:
+                pass
+        blob = "\n".join(candidates)
+        if 'rk3588' in blob:
+            return 'rk3588'
+        if 'rk3568' in blob or 'rk3566' in blob or 'rk356x' in blob:
+            return 'rk3568'
+        if 'rk3399pro' in blob:
+            return 'rk3399pro'
+        if 'rk3576' in blob:
+            return 'rk3576'  # 可能的 RDK X5 SoC
+    except Exception:
+        return None
+    return None
+
+
+def target_default_onnx_params(target: Optional[str]) -> tuple[int | None, bool, bool]:
+    """依目標平台給出保守的 ONNX 導出預設（可再被 CLI 覆寫）。"""
+    # 保守配置：rk3588 -> opset 12；rk3568 -> opset 11；其他使用 None 交給 Ultralytics 預設
+    if target == 'rk3588':
+        return 12, False, False
+    if target in ('rk3568', 'rk3566', 'rk356x'):
+        return 11, False, False
+    if target == 'rk3399pro':
+        return 11, False, False
+    if target == 'rk3576':
+        return 12, False, False
+    return None, False, False
 
 
 def main():
@@ -150,10 +210,13 @@ def main():
     parser.add_argument("--skip-onnx", action="store_true", help="略過 ONNX 導出")
     parser.add_argument("--export-rknn", action="store_true", help="強制導出 RKNN（即使提供了 --skip-rknn）")
     parser.add_argument("--skip-rknn", action="store_true", help="略過 RKNN 導出（預設會導出）")
-    parser.add_argument("--rknn-target", type=str, default="rk3588", help="RKNN 目標平台（預設 rk3588，Orange Pi 5）")
+    parser.add_argument("--rknn-target", type=str, default=None, help="RKNN 目標平台（未提供則嘗試自動偵測；否則預設 rk3588）")
     parser.add_argument("--rknn-quant-dataset", type=str, default=None, help="覆寫量化資料集 txt（選填，提供則使用該檔）")
     parser.add_argument("--rknn-no-quant", action="store_true", help="禁用 RKNN 量化（不生成 dataset.txt）")
     parser.add_argument("--rknn-out", type=str, default=None, help="RKNN 輸出路徑（預設為同名 .rknn）")
+    parser.add_argument("--onnx-opset", type=int, default=None, help="覆寫 ONNX opset（依目標平台預設，通常 rk3588=12、rk3568=11）")
+    parser.add_argument("--onnx-dynamic", action="store_true", help="啟用 ONNX 動態 shape（預設關閉）")
+    parser.add_argument("--onnx-half", action="store_true", help="使用半精度 FP16（預設關閉）")
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parent.parent
@@ -163,9 +226,15 @@ def main():
         backup_existing_model(local_models_dir)
         model_path = copy_new_model_from_drive(local_models_dir)
 
-        onnx_out: Path | None = None
+        onnx_out: Optional[Path] = None
         if not args.skip_onnx:
-            onnx_out = export_onnx(model_path, imgsz=args.imgsz)
+            # 依目標平台決定 ONNX 預設參數（可被 CLI 覆寫）
+            target_for_defaults = args.rknn_target or auto_detect_rknn_target() or 'rk3588'
+            default_opset, default_dynamic, default_half = target_default_onnx_params(target_for_defaults)
+            opset = args.onnx_opset if args.onnx_opset is not None else default_opset
+            dynamic = args.onnx_dynamic or default_dynamic
+            half = args.onnx_half or default_half
+            onnx_out = export_onnx(model_path, imgsz=args.imgsz, opset=opset, dynamic=dynamic, half=half)
         else:
             print("[INFO] 已略過 ONNX 導出")
 
@@ -192,7 +261,9 @@ def main():
                 auto_dataset_path = (local_models_dir / "rknn_dataset.txt")
                 dataset_txt = generate_rknn_dataset_txt(auto_dataset_path)
 
-            export_rknn(onnx_out, rknn_out, target=args.rknn_target, dataset_txt=dataset_txt)
+            # 決定 RKNN 目標平台：CLI > 自動偵測 > 預設 rk3588
+            rknn_target = args.rknn_target or auto_detect_rknn_target() or 'rk3588'
+            export_rknn(onnx_out, rknn_out, target=rknn_target, dataset_txt=dataset_txt)
 
     except Exception as e:
         print(f"[ERROR] 部署失敗: {e}")
