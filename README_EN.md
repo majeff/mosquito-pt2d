@@ -83,7 +83,6 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 - ✅ Absolute and relative position movement
 - ✅ Adjustable speed control (1-100)
 - ✅ Auto return to home position
-- ✅ Calibration function
 - ✅ Bus servo feedback: Position reading, temperature monitoring, voltage detection
 - ✅ JSON format response
 

@@ -163,8 +163,6 @@ python python/deploy_model.py
 優先順序:
 1. .bin (RDK X5 BPU) ← 最快 (如可用)
 2. .rknn (Orange Pi 5 NPU) ← 次快 (如可用)
-3. .onnx (CPU) ← 備用
-4. .pt (PyTorch) ← 最慢 (僅訓練用)
 ```
 
 ---
