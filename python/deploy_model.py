@@ -44,6 +44,36 @@ except Exception as e:
     sys.exit(1)
 
 
+def backup_existing_models(local_models_dir: Path):
+    """備份現有的模型文件"""
+    backup_files = [
+        "mosquito_yolov8.pt",
+        "mosquito_yolov8.onnx",
+        "mosquito_yolov8.rknn",
+        "mosquito_yolov8.bin"
+    ]
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_dir = local_models_dir / f"backup_{timestamp}"
+    backed_up = False
+
+    for filename in backup_files:
+        src = local_models_dir / filename
+        if src.exists():
+            if not backed_up:
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                backed_up = True
+            dst = backup_dir / filename
+            shutil.copy2(str(src), str(dst))
+            size_mb = src.stat().st_size / 1024 / 1024
+            print(f"[BACKUP] {filename} → {backup_dir.name}/ ({size_mb:.2f} MB)")
+
+    if backed_up:
+        print(f"✅ 舊模型已備份至: {backup_dir}\n")
+    else:
+        print("[INFO] 無現有模型需要備份\n")
+
+
 def copy_all_models_from_drive(local_models_dir: Path) -> dict:
     """複製所有已轉換的模型格式到本地 models/ 目錄"""
     # 以 RELOCATION_BASE_DIR 的父層作為 mosquito-training 根目錄
@@ -97,6 +127,9 @@ def main():
         print(f"專案目錄: {project_root}")
         print(f"目標模型目錄: {local_models_dir}")
         print()
+
+        # 備份現有模型
+        backup_existing_models(local_models_dir)
 
         copied_models, training_models = copy_all_models_from_drive(local_models_dir)
 
