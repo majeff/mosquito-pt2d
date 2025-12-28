@@ -179,7 +179,7 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 
 ## 🔧 Hardware Requirements
 
-**See detailed specs in** [REFERENCE.md - Hardware Specifications](REFERENCE.md#hardware-specifications)
+**See detailed specs in** [REFERENCE.md - Hardware Specifications](REFERENCE.md#-硬體規格)
 
 **Quick Checklist**:
 - **ARM Development Board**: RDK X5 (recommended, 10 TOPS BPU) or Orange Pi 5 (6 TOPS NPU)
@@ -191,7 +191,7 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 
 ## 💻 Software Requirements
 
-**See detailed setup in** [docs/python_README.md](docs/python_README.md) and [REFERENCE.md - Standard Parameters](REFERENCE.md#standard-parameters)
+**See detailed setup in** [docs/python_README.md](docs/python_README.md) and [REFERENCE.md - Standard Parameters](REFERENCE.md#-標準參數)
 
 **Quick Setup**:
 ```bash

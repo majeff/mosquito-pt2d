@@ -170,7 +170,7 @@
 
 ## 🔧 硬體需求
 
-**詳細規格見** [REFERENCE.md - 硬體規格](REFERENCE.md#硬體規格)
+**詳細規格見** [REFERENCE.md - 硬體規格](REFERENCE.md#-硬體規格)
 
 **快速清單**:
 - **ARM 開發板**: RDK X5 (推薦, 10 TOPS BPU) 或 Orange Pi 5 (6 TOPS NPU)
@@ -182,7 +182,7 @@
 
 ## 💻 軟體需求
 
-**詳細安裝步驟見** [REFERENCE.md - 標準參數](REFERENCE.md#標準參數) 和 [docs/python_README.md](docs/python_README.md)
+**詳細安裝步驟見** [REFERENCE.md - 標準參數](REFERENCE.md#-標準參數) 和 [docs/python_README.md](docs/python_README.md)
 
 **快速準備**:
 ```bash
