@@ -259,7 +259,7 @@ platformio run --target upload
 
 #### Using Arduino IDE
 
-Refer to [docs/arduino_ide_guide.md](docs/arduino_ide_guide.md)
+Refer to [include/config.h](include/config.h) and [docs/protocol.md](docs/protocol.md)
 
 ### 2. Orange Pi 5 System Setup
 
@@ -571,10 +571,9 @@ python3 mosquito_detector.py
 ```bash
 # On Orange Pi 5
 cd python
+sudo python3 streaming_tracking_system.py  # All-in-one (AI+tracking+streaming)
+# Or run tracking only (no streaming)
 sudo python3 mosquito_tracker.py
-
-# Or use quick start script
-sudo python3 quick_start.py
 ```
 
 ### 3. Arduino Serial Test
@@ -734,7 +733,7 @@ sudo usermod -a -G dialout $USER
 3. **Adjust AI parameters**:
    ```python
    detector = MosquitoDetector(
-       model_path='models/mosquito_yolov8n.pt',  # Use specific model
+    model_path='models/mosquito_yolov8.pt',   # Use specific model
        confidence_threshold=0.3,                  # Lower threshold (0.3-0.5)
        imgsz=640                                  # Balance accuracy & speed (320/416/640)
    )
@@ -774,17 +773,16 @@ mosquito-pt2d/
 │   ├── mosquito_detector.py          # YOLOv8 mosquito detector
 │   ├── pt2d_controller.py            # Arduino serial controller
 │   ├── stereo_camera.py              # Stereo camera control
-│   ├── quick_start.py                # Quick start script
-│   └── test_*.py                     # Test scripts
+│   └── test_*.py                     # Test scripts (replaces quick_start)
 ├── models/                           # AI model directory
-│   ├── mosquito.rknn                 # RKNN model (NPU acceleration)
-│   ├── mosquito.onnx                 # ONNX model (CPU optimized)
-│   └── mosquito.pt                   # PyTorch model
+│   ├── mosquito_yolov8.rknn          # RKNN model (NPU acceleration)
+│   ├── mosquito_yolov8.onnx          # ONNX model (CPU optimized)
+│   └── mosquito_yolov8.pt            # PyTorch model
 ├── docs/                             # Documentation directory
 │   ├── STREAMING_GUIDE.md            # Video streaming guide ⭐ New
 │   ├── hardware.md                   # Hardware connection guide
 │   ├── protocol.md                   # Communication protocol details
-│   └── arduino_ide_guide.md          # Arduino IDE usage guide
+│   └── protocol.md                   # Communication protocol details
 ├── platformio.ini            # PlatformIO configuration
 ├── .gitignore               # Git ignore file
 └── README.md                # This file (Chinese version)
@@ -1206,13 +1204,13 @@ Complete Nginx configuration examples are included in the documentation. For mor
 | [docs/hardware.md](docs/hardware.md) | Hardware connection detailed instructions (with wiring diagrams) |
 | [docs/orangepi5_hardware.md](docs/orangepi5_hardware.md) | Orange Pi 5 hardware configuration guide |
 | [docs/protocol.md](docs/protocol.md) | Serial communication protocol technical specifications |
-| [docs/arduino_ide_guide.md](docs/arduino_ide_guide.md) | Arduino IDE compilation and upload guide |
+| [include/config.h](include/config.h) | Firmware parameters and pin mapping |
 
 ### 🤖 AI & Python Documents
 
 | Document | Description |
 |----------|-------------|
-| [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI detection system detailed guide |
+| [python/README.md](python/README.md) | AI detection and tracking consolidated guide |
 | [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ Video streaming guide (mobile viewing) |
 | [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | ⭐ Model continuous improvement guide (sample collection → training) |
 | [docs/python_README.md](docs/python_README.md) | Python module navigation documentation |
@@ -1247,7 +1245,6 @@ Complete Nginx configuration examples are included in the documentation. For mor
 | [python/mosquito_detector.py](python/mosquito_detector.py) | AI detector module |
 | [python/pt2d_controller.py](python/pt2d_controller.py) | Arduino controller interface |
 | [python/stereo_camera.py](python/stereo_camera.py) | Dual camera module |
-| [python/quick_start.py](python/quick_start.py) | Quick start script |
 
 **Tip**: All documents are written in Markdown format and can be read directly on GitHub or any Markdown editor.
 

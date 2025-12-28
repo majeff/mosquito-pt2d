@@ -45,7 +45,6 @@
 
 #### 4. 總線舵機 ×2
    - 型號: LewanSoul LX-16A, Feetech SCS15, HTS 等
-                                        │ ├───────────────┼──→ 雷射模組
    - 通訊方式: 串口 (UART)
    - 工作電壓: 6V-8.4V（推薦 7.4V）
    - 波特率: 9600 或 115200
@@ -65,7 +64,7 @@
 #### 6. 電源系統
 - **二维电动舵机云台**: 7.4V
 - **總線舵機電源**: 7.4V / 2A 以上（鋰電池或電源適配器）
-- **Orange Pi 5 電源**: 5V / 3A（Type-C 供電）
+- **Orange Pi 5 電源**: 5V / 4A（Type-C 供電）
 
 
 ---
@@ -595,11 +594,13 @@ controller.move_to(0, 90)     # 觀察快速移動
 controller.close()
 ```
 
-或使用快速測試腳本：
+或直接運行完整追蹤系統：
 
 ```bash
 cd python
-python3 quick_start.py
+python3 streaming_tracking_system.py   # 一體化（AI+追蹤+串流）
+# 或僅啟動追蹤（無串流）
+python3 mosquito_tracker.py
 ```
 
 ### 3. 雙目立體視覺測試
@@ -639,7 +640,7 @@ python mosquito_detector.py
 
 ```bash
 cd python
-python quick_start.py
+python streaming_tracking_system.py
 ```
 
 觀察：

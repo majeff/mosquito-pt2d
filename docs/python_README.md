@@ -78,12 +78,12 @@ mkdir -p models
 # 範例：從 Roboflow / Kaggle / GitHub 下載
 
 # 將模型放置到 models/ 目錄
-# models/mosquito_yolov8n.pt
+# models/mosquito_yolov8.pt
 ```
 
 **模型資源:**
 - 參見 [MOSQUITO_MODELS.md](MOSQUITO_MODELS.md) - 詳細的模型下載指南
-- 參見 [AI_DETECTION_GUIDE.md](AI_DETECTION_GUIDE.md) - AI 檢測配置說明
+- 參見 [../python/README.md](../python/README.md) - AI 檢測與追蹤整合指南
 
 ### 3. 硬體連接
 
@@ -163,7 +163,7 @@ from mosquito_detector import MosquitoDetector
 
 # 初始化 AI 偵測器
 detector = MosquitoDetector(
-    model_path='models/mosquito_yolov8n.pt',  # 使用蚊子專用模型
+    model_path='models/mosquito_yolov8.pt',   # 使用蚊子專用模型
     confidence_threshold=0.4,
     imgsz=320  # Orange Pi 5 建議使用 320 提升速度
 )
@@ -192,7 +192,7 @@ python mosquito_detector.py
 
 **模型來源:**
 - 參見 [MOSQUITO_MODELS.md](MOSQUITO_MODELS.md) 獲取現有蚊子檢測模型
-- 參見 [AI_DETECTION_GUIDE.md](AI_DETECTION_GUIDE.md) 了解詳細配置
+- 參見 [../python/README.md](../python/README.md) 了解詳細配置
 
 ---
 
@@ -302,7 +302,7 @@ CAMERA_HEIGHT = 1080
 CAMERA_FPS = 60       # 支援最高 60fps
 
 # AI 檢測設定
-AI_MODEL_PATH = 'models/mosquito_yolov8n.pt'  # 蚊子專用模型
+AI_MODEL_PATH = 'models/mosquito_yolov8.pt'   # 蚊子專用模型
 CONFIDENCE_THRESHOLD = 0.4    # 信心度閾值（0.3-0.6）
 DETECTION_IMGSZ = 320         # 輸入解析度（320/416/640）
 
@@ -378,7 +378,7 @@ sudo python3 -c "import OPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.setup(5
 
 ```python
 detector = MosquitoDetector(
-    model_path='models/mosquito_yolov8n.pt',  # 模型路徑
+    model_path='models/mosquito_yolov8.pt',   # 模型路徑
     confidence_threshold=0.4,                  # 信心度閾值（0.3-0.7）
     iou_threshold=0.45,                        # IoU 閾值（NMS）
     imgsz=320                                  # 輸入解析度（320/416/640）
@@ -417,7 +417,7 @@ python3 -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
 detector = MosquitoDetector(imgsz=320)  # 從 640 降到 320
 
 # 或轉換為 ONNX 格式
-# 參見 AI_DETECTION_GUIDE.md
+# 參見 ../python/README.md
 ```
 
 **問題: 檢測效果不佳**
@@ -498,7 +498,7 @@ sudo python3 mosquito_tracker.py
 detector = MosquitoDetector(imgsz=320)  # 從 640 降到 320
 
 # 2. 使用 ONNX 格式模型
-# 參見 AI_DETECTION_GUIDE.md 轉換方法
+# 參見 ../python/README.md 的轉換方法
 
 # 3. 跳幀處理（不是每幀都檢測）
 frame_count = 0
@@ -538,7 +538,7 @@ cat /sys/class/thermal/thermal_zone0/temp
 ```python
 # 1. 使用蚊子專用模型（最重要）
 detector = MosquitoDetector(
-    model_path='models/mosquito_yolov8n.pt'
+    model_path='models/mosquito_yolov8.pt'
 )
 
 # 2. 提高信心度閾值
@@ -560,7 +560,7 @@ python convert_to_rknn.py
 
 # 2. 使用 RKNN 模型
 # 需要修改 mosquito_detector.py 支援 RKNN Runtime
-# 參見 AI_DETECTION_GUIDE.md
+# 參見 ../python/README.md
 ```
 
 ### 雙目深度估計
@@ -607,7 +607,7 @@ for i in range(1, len(self.trajectory)):
 ## 📖 相關文件
 
 ### 主要文檔
-- **[AI_DETECTION_GUIDE.md](AI_DETECTION_GUIDE.md)** - AI 蚊子辨識完整指南（Orange Pi 5 優化）
+- **[../python/README.md](../python/README.md)** - AI 蚊子偵測與追蹤整合指南（取代 AI_DETECTION_GUIDE）
 - **[MOSQUITO_MODELS.md](MOSQUITO_MODELS.md)** - 蚊子檢測模型資源和下載指南
 - **[../docs/hardware.md](../docs/hardware.md)** - 硬體連接詳細說明（含雙目攝像頭規格）
 - **[../docs/protocol.md](../docs/protocol.md)** - Arduino 通訊協議

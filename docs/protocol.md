@@ -894,7 +894,7 @@ def new_command(self, param1):
 ## 📚 相關文檔
 
 - [硬體連接說明](hardware.md)
-- [Python 控制示例](python_example.md)
+- [Python 控制指南](python_README.md)
 - [主程序說明](../README.md)
 - [ZL 舵機基礎範例](pt2d_sample/basic/ZL_KPZAR.ino) - 總線舵機指令參考
 - [舵機指令詳表](pt2d_sample/总线串行舵机指令表.pdf)

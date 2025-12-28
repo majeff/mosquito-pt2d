@@ -5,12 +5,12 @@
 ## 📂 目錄結構
 
 ### 主要模組
-- `quick_start.py` - 快速啟動腳本
 - `mosquito_detector.py` - AI 蚊子檢測模組
 - `mosquito_tracker.py` - 蚊子追蹤邏輯
 - `pt2d_controller.py` - PT2D 雲台控制器
 - `laser_controller.py` - 雷射控制模組
 - `stereo_camera.py` - 雙目相機模組
+- `streaming_tracking_system.py` - 一體化系統（AI+追蹤+串流，推薦主程式）
 
 ### 模型改進工具（簡化流程）
 - `label_samples.py` - 互動式樣本標註與「搬遷到雲端」
@@ -27,7 +27,7 @@
 詳細文檔已移至 `docs` 目錄：
 
 - **[Python 完整使用說明](../docs/python_README.md)** - Python 端完整使用指南
-- **[AI 檢測配置指南](../docs/AI_DETECTION_GUIDE.md)** - AI 蚊子辨識完整指南
+- **[AI 檢測與追蹤整合指南](README.md)** - 本目錄文件（取代 AI_DETECTION_GUIDE）
 - **[蚊子檢測模型資源](../docs/MOSQUITO_MODELS.md)** - 模型下載和訓練指南
 - **[Serial 通訊檢查](../docs/SERIAL_CHECK_SUMMARY.md)** - Serial 通訊格式檢查結果
 
@@ -126,11 +126,14 @@ python deploy_model.py --imgsz 320
 
 進階參數與詳細說明請參見 [蚊子檢測模型資源](../docs/MOSQUITO_MODELS.md)。
 
-### 5. 快速啟動
+### 5. 執行系統
 
 ```bash
-# 執行完整追蹤系統
-python quick_start.py
+# 一體化系統（AI+追蹤+串流）
+python streaming_tracking_system.py
+
+# 或僅啟動追蹤（無串流）
+python mosquito_tracker.py
 ```
 
 ## 📂 模組說明
@@ -142,7 +145,6 @@ python quick_start.py
 | `mosquito_tracker.py` | 蚊子追蹤邏輯 |
 | `stereo_camera.py` | 立體相機處理 |
 | `streaming_server.py` | 影像串流伺服器（HTTP-MJPEG） |
-| `quick_start.py` | 快速啟動腳本 |
 | `test_serial_protocol.py` | Serial 通訊測試腳本 |
 | `test_tracking_logic.py` | 追蹤邏輯測試腳本 |
 | `test_multi_target_tracking.py` | 多目標追蹤測試腳本 |

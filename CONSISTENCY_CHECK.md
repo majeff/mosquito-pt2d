@@ -168,7 +168,7 @@ imgsz: 輸入影像大小，預設 320（Orange Pi 5 推薦）
 
 ## ✅ 4. 串口通訊協議一致性
 
-### 檢查項目：main.cpp vs pt2d_controller.py vs SERIAL_PROTOCOL_MAPPING.md
+### 檢查項目：main.cpp vs pt2d_controller.py vs docs/protocol.md
 
 | 命令 | 固件輸出格式 | Python 解析 | 文檔說明 | 狀態 |
 |------|------------|------------|---------|------|
@@ -209,13 +209,13 @@ imgsz: 輸入影像大小，預設 320（Orange Pi 5 推薦）
 |---------|---------|---------|----------------|------|
 | 硬體連接說明 | docs/ | docs/hardware.md | ✅ docs/hardware.md | ✅ |
 | 通訊協議說明 | docs/ | docs/protocol.md | ✅ | ✅ |
-| Arduino IDE 指南 | docs/ | docs/arduino_ide_guide.md | ✅ | ✅ |
-| Python 範例 | docs/ | docs/python_example.md | ✅ | ✅ |
-| AI 檢測指南 | docs/ | docs/AI_DETECTION_GUIDE.md | ✅ 已添加索引 | ✅ |
+| 固件參數設定 | include/ | include/config.h | ✅ | ✅ |
+| Python 範例 | docs/ | docs/python_README.md | ✅ | ✅ |
+| AI 整合指南 | python/ | python/README.md | ✅ 已添加索引 | ✅ |
 | 模型說明 | docs/ | docs/MOSQUITO_MODELS.md | ✅ 已添加索引 | ✅ |
 | 串口檢查總結 | docs/ | docs/SERIAL_CHECK_SUMMARY.md | ✅ 已添加索引 | ✅ |
 | Python README | docs/ | docs/python_README.md | ✅ 已添加索引 | ✅ |
-| 串口協議對照 | 根目錄 | SERIAL_PROTOCOL_MAPPING.md | ✅ 已添加索引 | ✅ |
+| 串口協議對照 | docs/ | docs/protocol.md | ✅ 已添加索引 | ✅ |
 | 一致性檢查報告 | 根目錄 | CONSISTENCY_CHECK.md | ✅ 已添加索引 | ✅ |
 
 **結論**: ✅ 所有文檔已在 README.md 的「完整文檔索引」章節中引用

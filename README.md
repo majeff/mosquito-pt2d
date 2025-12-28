@@ -14,7 +14,7 @@
 - 新增：整合程式 `streaming_tracking_system.py`（AI+追蹤+串流一體）
 - 新增：雙目攝像頭三種串流模式（並排/單一/獨立）
 - 新增：Web 介面顯示即時統計資訊
-- 文檔：完整串流指南 `STREAMING_GUIDE.md`
+- 文檔：完整串流指南 [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md)
 - 功能：所有 AI 標註（檢測框、信心度）包含在串流中
 
 ---
@@ -258,7 +258,7 @@ python3 pt2d_controller.py
 ```
 #### 使用 Arduino IDE
 
-參考 [docs/arduino_ide_guide.md](docs/arduino_ide_guide.md)
+參考 [include/config.h](include/config.h) 與 [docs/protocol.md](docs/protocol.md)
 
 ### 2. Python 環境設置
 
@@ -547,10 +547,9 @@ python3 mosquito_detector.py
 ```bash
 # 在 Orange Pi 5 上運行
 cd python
+sudo python3 streaming_tracking_system.py  # 一體化（AI+追蹤+串流）
+# 或僅啟動追蹤（無串流）
 sudo python3 mosquito_tracker.py
-
-# 或使用快速啟動腳本
-sudo python3 quick_start.py
 ```
 
 ### 3. Arduino 串口測試
@@ -673,7 +672,7 @@ sudo usermod -a -G dialout $USER
 3. **調整 AI 參數**:
    ```python
    detector = MosquitoDetector(
-       model_path='models/mosquito_yolov8n.pt',  # 使用專用模型
+    model_path='models/mosquito_yolov8.pt',   # 使用專用模型
        confidence_threshold=0.3,                  # 降低閾值（0.3-0.5）
        imgsz=640                                  # 平衡精度與速度（320/416/640）
    )
@@ -764,17 +763,16 @@ mosquito-pt2d/
 │   ├── mosquito_detector.py          # YOLOv8 蚊子偵測器
 │   ├── pt2d_controller.py            # Arduino 串口控制器
 │   ├── stereo_camera.py              # 雙目攝像頭控制
-│   ├── quick_start.py                # 快速啟動腳本
-│   └── test_*.py                     # 測試腳本
+│   └── test_*.py                     # 測試腳本（取代 quick_start）
 ├── models/                           # AI 模型目錄
-│   ├── mosquito.rknn                 # RKNN 模型（NPU 加速）
-│   ├── mosquito.onnx                 # ONNX 模型（CPU 優化）
-│   └── mosquito.pt                   # PyTorch 模型
+│   ├── mosquito_yolov8.rknn          # RKNN 模型（NPU 加速）
+│   ├── mosquito_yolov8.onnx          # ONNX 模型（CPU 優化）
+│   └── mosquito_yolov8.pt            # PyTorch 模型
 ├── docs/                             # 文檔目錄
 │   ├── STREAMING_GUIDE.md            # 影像串流指南 ⭐ 新增
 │   ├── hardware.md                   # 硬體連接說明
 │   ├── protocol.md                   # 通訊協議詳細說明
-│   └── arduino_ide_guide.md          # Arduino IDE 使用說明
+│   └── protocol.md                   # 通訊協議詳細說明
 ├── platformio.ini                    # PlatformIO 配置
 ├── .gitignore                        # Git 忽略文件
 └── README.md                         # 本文件
@@ -1185,7 +1183,7 @@ location /nginx_status {
 |------|------|
 | [README.md](README.md) | 專案主文檔（本文件） |
 | [CONSISTENCY_CHECK.md](CONSISTENCY_CHECK.md) | 文件與程式一致性檢查報告 |
-| [SERIAL_PROTOCOL_MAPPING.md](SERIAL_PROTOCOL_MAPPING.md) | 串口通訊協議完整對照表 |
+| [docs/SERIAL_CHECK_SUMMARY.md](docs/SERIAL_CHECK_SUMMARY.md) | 串口通訊格式檢查與對照摘要 |
 | [LICENSE](LICENSE) | Apache 2.0 授權條款 |
 | [NOTICE](NOTICE) | 版權與第三方相依標註 |
 
@@ -1196,13 +1194,13 @@ location /nginx_status {
 | [docs/hardware.md](docs/hardware.md) | 硬體連接詳細說明（含接線圖） |
 | [docs/orangepi5_hardware.md](docs/orangepi5_hardware.md) | Orange Pi 5 硬體配置指南 |
 | [docs/protocol.md](docs/protocol.md) | 串口通訊協議技術規格 |
-| [docs/arduino_ide_guide.md](docs/arduino_ide_guide.md) | Arduino IDE 編譯上傳指南 |
+| [include/config.h](include/config.h) | 固件參數與引腳設定 |
 
 ### 🤖 AI 與 Python 文檔
 
 | 文檔 | 說明 |
 |------|------|
-| [docs/AI_DETECTION_GUIDE.md](docs/AI_DETECTION_GUIDE.md) | AI 檢測系統詳細指南 |
+| [python/README.md](python/README.md) | AI 檢測與追蹤整合指南 |
 | [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ 影像串流指南（手機觀看） |
 | [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | 蚊子檢測模型說明與下載 |
 | [docs/python_README.md](docs/python_README.md) | Python 模塊導航文檔 |
@@ -1230,7 +1228,6 @@ location /nginx_status {
 | [python/mosquito_detector.py](python/mosquito_detector.py) | AI 檢測器模組 |
 | [python/pt2d_controller.py](python/pt2d_controller.py) | Arduino 控制器介面 |
 | [python/stereo_camera.py](python/stereo_camera.py) | 雙目相機模組 |
-| [python/quick_start.py](python/quick_start.py) | 快速啟動腳本 |
 
 **提示**: 所有文檔均以 Markdown 格式編寫，可直接在 GitHub 或任何 Markdown 編輯器中閱讀。
 

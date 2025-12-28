@@ -81,7 +81,8 @@ class MosquitoDetector:
 
         Args:
             model_path: 模型路徑（可不含副檔名），或 models/ 目錄下的基本名稱
-                       例如: "mosquito" 會自動搜尋 mosquito.rknn → mosquito.onnx → mosquito.pt
+                       例如: "mosquito_yolov8" 會自動搜尋
+                       mosquito_yolov8.rknn → mosquito_yolov8.onnx → mosquito_yolov8.pt
             confidence_threshold: 信心度閾值（0-1），預設 0.4（推薦範圍 0.3-0.7）
             iou_threshold: IoU閾值（用於NMS），預設 0.45
             imgsz: 輸入影像大小，預設 640（推薦值）

@@ -17,7 +17,7 @@
 - [x] 改進錯誤處理
 
 ### 3. 文檔
-- [x] 創建 `SERIAL_PROTOCOL_MAPPING.md` - 完整通訊格式對照表
+- [x] 補完通訊格式對照（見 `docs/protocol.md`）
 - [x] 創建 `test_serial_protocol.py` - 自動化測試腳本
 
 ## 📊 通訊格式總覽
@@ -169,7 +169,7 @@ with PT2DController('COM3') as pt:
 
 ## 📚 相關文件
 
-- [SERIAL_PROTOCOL_MAPPING.md](../SERIAL_PROTOCOL_MAPPING.md) - 詳細通訊格式對照
+- [protocol.md](protocol.md) - 詳細通訊格式對照
 - [src/main.cpp](../src/main.cpp) - 固件代碼
 - [python/pt2d_controller.py](../python/pt2d_controller.py) - Python 控制器（已整合重試機制）
 - [python/test_serial_protocol.py](../python/test_serial_protocol.py) - 自動化測試腳本
