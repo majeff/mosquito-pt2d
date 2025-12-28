@@ -3,9 +3,9 @@
 ![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20Orange%20Pi%205-red.svg)
+![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20RDK%20X5%20%2F%20Orange%20Pi%205-red.svg)
 
-一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（OrangePi5+YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能並提供即時觀測。
+一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（RDK X5 / Orange Pi 5 + YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能並提供即時觀測。
 
 ---
 
@@ -16,7 +16,7 @@
 | **整體專案版本** | **v2.4.0** | 2025-12-28 |
 | 固件版本 (含通訊協議) | v2.4.0 | Arduino 固件與 UART 串口通訊協議 |
 | Python 環境 | 3.8+ | 支持 YOLOv8 推理 |
-| AI 模型 | YOLOv8 | RKNN/ONNX/PyTorch 多後端 |
+| AI 模型 | YOLOv8 | BIN (RDK X5 BPU) / RKNN (Orange Pi 5 NPU) / ONNX / PyTorch |
 | 開源協議 | Apache 2.0 | - |
 
 ---
@@ -107,8 +107,8 @@
   - 深度學習物體檢測
   - 高準確度蚊子辨識
   - 信心度評分與過濾
-  - 支援 CPU/NPU 推理（RKNN NPU 加速優化）
-  - 多種模型格式：RKNN（NPU）、ONNX（CPU）、PyTorch
+  - 支援 CPU/BPU/NPU 推理（硬體加速優化）
+  - 多種模型格式：BIN（RDK X5 BPU）、RKNN（Orange Pi 5 NPU）、ONNX（CPU）、PyTorch
   - **中等信心度樣本自動儲存** (v2.3.1 新增):
     - 自動收集信心度中等（0.35-0.65）的檢測樣本
     - 供後續人工檢驗與模型再訓練使用

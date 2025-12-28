@@ -3,9 +3,9 @@
 ![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20Orange%20Pi%205-red.svg)
+![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20RDK%20X5%20%2F%20Orange%20Pi%205-red.svg)
 
-An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and **AI deep learning (OrangePi5+YOLOv8)** technology for intelligent mosquito detection, tracking, and laser marking with real-time monitoring.
+An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and **AI deep learning (RDK X5 / Orange Pi 5 + YOLOv8)** technology for intelligent mosquito detection, tracking, and laser marking with real-time monitoring.
 
 ## 📜 Version History
 
@@ -93,7 +93,8 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
   - Deep learning object detection
   - High accuracy mosquito identification
   - Confidence scoring and filtering
-  - CPU/NPU inference support (Orange Pi 5 optimized)
+  - CPU/BPU/NPU inference support (hardware acceleration optimized)
+  - Multiple model formats: BIN (RDK X5 BPU), RKNN (Orange Pi 5 NPU), ONNX (CPU), PyTorch
   - **Automatic uncertain sample saving** (v2.3.1 new):
     - Automatically collects detection samples with medium confidence (0.35-0.65)
     - For subsequent manual review and model retraining
