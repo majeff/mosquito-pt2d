@@ -100,14 +100,15 @@
   #define SERVO_RX_PIN      11           // 舵機 RX 引腳
 #endif
 
-// 舵機 ID 配置（預設值，啟動時會自動掃描）
-#define DEFAULT_PAN_SERVO_ID    1         // Pan 軸舵機 ID（預設值）
-#define DEFAULT_TILT_SERVO_ID   2         // Tilt 軸舵機 ID（預設值）
-#define AUTO_DETECT_SERVO_ID    true      // 啟動時自動掃描舵機ID
+// 舵機 ID 配置（廢棄預設值，啟動時必須自動掃描）
+#define AUTO_DETECT_SERVO_ID    true      // 啟動時強制自動掃描舵機ID（不使用預設值）
 
 // 自動掃描超時設置
 #define SERVO_DETECT_TIMEOUT    500       // 掃描超時（毫秒）
 #define SERVO_DETECT_INTERVAL   100       // 掃描嘗試間隔（毫秒）
+#define SERVO_DETECT_RETRIES    3         // 掃描重試次數（每個舵機）
+#define SERVO_STARTUP_DELAY     1000      // 啟動等待延遲（毫秒，等待舵機初始化）
+#define SERVO_DETECT_RETRY_DELAY 500      // 掃描重試延遲（毫秒）
 
 // ============================================
 // 舵機角度範圍
@@ -119,10 +120,10 @@
 #define PAN_MAX_ANGLE       270       // Pan 最大角度
 #define PAN_INIT_ANGLE      135       // Pan 初始角度（中心：270/2）
 
-// Tilt 軸 (垂直旋轉) - 180度範圍
-#define TILT_MIN_ANGLE      0         // Tilt 最小角度
-#define TILT_MAX_ANGLE      180       // Tilt 最大角度
-#define TILT_INIT_ANGLE     90        // Tilt 初始角度（中心：180/2）
+// Tilt 軸 (垂直旋轉) - 150度安全範圍 (15-165度，留有15度安全邊距)
+#define TILT_MIN_ANGLE      15        // Tilt 最小角度（安全限制）
+#define TILT_MAX_ANGLE      165       // Tilt 最大角度（安全限制）
+#define TILT_INIT_ANGLE     90        // Tilt 初始角度（中心：(15+165)/2）
 
 // ============================================
 // 運動參數
@@ -169,8 +170,8 @@
 // ============================================
 // 版本信息
 // ============================================
-#define FIRMWARE_VERSION    "1.0.0"
-#define FIRMWARE_DATE       "2025-12-23"
+#define FIRMWARE_VERSION    "2.4.0"
+#define FIRMWARE_DATE       "2025-12-28"
 #define PROJECT_NAME        "Arduino PT2D Controller"
 
 #endif // CONFIG_H

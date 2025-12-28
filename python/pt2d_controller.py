@@ -43,6 +43,13 @@ class PT2DController:
         self.baudrate = baudrate
         self.ser = None
         self.is_connected = False
+        self.servo_enabled = False  # 初始為禁用，只有在成功初始化後才啟用
+
+        # 角度限制（初始值，會由 Arduino 動態設置）
+        self.pan_min = 0
+        self.pan_max = 270
+        self.tilt_min = 15
+        self.tilt_max = 165
 
         try:
             self.ser = serial.Serial(port, baudrate, timeout=timeout)
@@ -51,15 +58,23 @@ class PT2DController:
 
             # 讀取並清空啟動訊息
             self._clear_startup_messages()
-            self.is_connected = True
+
+            # 檢查舵機控制是否啟用
+            if not self.servo_enabled:
+                logger.error("舵機控制已禁用，無法建立連接")
+                self.is_connected = False
+            else:
+                self.is_connected = True
 
         except Exception as e:
             logger.error(f"無法連接至 {port}: {e}")
+            if self.ser is not None and self.ser.is_open:
+                self.ser.close()
             self.is_connected = False
 
     def _clear_startup_messages(self, timeout: float = 3.0):
         """
-        清空啟動時的訊息
+        清空啟動時的訊息，並從 Arduino 解析角度限制及舵機控制狀態
 
         Args:
             timeout: 總超時時間（秒）
@@ -73,11 +88,41 @@ class PT2DController:
                     line = self.ser.readline().decode('utf-8', errors='ignore').strip()
                     if line:
                         logger.debug(f"啟動訊息: {line}")
-                        # 嘗試解析 JSON，記錄舵機 ID
+                        # 嘗試解析 JSON，記錄舵機 ID 和角度限制
                         try:
                             data = json.loads(line)
+
+                            # 檢查舵機控制是否失敗（error 狀態且 ID 為 0）
+                            if data.get('status') == 'error' and 'pan_id' in data:
+                                pan_id = data.get('pan_id', 0)
+                                tilt_id = data.get('tilt_id', 0)
+                                if pan_id == 0 or tilt_id == 0:
+                                    logger.error(f"舵機設置失敗: Pan ID={pan_id}, Tilt ID={tilt_id}")
+                                    self.servo_enabled = False
+                                    # 繼續讀取剩餘訊息，不要直接 break
+
                             if 'pan_id' in data and 'tilt_id' in data:
-                                logger.info(f"偵測到舵機 ID: Pan={data['pan_id']}, Tilt={data['tilt_id']}")
+                                pan_id = data.get('pan_id', 0)
+                                tilt_id = data.get('tilt_id', 0)
+                                if pan_id > 0 and tilt_id > 0:
+                                    logger.info(f"偵測到舵機 ID: Pan={pan_id}, Tilt={tilt_id}")
+
+                            # 解析角度限制
+                            if 'pan_min' in data:
+                                self.pan_min = data['pan_min']
+                            if 'pan_max' in data:
+                                self.pan_max = data['pan_max']
+                            if 'tilt_min' in data:
+                                self.tilt_min = data['tilt_min']
+                            if 'tilt_max' in data:
+                                self.tilt_max = data['tilt_max']
+
+                            # 若收到所有限制值，記錄並標記舵機已啟用
+                            if all(k in data for k in ['pan_min', 'pan_max', 'tilt_min', 'tilt_max']):
+                                if data.get('status') == 'ok':  # 只在狀態為 ok 時啟用
+                                    logger.info(f"角度限制已設置: Pan=[{self.pan_min}°-{self.pan_max}°], "
+                                              f"Tilt=[{self.tilt_min}°-{self.tilt_max}°]")
+                                    self.servo_enabled = True
                         except json.JSONDecodeError:
                             pass
                 else:
@@ -87,8 +132,12 @@ class PT2DController:
                 break
 
         # 清空剩餘緩衝區
-        self.ser.flushInput()
-        self.ser.flushOutput()
+        try:
+            self.ser.flushInput()
+            self.ser.flushOutput()
+        except Exception as e:
+            logger.warning(f"清理緩衝區失敗: {e}")
+
         logger.info("啟動訊息處理完畢")
 
     def _read_json_response(self, timeout: float = 1.0) -> str:
@@ -206,20 +255,29 @@ class PT2DController:
 
     def move_to(self, pan: int, tilt: int) -> Dict:
         """
-        移動到絕對位置
+        移動到絕對位置（上位機自動限制角度在 Arduino 指定的安全範圍內）
 
         Args:
-            pan: Pan 軸角度 (0-270)
-            tilt: Tilt 軸角度 (0-180)
+            pan: Pan 軸角度 (超出範圍自動限制)
+            tilt: Tilt 軸角度 (超出範圍自動限制)
 
         Returns:
             響應字典
         """
+        if not self.servo_enabled:
+            return {'error': 'Servo control is disabled due to initialization failure'}
+
+        # 限制角度在 Arduino 指定的範圍內
+        pan = max(self.pan_min, min(self.pan_max, pan))
+        tilt = max(self.tilt_min, min(self.tilt_max, tilt))
+
+        logger.debug(f"Move to: Pan={pan}° (限制範圍 {self.pan_min}-{self.pan_max}), "
+                    f"Tilt={tilt}° (限制範圍 {self.tilt_min}-{self.tilt_max})")
         return self.send_command(f'MOVE:{pan},{tilt}')
 
     def move_by(self, pan_delta: int, tilt_delta: int) -> Dict:
         """
-        相對移動
+        相對移動（上位機自動限制最終角度在 Arduino 指定的安全範圍內）
 
         Args:
             pan_delta: Pan 軸相對角度
@@ -228,6 +286,24 @@ class PT2DController:
         Returns:
             響應字典
         """
+        if not self.servo_enabled:
+            return {'error': 'Servo control is disabled due to initialization failure'}
+
+        # 獲取當前位置
+        current_pan, current_tilt = self.get_position()
+
+        if current_pan is None or current_tilt is None:
+            logger.warning("無法獲取當前位置，無法執行相對移動")
+            return {'error': 'Cannot get current position'}
+
+        # 計算目標位置並限制在 Arduino 指定的範圍內
+        target_pan = max(self.pan_min, min(self.pan_max, current_pan + pan_delta))
+        target_tilt = max(self.tilt_min, min(self.tilt_max, current_tilt + tilt_delta))
+
+        logger.debug(f"Relative move: from Pan={current_pan}° Tilt={current_tilt}° "
+                    f"→ to Pan={target_pan}° Tilt={target_tilt}° "
+                    f"(Pan限制 {self.pan_min}-{self.pan_max}, Tilt限制 {self.tilt_min}-{self.tilt_max})")
+
         return self.send_command(f'MOVER:{pan_delta},{tilt_delta}')
 
     def get_position(self) -> Tuple[Optional[int], Optional[int]]:
@@ -274,6 +350,78 @@ class PT2DController:
         """
         speed = max(1, min(100, speed))  # 限制範圍
         return self.send_command(f'SPEED:{speed}')
+
+    def set_servo_id(self, pan_id: int, tilt_id: int) -> Dict:
+        """
+        手動設置舵機 ID
+
+        Args:
+            pan_id: Pan 軸舵機 ID (1-5)
+            tilt_id: Tilt 軸舵機 ID (1-5)
+
+        Returns:
+            響應字典
+        """
+        if not (1 <= pan_id <= 5 and 1 <= tilt_id <= 5):
+            return {'error': 'Servo ID must be between 1 and 5'}
+        if pan_id == tilt_id:
+            return {'error': 'Pan and Tilt IDs must be different'}
+
+        logger.info(f"設置舵機 ID: Pan={pan_id}, Tilt={tilt_id}")
+        return self.send_command(f'SETID:{pan_id},{tilt_id}')
+
+    def get_info(self) -> Dict:
+        """
+        獲取 Arduino 系統信息（舵機ID、角度限制、固件版本等）
+
+        Returns:
+            包含以下字段的字典：
+            - pan_id: Pan軸舵機ID
+            - tilt_id: Tilt軸舵機ID
+            - pan_min, pan_max: Pan軸角度範圍
+            - tilt_min, tilt_max: Tilt軸角度範圍
+            - firmware_version: 固件版本
+        """
+        logger.info("查詢 Arduino 系統信息...")
+        result = self.send_command('GETINFO')
+
+        # 如果查詢成功，更新本地配置
+        if result.get('status') == 'ok':
+            # 更新舵機ID
+            if 'pan_id' in result:
+                pan_id = result.get('pan_id', 0)
+                tilt_id = result.get('tilt_id', 0)
+                if pan_id > 0 and tilt_id > 0:
+                    logger.info(f"當前舵機 ID: Pan={pan_id}, Tilt={tilt_id}")
+                else:
+                    logger.warning(f"舵機 ID 無效: Pan={pan_id}, Tilt={tilt_id}")
+
+            # 更新角度限制
+            if 'pan_min' in result:
+                self.pan_min = result['pan_min']
+                self.pan_max = result['pan_max']
+                self.tilt_min = result['tilt_min']
+                self.tilt_max = result['tilt_max']
+                logger.info(f"角度限制: Pan=[{self.pan_min}-{self.pan_max}], "
+                           f"Tilt=[{self.tilt_min}-{self.tilt_max}]")
+
+            # 記錄固件版本
+            if 'firmware_version' in result:
+                logger.info(f"固件版本: {result['firmware_version']}")
+        else:
+            logger.error(f"查詢系統信息失敗: {result.get('message', 'Unknown error')}")
+
+        return result
+
+    def beep(self) -> Dict:
+        """
+        發送蜂鳴器信號（3聲短鳴）
+
+        Returns:
+            響應字典
+        """
+        logger.info("發送蜂鳴器信號...")
+        return self.send_command('BEEP')
 
     def home(self) -> Dict:
         """回到初始位置"""
@@ -323,6 +471,61 @@ class PT2DController:
     def calibrate(self) -> Dict:
         """執行校準"""
         return self.send_command('CAL')
+
+    def swing_test(self) -> bool:
+        """
+        執行擺動測試：
+        - 水平擺動：0° → 270° → 135°（中心），各2秒轉動
+        - 垂直擺動：15° → 165° → 90°（中心），各2秒轉動
+
+        Returns:
+            是否成功完成測試
+        """
+        logger.info("開始擺動測試...")
+
+        try:
+            # 水平擺動測試
+            logger.info("執行水平擺動測試")
+
+            # 移動到 0°
+            logger.info("移動到 Pan=0°")
+            self.move_to(0, 90)
+            time.sleep(2.5)
+
+            # 移動到 270°
+            logger.info("移動到 Pan=270°")
+            self.move_to(270, 90)
+            time.sleep(2.5)
+
+            # 回到 135°（中心）
+            logger.info("回到 Pan=135°（中心）")
+            self.move_to(135, 90)
+            time.sleep(2.5)
+
+            # 垂直擺動測試
+            logger.info("執行垂直擺動測試")
+
+            # 移動到 15°
+            logger.info("移動到 Tilt=15°")
+            self.move_to(135, 15)
+            time.sleep(2.5)
+
+            # 移動到 165°
+            logger.info("移動到 Tilt=165°")
+            self.move_to(135, 165)
+            time.sleep(2.5)
+
+            # 回到初始位置（90°）
+            logger.info("回到初始位置 Tilt=90°")
+            self.move_to(135, 90)
+            time.sleep(2.5)
+
+            logger.info("擺動測試完成")
+            return True
+
+        except Exception as e:
+            logger.error(f"擺動測試失敗: {e}")
+            return False
 
     def beep(self) -> Dict:
         """
@@ -404,7 +607,13 @@ def test_controller():
         print(pt.move_by(45, 20))
         time.sleep(2)
 
-        print("\n5. 回到初始位置")
+        print("\n5. 執行擺動測試")
+        if pt.swing_test():
+            print("✓ 擺動測試成功")
+        else:
+            print("✗ 擺動測試失敗")
+
+        print("\n6. 回到初始位置")
         print(pt.home())
 
     print("\n測試完成")

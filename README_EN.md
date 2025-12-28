@@ -70,12 +70,13 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 
 - ✅ Dual-axis servo control (Pan horizontal & Tilt vertical)
 - ✅ UART serial communication (115200 baud)
-- ✅ **Firmware stability enhancements** (v2.3.0):
+- ✅ **Firmware stability and feature enhancements** (v2.4.0):
    - ✅ Memory optimization: Fixed buffers, no heap fragmentation
    - ✅ Parameter validation: Complete input checking and error handling
    - ✅ Modular architecture: 13 dedicated command handler functions
    - ✅ Timeout protection: 2-second timeout for aggregate commands
    - ✅ Watchdog: 2-second automatic restart protection
+   - ✅ Servo configuration: Auto-detection and validation, dynamic angle limit management
 - ✅ **Operating modes**:
    - ✅ **Initial static**: Tilt fixed at 90°, pan centered, waiting for detection
    - 🎮 **Manual tracking**: Controlled by host computer for precise tracking

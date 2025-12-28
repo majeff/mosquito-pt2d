@@ -65,18 +65,17 @@ def test_basic_commands(controller: PT2DController):
     print_result('<SPEED:50>', response, ['status', 'message'])
 
 def test_setid_command(controller: PT2DController):
-    """測試 SETID 命令（新格式）"""
-    print_test_header("SETID 命令測試（結構化 JSON）")
+    """測試 SETID 命令（直接設置 Pan 和 Tilt ID）"""
+    print_test_header("SETID 命令測試")
 
     response = controller.send_command('SETID:1,2')
-    print_result('<SETID:1,2>', response, ['status', 'pan_id', 'tilt_id'])
+    print_result('<SETID:1,2>', response, ['status'])
 
-    # 檢查格式
     if 'status' in response and response['status'] == 'ok':
+        print(f"✅ SETID 執行成功")
         if 'pan_id' in response and 'tilt_id' in response:
-            print(f"✅ SETID 格式正確：pan_id={response['pan_id']}, tilt_id={response['tilt_id']}")
-        else:
-            print(f"⚠️  SETID 格式舊版（使用 message 欄位）")
+            print(f"   Pan ID: {response['pan_id']}, Tilt ID: {response['tilt_id']}")
+
 
 def test_movement_commands(controller: PT2DController):
     """測試移動命令"""
