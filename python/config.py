@@ -146,3 +146,27 @@ DEFAULT_STREAM_FPS = 15
 DEFAULT_RTSP_URL = "rtsp://0.0.0.0:8554/mosquito"  # RTSP 目標地址（0.0.0.0 允許外部訪問）
 DEFAULT_RTSP_BITRATE = 2000  # kbps
 DEFAULT_RTSP_PRESET = "ultrafast"  # FFmpeg 編碼預設
+
+# ============================================
+# 溫度監控參數
+# ============================================
+
+# 是否啟用溫度監控
+ENABLE_TEMPERATURE_MONITORING = True
+
+# 溫度警告閾值（攝氏度）
+TEMPERATURE_WARNING_THRESHOLD = 75.0
+
+# 溫度暫停閾值（攝氏度）- 超過此溫度將暫停 AI 辨識
+TEMPERATURE_PAUSE_THRESHOLD = 80.0
+
+# 溫度恢復閾值（攝氏度）- 降至此溫度以下將恢復 AI 辨識
+TEMPERATURE_RESUME_THRESHOLD = 70.0
+
+# 溫度檢查間隔（秒）- 每分鐘檢查一次以降低系統耗損
+TEMPERATURE_CHECK_INTERVAL = 60.0
+
+# 溫度感測器路徑（Linux 系統）
+# Orange Pi 5 / RK3588: /sys/class/thermal/thermal_zone0/temp
+# Raspberry Pi: /sys/class/thermal/thermal_zone0/temp
+TEMPERATURE_SENSOR_PATH = "/sys/class/thermal/thermal_zone0/temp"

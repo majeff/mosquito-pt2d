@@ -27,6 +27,7 @@ from typing import Optional, Tuple
 from stereo_camera import StereoCamera
 from mosquito_detector import MosquitoDetector
 from pt2d_controller import PT2DController
+from temperature_monitor import TemperatureMonitor
 from config import (
     DEFAULT_CONFIDENCE_THRESHOLD,
     DEFAULT_IMGSZ,
@@ -35,7 +36,8 @@ from config import (
     DEFAULT_BEEP_COOLDOWN,
     DEFAULT_LASER_COOLDOWN,
     DEFAULT_PAN_GAIN,
-    DEFAULT_TILT_GAIN
+    DEFAULT_TILT_GAIN,
+    ENABLE_TEMPERATURE_MONITORING
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -115,6 +117,16 @@ class MosquitoTracker:
 
         # 串流伺服器（可選）
         self.streaming_server = streaming_server
+
+        # 溫度監控器
+        if ENABLE_TEMPERATURE_MONITORING:
+            logger.info("啟用溫度監控...")
+            self.temperature_monitor = TemperatureMonitor()
+            if not self.temperature_monitor.is_supported:
+                logger.warning("溫度監控不支援，已禁用")
+                self.temperature_monitor = None
+        else:
+            self.temperature_monitor = None
 
         logger.info("追蹤系統初始化完成")
 
@@ -322,7 +334,7 @@ class MosquitoTracker:
             cv2.putText(frame, f"[{camera_side}] {class_name} ({target_x}, {target_y})",
                        (target_x - 100, target_y - 15),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            cv2.putText(frame, f"Conf: {confidence:.2f}",
+            cv2.putText(frame, f"信心度: {confidence:.2f}",
                        (target_x - 50, target_y + h + 20),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
@@ -348,7 +360,7 @@ class MosquitoTracker:
                     # 未超時，保持追蹤狀態，等待目標重新出現
                     logger.debug(f"暫時失去目標 ({time_since_last_detection:.1f}s)，保持追蹤狀態...")
                     # 在畫面上顯示等待狀態
-                    cv2.putText(left_frame, f"Waiting for target... ({time_since_last_detection:.1f}s)",
+                    cv2.putText(left_frame, f"等待目標中... ({time_since_last_detection:.1f}s)",
                                (10, self.camera_height - 30),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
@@ -375,41 +387,71 @@ class MosquitoTracker:
                         logger.warning("無法讀取雙目影像")
                         continue
 
-                    # 分別對左右攝像頭執行 AI 檢測
-                    try:
-                        left_detections, _ = self.detector.detect(left_frame)
-                        right_detections, _ = self.detector.detect(right_frame)
-                    except Exception as e:
-                        logger.error(f"AI 檢測失敗: {e}")
+                    # 檢查溫度（每幀都檢查，但內部有間隔控制）
+                    temp_paused = False
+                    temp_info = None
+                    if self.temperature_monitor is not None:
+                        temp_info = self.temperature_monitor.check_temperature()
+                        temp_paused = temp_info.get('is_paused', False)
+
+                        # 如果有狀態變化，顯示訊息
+                        status = temp_info.get('status', '')
+                        message = temp_info.get('message', '')
+                        if message and status in ['paused', 'resumed', 'warning']:
+                            logger.info(message)
+
+                    # 分別對左右攝像頭執行 AI 檢測（如果溫度過高則跳過）
+                    if temp_paused:
+                        # 溫度過高，暫停 AI 偵測
                         left_detections, right_detections = [], []
                         display_frame = left_frame
                         result = display_frame.copy()
-                        # 繼續運行，不中斷追蹤
-                    else:
-                        # AI 追蹤蚊子（自動選擇信心度最高的攝像頭）
-                        try:
-                            display_frame = self.track_mosquito(left_detections, right_detections,
-                                                                left_frame, right_frame)
-                        except Exception as e:
-                            logger.error(f"追蹤邏輯失敗: {e}")
-                            display_frame = left_frame
 
-                        # 繪製 AI 偵測結果在顯示幀上
+                        # 關閉雷射
                         try:
-                            if display_frame is left_frame and left_detections:
-                                result = self.detector.draw_detections(display_frame.copy(), left_detections)
-                            elif display_frame is right_frame and right_detections:
-                                result = self.detector.draw_detections(display_frame.copy(), right_detections)
-                            else:
-                                result = display_frame.copy()
+                            self.controller.laser_off()
+                        except Exception:
+                            pass
+                    else:
+                        # 溫度正常，執行 AI 偵測
+                        try:
+                            left_detections, _ = self.detector.detect(left_frame)
+                            right_detections, _ = self.detector.detect(right_frame)
                         except Exception as e:
-                            logger.error(f"繪製檢測結果失敗: {e}")
+                            logger.error(f"AI 檢測失敗: {e}")
+                            left_detections, right_detections = [], []
+                            display_frame = left_frame
                             result = display_frame.copy()
+                            # 繼續運行，不中斷追蹤
+                        else:
+                            # AI 追蹤蚊子（自動選擇信心度最高的攝像頭）
+                            try:
+                                display_frame = self.track_mosquito(left_detections, right_detections,
+                                                                    left_frame, right_frame)
+                            except Exception as e:
+                                logger.error(f"追蹤邏輯失敗: {e}")
+                                display_frame = left_frame
+
+                            # 繪製 AI 偵測結果在顯示幀上
+                            try:
+                                if display_frame is left_frame and left_detections:
+                                    result = self.detector.draw_detections(display_frame.copy(), left_detections)
+                                elif display_frame is right_frame and right_detections:
+                                    result = self.detector.draw_detections(display_frame.copy(), right_detections)
+                                else:
+                                    result = display_frame.copy()
+                            except Exception as e:
+                                logger.error(f"繪製檢測結果失敗: {e}")
+                                result = display_frame.copy()
 
                     # 顯示狀態資訊
-                    mode_text = "AI TRACKING" if self.tracking_active else "AI SCANNING"
+                    mode_text = "追蹤中" if self.tracking_active else "掃描中"
+                    if temp_paused:
+                        mode_text = "暫停 (溫度)"
                     color = (0, 0, 255) if self.tracking_active else (0, 255, 0)
-                    cv2.putText(result, f"Mode: {mode_text}", (10, 30),
+                    if temp_paused:
+                        color = (0, 165, 255)  # 橘色
+                    cv2.putText(result, f"模式: {mode_text}", (10, 30),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
                     cv2.putText(result, f"左: {len(left_detections)} | 右: {len(right_detections)}", (10, 60),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
@@ -428,13 +470,24 @@ class MosquitoTracker:
                     pan, tilt = self.cached_pan, self.cached_tilt
 
                     # 顯示位置資訊
-                    cv2.putText(result, f"Pan: {pan} | Tilt: {tilt}", (10, 90),
+                    cv2.putText(result, f"水平: {pan} | 垂直: {tilt}", (10, 90),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-                    # 顯示偵測模式（tiling/whole）
+                    # 顯示溫度資訊
+                    if self.temperature_monitor is not None and temp_info is not None:
+                        temp_text = self.temperature_monitor.get_status_text(temp_info)
+                        temp_color = (0, 255, 0)  # 綠色
+                        if temp_paused:
+                            temp_color = (0, 165, 255)  # 橘色
+                        elif temp_info.get('status') == 'warning':
+                            temp_color = (0, 255, 255)  # 黃色
+                        cv2.putText(result, temp_text, (10, 120),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, temp_color, 2)
+
+                    # 顯示偵測模式（分塊/整體）
                     try:
-                        mode_text = 'TILING' if getattr(self.detector, 'detection_mode', 'tiling') == 'tiling' else 'WHOLE'
-                        cv2.putText(result, f"Detect: {mode_text}", (10, 120),
+                        mode_text = '分塊' if getattr(self.detector, 'detection_mode', 'tiling') == 'tiling' else '整體'
+                        cv2.putText(result, f"偵測: {mode_text}", (10, 150),
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 255, 200), 2)
                     except Exception:
                         pass
@@ -446,10 +499,10 @@ class MosquitoTracker:
                     except Exception as e:
                         logger.debug(f"更新串流影像失敗: {e}")
 
-                    cv2.imshow('AI Mosquito Tracker (Dual Camera)', result)
+                    cv2.imshow('AI 蚊子追蹤系統 (雙目攝像頭)', result)
                     # 可選：顯示左右攝像頭原始畫面
-                    # cv2.imshow('Left Camera', left_frame)
-                    # cv2.imshow('Right Camera', right_frame)
+                    # cv2.imshow('左攝像頭', left_frame)
+                    # cv2.imshow('右攝像頭', right_frame)
 
                 except Exception as loop_error:
                     logger.error(f"主循環發生異常: {loop_error}")
