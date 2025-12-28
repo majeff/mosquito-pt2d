@@ -85,11 +85,12 @@ python python/label_samples.py
 **Notebook 包含的步驟**：
 - 掛載 Google Drive
 - 安裝訓練環境
-- 準備數據集（80/20 分割）
+- 準備數據集（80/20 分割，預設自動使用 `relocated/` 最新一批樣本）
 - 訓練模型（50 epochs）
 - 評估結果（mAP/精確率/召回率）
 - 保存模型到 Google Drive
 - 查看訓練曲線
+
 ---
 
 ### 步驟 3: 部署新模型

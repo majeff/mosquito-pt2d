@@ -99,13 +99,11 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
     - For subsequent manual review and model retraining
     - Disk usage monitoring (auto-pause when exceeds 20%)
     - Smart filenames with timestamp and confidence information
-- 🔧 **Model improvement tools** (v2.4 new):
-  - `label_samples.py`: Interactive sample annotation tool
-  - `prepare_dataset.py`: YOLO dataset preparation script
-  - `train_model.py`: Model fine-tuning training script
-  - `evaluate_model.py`: Model performance evaluation tool
-  - `compare_models.py`: Old vs new model comparison tool
-  - Complete workflow: Collect → Label → Train → Evaluate → Deploy
+- 🔧 **Model improvement tools** (simplified):
+    - `python/label_samples.py`: Interactive sample annotation + relocation to Drive
+    - `mosquito_training_colab.ipynb`: Google Colab training notebook (GPU)
+    - `python/deploy_model.py`: One-click deploy + ONNX/RKNN export
+    - Workflow: Collect → Label → Train in Colab → Deploy
 - 🎯 **Intelligent tracking**:
   - AI detects mosquito → Automatically switches to tracking mode
   - Real-time offset calculation and pan-tilt control for target alignment
@@ -1230,13 +1228,11 @@ Complete Nginx configuration examples are included in the documentation. For mor
 
 ### 🔧 Model Improvement Tools
 
-| Script | Description |
-|--------|-------------|
-| [python/label_samples.py](python/label_samples.py) | Interactive sample annotation tool |
-| [python/prepare_dataset.py](python/prepare_dataset.py) | Convert labeled samples to YOLO format |
-| [python/train_model.py](python/train_model.py) | Fine-tune model with collected samples |
-| [python/evaluate_model.py](python/evaluate_model.py) | Evaluate model performance metrics |
-| [python/compare_models.py](python/compare_models.py) | Compare old vs new model performance |
+| Item | Description |
+|------|-------------|
+| [python/label_samples.py](python/label_samples.py) | Interactive sample annotation + relocation to Drive |
+| [mosquito_training_colab.ipynb](mosquito_training_colab.ipynb) | Google Colab training (uses latest relocated samples) |
+| [python/deploy_model.py](python/deploy_model.py) | Deploy new model; export ONNX/RKNN with auto defaults |
 
 ### 📁 Code Files
 
