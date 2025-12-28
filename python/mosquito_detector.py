@@ -252,11 +252,11 @@ class MosquitoDetector:
         try:
             # 計算已儲存的樣本數（.jpg 檔案數）
             sample_count = len(list(self.save_dir.glob("*.jpg")))
-            
+
             if sample_count >= self.max_samples:
                 logger.warning(f"⚠ 已儲存樣本數已達上限 ({sample_count}/{self.max_samples})，暫停儲存")
                 return False
-            
+
             return True
         except Exception as e:
             logger.error(f"無法檢查樣本數: {e}")
@@ -265,29 +265,29 @@ class MosquitoDetector:
     def _is_frame_duplicate(self, frame: np.ndarray) -> bool:
         """
         檢查當前畫面是否與上次儲存的畫面重複
-        
+
         Args:
             frame: 當前影像
-            
+
         Returns:
             True: 畫面重複
             False: 畫面不重複
         """
         import hashlib
         import time
-        
+
         # 檢查時間間隔，距離上次儲存是否超過 save_interval
         current_time = time.time()
         if current_time - self.last_save_time < self.save_interval:
             return True  # 時間間隔未達到，視為重複
-        
+
         # 計算當前畫面的雜湊值
         frame_hash = hashlib.md5(frame.tobytes()).hexdigest()
-        
+
         # 與上次儲存畫面比較
         if self.last_saved_hash == frame_hash:
             return True  # 內容重複
-        
+
         self.last_saved_hash = frame_hash
         self.last_save_time = current_time
         return False
