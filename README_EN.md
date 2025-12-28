@@ -198,7 +198,7 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 |-----------|---------------|----------|------|
 | Arduino Board | Nano | 1 |  |
 | **2D Pan-Tilt** | Metal/Plastic | 1 | With servo mounts, camera support |
-| **Bus Servos** | LX-16A/SCS15/HTS | 2 | Pan & Tilt axis, serial servos |
+| **Bus Servos** | SP-15D/SP-15S | 2 | Pan & Tilt axis, serial servos |
 | Servo Power | **6V-8.4V / 2A** | 1 | Recommended 7.4V Li-Po battery |
 
 ### Laser Marking System
@@ -438,7 +438,7 @@ Use manufacturer's debugging software or code to confirm servo IDs:
 ```cpp
 // Serial configuration
 #define SERIAL_BAUDRATE     115200    // Host serial baud rate
-#define SERVO_BAUDRATE      115200    // Servo bus baud rate (LX-16A: 115200, SCS: 9600/1000000)
+#define SERVO_BAUDRATE      115200    // Servo bus baud rate (SP-15D/SP-15S: 115200)
 
 // Servo IDs (system auto-scans, can also be manually specified)
 #define DEFAULT_PAN_SERVO_ID    1     // Pan axis servo ID (default)

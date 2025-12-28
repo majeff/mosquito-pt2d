@@ -189,7 +189,7 @@
 |-----|------|------|------|
 | Arduino 開發板 | Nano | 1 |  |
 | **2D 雲台支架** | 金屬或塑膠 | 1 | 含舵機安裝位，承載攝像頭 |
-| **總線舵機** | LX-16A/SCS15/HTS | 2 | Pan & Tilt 軸，串口舵機 |
+| **總線舵機** | SP-15D/SP-15S | 2 | Pan & Tilt 軸，串口舵機 |
 | 舵機電源 | **6V-8.4V / 2A** | 1 | 推薦 7.4V 鋰電池 |
 
 ### 雷射標記系統
@@ -429,7 +429,7 @@ DEFAULT_LASER_COOLDOWN = 0.5             # 雷射冷卻時間（秒）
 ```cpp
 // 串口配置
 #define SERIAL_BAUDRATE     115200    // 上位機串口波特率
-#define SERVO_BAUDRATE      115200    // 舵機總線波特率（LX-16A: 115200, SCS: 9600/1000000）
+#define SERVO_BAUDRATE      115200    // 舵機總線波特率（SP-15D/SP-15S: 115200）
 
 // 舵機 ID（系統會自動掃描，也可手動指定）
 #define DEFAULT_PAN_SERVO_ID    1     // Pan 軸舵機 ID（預設值）
