@@ -90,74 +90,44 @@ python python/label_samples.py
 - 評估結果（mAP/精確率/召回率）
 - 保存模型到 Google Drive
 - 查看訓練曲線
+- **一鍵生成所有平台模型格式**：
+  - ONNX (通用格式)
+  - RKNN (Orange Pi 5)
+  - BIN (RDK X5)
 
 ---
 
 ### 步驟 3: 部署新模型
 
-等待 Google Drive 本地同步完成後，根據您的硬體平台選擇對應的部署方式：
-
-#### 🔹 Orange Pi 5（自動部署）
-
-執行單一 Python 腳本（自動導出 ONNX 與 RKNN）：
-
-```sh
-python python/deploy_model.py
-# 預設目標由系統自動判斷（Linux 部署機）；可覆寫：
-python python/deploy_model.py --imgsz 640 --rknn-target rk3588
-```
-
-#### 🔹 RDK X5（手動轉換）
-
-RDK X5 需要額外的手動步驟將 ONNX 模型轉換為 BIN 格式：
+等待 Google Drive 本地同步完成後，執行部署腳本：
 
 ```bash
-# 1. 首先導出 ONNX 格式（在本地或 Orange Pi 5）
-python python/deploy_model.py --skip-rknn
-
-# 2. 在 RDK X5 上使用 hb_mapper 轉換
-# 參考：https://developer.d-robotics.cc/rdk_doc/Quick_start/install_os/
-cd /opt/horizon/hb_mapper
-
-# 創建配置文件 yolov8_config.yaml
-cat > yolov8_config.yaml << EOF
-model_parameters:
-  onnx_model: 'models/mosquito_yolov8.onnx'
-  march: 'bayes-e'
-  layer_out_dump: False
-  working_dir: 'model_output'
-  output_model_file_prefix: 'mosquito_yolov8'
-input_parameters:
-  input_name: 'images'
-  input_type_rt: 'nv12'
-  input_layout_rt: 'NHWC'
-  input_type_train: 'rgb'
-  input_layout_train: 'NCHW'
-  norm_type: 'data_scale'
-  scale_value: 0.003921568627451
-  input_shape: '1x3x640x640'
-calibration_parameters:
-  cal_data_dir: './calibration_data'
-  cal_data_type: 'float32'
-  calibration_type: 'default'
-compiler_parameters:
-  compile_mode: 'latency'
-  debug: False
-  optimize_level: 'O3'
-EOF
-
-# 執行轉換
-./hb_mapper makertbin --config yolov8_config.yaml
-
-# 3. 複製生成的 BIN 模型
-cp model_output/mosquito_yolov8.bin ~/mosquito-pt2d/models/
+cd d:/Workspaces/mosquito-pt2d  # 或您的專案路徑
+python python/deploy_model.py
 ```
 
+**自動執行流程**:
+1. ✅ 備份舊模型（如存在）
+2. ✅ 從 Google Drive 複製所有模型到 `models/` 目錄:
+   - `mosquito_yolov8.pt` (PyTorch 原始模型)
+   - `mosquito_yolov8.onnx` (通用格式)
+   - `mosquito_yolov8.rknn` (Orange Pi 5 專用)
+   - `mosquito_yolov8.bin` (RDK X5 專用)
+3. ✅ 系統自動選擇對應平台的模型格式進行推理
+
+**說明**:
+- 所有模型格式已在 Colab 中生成完成
+- `deploy_model.py` 只負責複製文件，無需額外轉換
+- 模型自動檢測機制：
+  - Orange Pi 5 (RK3588) → 優先使用 `.rknn`
+  - RDK X5 (Bayes-e) → 優先使用 `.bin`
+  - 其他平台 → 使用 `.onnx` (CPU 推理)
+
 **部署檢查清單**：
-- [ ] 已備份舊模型
-- [ ] 新模型已複製到 `models/` 目錄
-- [ ] Orange Pi 5: 已轉換 ONNX + RKNN 格式
-- [ ] RDK X5: 已轉換 ONNX + BIN 格式
+- [ ] Google Drive 已同步完成
+- [ ] 執行 `python/deploy_model.py` 成功
+- [ ] `models/` 目錄包含所需格式模型
+- [ ] 測試推理系統正常運作
 - [ ] 測試新模型效果
 
 ---
@@ -166,38 +136,36 @@ cp model_output/mosquito_yolov8.bin ~/mosquito-pt2d/models/
 
 ### 支援的平台與模型格式
 
-| 平台 | 推理引擎 | 模型格式 | 硬體加速 | 典型 FPS (640×640) |
-|------|---------|---------|---------|-------------------|
-| **RDK X5** | `hobot_dnn` | `.bin` | BPU (Bayes-e, 10 TOPS) | ~30-60 FPS |
-| **Orange Pi 5** | `rknnlite` | `.rknn` | NPU (RK3588, 6 TOPS) | ~25-50 FPS |
+| 平台 | 推理引擎 | 模型格式 | 硬體加速 | 典型 FPS (640×640) | 模型生成 |
+|------|---------|---------|---------|-------------------|----------|
+| **RDK X5** | `hobot_dnn` | `.bin` | BPU (Bayes-e, 10 TOPS) | ~30-60 FPS | Colab 自動生成 ✅ |
+| **Orange Pi 5** | `rknnlite` | `.rknn` | NPU (RK3588, 6 TOPS) | ~25-50 FPS | Colab 自動生成 ✅ |
+| **通用 (CPU)** | `onnxruntime` | `.onnx` | CPU | ~1-5 FPS | Colab 自動生成 ✅ |
 
-### RDK X5 專用配置
+### 統一工作流程
 
-#### 安裝 hobot_dnn
-```bash
-# RDK X5 Ubuntu 20.04
-pip3 install hobot_dnn
-```
+**訓練與轉換** (Colab):
+1. 執行 `mosquito_training_colab.ipynb`
+2. 訓練完成後自動生成所有格式 (ONNX/RKNN/BIN)
+3. 等待 Google Drive 同步
 
-#### 驗證 BPU 可用性
+**部署** (本地):
+1. 執行 `python python/deploy_model.py`
+2. 自動複製所有模型到 `models/` 目錄
+3. 系統自動選擇對應平台格式
+
+### 模型自動選擇機制
+
+系統會按照以下優先順序自動選擇模型：
+
 ```python
-import hobot_dnn.pyeasy_dnn as dnn
-
-# 載入模型
-models = dnn.load("models/mosquito_yolov8.bin")
-print(f"輸入數量: {len(models[0].inputs)}")
-print(f"輸出數量: {len(models[0].outputs)}")
+# mosquito_detector.py 自動搜尋邏輯
+優先順序:
+1. .bin (RDK X5 BPU) ← 最快 (如可用)
+2. .rknn (Orange Pi 5 NPU) ← 次快 (如可用)
+3. .onnx (CPU) ← 備用
+4. .pt (PyTorch) ← 最慢 (僅訓練用)
 ```
-
-#### 已知限制
-1. **模型轉換**: RDK X5 的 BIN 模型需要在 RDK X5 本機使用 `hb_mapper` 轉換
-2. **NV12 格式**: BPU 原生支援 NV12 輸入格式，系統自動處理轉換
-3. **工具鏈**: 需要安裝 RDK X5 OpenExplore 工具鏈
-
-#### 參考資源
-- [RDK X5 官方文檔](https://developer.d-robotics.cc/rdk_doc)
-- [hobot_dnn API](https://github.com/D-Robotics/hobot_dnn)
-- [YOLO OpenExplore 工具鏈](https://github.com/D-Robotics/oe-toolchain)
 
 ---
 
