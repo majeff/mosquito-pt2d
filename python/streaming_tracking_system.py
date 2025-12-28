@@ -34,7 +34,8 @@ from mosquito_tracker import MosquitoTracker
 from pt2d_controller import PT2DController
 from depth_estimator import DepthEstimator
 from config import (DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ,
-                   DEFAULT_DEVICE_IP, DEFAULT_EXTERNAL_URL)
+                   DEFAULT_DEVICE_IP, DEFAULT_EXTERNAL_URL,
+                   DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL)
 import cv2
 import numpy as np
 import sys
@@ -98,7 +99,8 @@ class StreamingTrackingSystem:
             save_uncertain_samples=save_samples,
             uncertain_conf_range=sample_conf_range,
             save_dir="uncertain_samples",
-            max_disk_usage_percent=20.0,
+            max_samples=DEFAULT_MAX_SAMPLES,
+            save_interval=DEFAULT_SAVE_INTERVAL,
             save_annotations=True,
             save_full_frame=False
         )

@@ -22,6 +22,7 @@ import cv2
 import sys
 from pathlib import Path
 from mosquito_detector import MosquitoDetector
+from config import DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL
 
 def test_uncertain_sample_saving():
     """測試中等信心度樣本儲存功能"""
@@ -35,12 +36,14 @@ def test_uncertain_sample_saving():
     camera_id = 0  # 攝像頭 ID
     save_dir = "uncertain_samples"
     uncertain_range = (0.35, 0.65)  # 信心度範圍
-    max_disk_usage = 20.0  # 最大磁碟使用率 20%
+    max_samples = DEFAULT_MAX_SAMPLES  # 最大存儲照片數量
+    save_interval = DEFAULT_SAVE_INTERVAL  # 儲存時間間隔（秒）
 
     print(f"攝像頭 ID: {camera_id}")
     print(f"儲存目錄: {save_dir}")
     print(f"信心度範圍: {uncertain_range[0]:.2f} - {uncertain_range[1]:.2f}")
-    print(f"最大磁碟使用率: {max_disk_usage}%")
+    print(f"最大存儲數量: {max_samples} 張")
+    print(f"儲存時間間隔: {save_interval} 秒")
     print()
 
     # 初始化檢測器（啟用樣本儲存）
@@ -52,7 +55,8 @@ def test_uncertain_sample_saving():
             save_uncertain_samples=True,
             uncertain_conf_range=uncertain_range,
             save_dir=save_dir,
-            max_disk_usage_percent=max_disk_usage,
+            max_samples=max_samples,
+            save_interval=save_interval,
             save_annotations=True,      # 自動生成 YOLO 標註文件
             save_full_frame=False       # 僅儲存裁剪區域
         )
@@ -107,9 +111,9 @@ def test_uncertain_sample_saving():
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
             info_y += 30
-            status = "PAUSED" if detector.storage_paused else "ACTIVE"
-            color = (0, 0, 255) if detector.storage_paused else (0, 255, 0)
-            cv2.putText(result, f"Storage: {status}", (10, info_y),
+            status = "FULL" if detector.save_counter >= detector.max_samples else "ACTIVE"
+            color = (0, 0, 255) if detector.save_counter >= detector.max_samples else (0, 255, 0)
+            cv2.putText(result, f"Storage: {status} ({detector.save_counter}/{detector.max_samples})", (10, info_y),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
             # 標記檢測結果
@@ -142,17 +146,15 @@ def test_uncertain_sample_saving():
                 break
             elif key == ord('s'):
                 print(f"\n=== 儲存統計 ===")
-                print(f"已儲存樣本數: {detector.save_counter}")
+                print(f"已儲存樣本數: {detector.save_counter}/{detector.max_samples}")
                 print(f"儲存目錄: {detector.save_dir}")
-                print(f"儲存狀態: {'暫停' if detector.storage_paused else '啟用'}")
+                print(f"時間間隔: {detector.save_interval} 秒")
                 if Path(save_dir).exists():
                     files = list(Path(save_dir).glob("*.jpg"))
                     print(f"目錄中檔案數: {len(files)}")
                 print()
             elif key == ord('p'):
-                detector.storage_paused = not detector.storage_paused
-                status = "已暫停" if detector.storage_paused else "已恢復"
-                print(f"樣本儲存 {status}")
+                print(f"樣本儲存目前狀態: {detector.save_counter}/{detector.max_samples} 已儲存")
 
     except KeyboardInterrupt:
         print("\n\n用戶中斷（Ctrl+C）")

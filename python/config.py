@@ -94,8 +94,14 @@ DEFAULT_UNCERTAIN_CONF_RANGE = (0.35, 0.65)
 # 樣本儲存目錄
 DEFAULT_SAVE_DIR = "uncertain_samples"
 
-# 最大磁碟使用率百分比
-DEFAULT_MAX_DISK_USAGE_PERCENT = 20.0
+# 最大存儲照片數量（改為數量限制而非磁碟使用率）
+DEFAULT_MAX_SAMPLES = 1000
+
+# 儲存時間間隔（秒）- 避免頻繁存同一位置的照片
+DEFAULT_SAVE_INTERVAL = 3.0
+
+# 上一次儲存的照片雜湊值 - 用於避免儲存重複的照片
+DEFAULT_LAST_SAVED_HASH = None
 
 # ============================================
 # 樣本標註參數

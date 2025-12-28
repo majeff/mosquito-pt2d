@@ -69,7 +69,8 @@ detector = MosquitoDetector(
     save_uncertain_samples=True,          # 啟用儲存功能
     uncertain_conf_range=(0.35, 0.65),   # 信心度範圍
     save_dir="uncertain_samples",         # 儲存目錄
-    max_disk_usage_percent=20.0,         # 最大磁碟使用率 20%
+    max_samples=1000,                     # 最多存 1000 張照片
+    save_interval=3.0,                    # 每 3 秒最多存一次
     save_annotations=True,                # 自動生成 YOLO 標註文件
     save_full_frame=False                 # 僅儲存裁剪區域
 )
@@ -81,7 +82,8 @@ detections, result = detector.detect(frame)
 **功能說明**：
 - 自動儲存信心度在 0.35-0.65 範圍內的檢測結果
 - **自動生成 YOLO 格式標註文件**（.txt），可直接用於再訓練
-- 同步檢查磁碟使用率，超過 20% 自動暫停儲存
+- 最多儲存 1000 張照片，超過自動停止
+- 避免頻繁存同一位置的照片（3 秒內只存一次）
 - 每 10 張圖片輸出一次統計資訊
 - 圖片命名格式：`mosquito_時間戳_conf信心度.jpg`
 - 標註檔案格式：`mosquito_時間戳_conf信心度.txt`（YOLO 格式）

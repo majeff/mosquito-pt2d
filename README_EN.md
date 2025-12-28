@@ -98,7 +98,7 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
   - **Automatic uncertain sample saving** (v2.3.1 new):
     - Automatically collects detection samples with medium confidence (0.35-0.65)
     - For subsequent manual review and model retraining
-    - Disk usage monitoring (auto-pause when exceeds 20%)
+    - Max 1000 photos with 3-second interval to avoid duplicate saves
     - Smart filenames with timestamp and confidence information
 - 🔧 **Model improvement tools** (simplified):
     - `python/label_samples.py`: Interactive sample annotation + relocation to Drive

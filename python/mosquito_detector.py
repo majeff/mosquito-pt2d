@@ -31,6 +31,8 @@ from config import (
     DEFAULT_IOU_THRESHOLD,
     DEFAULT_DETECTION_MODE,
     DEFAULT_TILE_OVERLAP,
+    DEFAULT_MAX_SAMPLES,
+    DEFAULT_SAVE_INTERVAL,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -69,7 +71,8 @@ class MosquitoDetector:
                  save_uncertain_samples: bool = False,
                  uncertain_conf_range: Tuple[float, float] = (0.35, 0.65),
                  save_dir: str = "uncertain_samples",
-                 max_disk_usage_percent: float = 20.0,
+                 max_samples: int = DEFAULT_MAX_SAMPLES,
+                 save_interval: float = DEFAULT_SAVE_INTERVAL,
                  save_annotations: bool = True,
                  save_full_frame: bool = False):
         """
@@ -91,7 +94,8 @@ class MosquitoDetector:
             save_uncertain_samples: 是否儲存信心度中等的樣本圖片以便後續檢驗與再訓練
             uncertain_conf_range: 中等信心度範圍 (min, max)，預設 (0.35, 0.65)
             save_dir: 儲存中等信心度樣本的目錄
-            max_disk_usage_percent: 最大磁碟使用率百分比，超過則暫停儲存，預設 20%
+            max_samples: 最大存儲照片數量，預設 1000 張
+            save_interval: 儲存時間間隔（秒），避免頻繁存同一位置的照片，預設 3.0 秒
             save_annotations: 是否自動生成 YOLO 格式標註文件 (.txt)，預設 True
             save_full_frame: 是否儲存完整畫面（True）或僅裁剪檢測區域（False），預設 False
         """
@@ -117,18 +121,21 @@ class MosquitoDetector:
         self.save_uncertain_samples = save_uncertain_samples
         self.uncertain_conf_range = uncertain_conf_range
         self.save_dir = Path(save_dir)
-        self.max_disk_usage_percent = max_disk_usage_percent
+        self.max_samples = max_samples
+        self.save_interval = save_interval
         self.save_annotations = save_annotations
         self.save_full_frame = save_full_frame
         self.save_counter = 0
-        self.storage_paused = False
+        self.last_save_time = 0.0  # 上次儲存時間戳
+        self.last_saved_hash = None  # 上次儲存照片的雜湊值
 
         # 創建儲存目錄
         if self.save_uncertain_samples:
             self.save_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"中等信心度樣本儲存目錄: {self.save_dir}")
             logger.info(f"信心度範圍: {uncertain_conf_range[0]:.2f} - {uncertain_conf_range[1]:.2f}")
-            logger.info(f"最大磁碟使用率: {max_disk_usage_percent}%")
+            logger.info(f"最大存儲數量: {max_samples} 張")
+            logger.info(f"儲存時間間隔: {save_interval} 秒")
             logger.info(f"自動標註: {'啟用' if save_annotations else '停用'}")
             logger.info(f"儲存模式: {'完整畫面' if save_full_frame else '裁剪區域'}")
 
@@ -234,29 +241,56 @@ class MosquitoDetector:
         self.backend = 'rknn'
         logger.info("✓ RKNN NPU 加速已啟用")
 
-    def _check_disk_usage(self) -> bool:
+    def _check_sample_count(self) -> bool:
         """
-        檢查儲存目錄所在磁碟的使用率
+        檢查已儲存樣本數是否達到上限
 
         Returns:
             True: 可以繼續儲存
-            False: 磁碟使用率超過限制，應暫停儲存
+            False: 已達到最大數量限制，應暫停儲存
         """
         try:
-            import shutil
-            stats = shutil.disk_usage(self.save_dir)
-            used_percent = (stats.used / stats.total) * 100
-
-            if used_percent >= self.max_disk_usage_percent:
-                if not self.storage_paused:
-                    logger.warning(f"⚠ 磁碟使用率已達 {used_percent:.1f}% (限制 {self.max_disk_usage_percent}%)，暫停儲存樣本")
-                    self.storage_paused = True
+            # 計算已儲存的樣本數（.jpg 檔案數）
+            sample_count = len(list(self.save_dir.glob("*.jpg")))
+            
+            if sample_count >= self.max_samples:
+                logger.warning(f"⚠ 已儲存樣本數已達上限 ({sample_count}/{self.max_samples})，暫停儲存")
                 return False
-
+            
             return True
         except Exception as e:
-            logger.error(f"無法檢查磁碟使用率: {e}")
+            logger.error(f"無法檢查樣本數: {e}")
             return False
+
+    def _is_frame_duplicate(self, frame: np.ndarray) -> bool:
+        """
+        檢查當前畫面是否與上次儲存的畫面重複
+        
+        Args:
+            frame: 當前影像
+            
+        Returns:
+            True: 畫面重複
+            False: 畫面不重複
+        """
+        import hashlib
+        import time
+        
+        # 檢查時間間隔，距離上次儲存是否超過 save_interval
+        current_time = time.time()
+        if current_time - self.last_save_time < self.save_interval:
+            return True  # 時間間隔未達到，視為重複
+        
+        # 計算當前畫面的雜湊值
+        frame_hash = hashlib.md5(frame.tobytes()).hexdigest()
+        
+        # 與上次儲存畫面比較
+        if self.last_saved_hash == frame_hash:
+            return True  # 內容重複
+        
+        self.last_saved_hash = frame_hash
+        self.last_save_time = current_time
+        return False
 
     def _save_uncertain_sample(self, frame: np.ndarray, detection: Dict):
         """
@@ -266,11 +300,12 @@ class MosquitoDetector:
             frame: 原始影像
             detection: 檢測結果（含 bbox, confidence 等資訊）
         """
-        if self.storage_paused:
+        # 檢查樣本數是否達到上限
+        if not self._check_sample_count():
             return
 
-        # 檢查磁碟使用率
-        if not self._check_disk_usage():
+        # 檢查時間間隔和內容重複
+        if self._is_frame_duplicate(frame):
             return
 
         try:
