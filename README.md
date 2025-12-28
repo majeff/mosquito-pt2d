@@ -1217,7 +1217,7 @@ location /nginx_status {
 |------|------|
 | [python/README.md](python/README.md) | AI 檢測與追蹤整合指南 |
 | [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ 影像串流指南（手機觀看） |
-| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | 蚊子檢測模型說明與下載 |
+| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | ⭐ 蚊子檢測模型持續改進指南（樣本收集→訓練） |
 | [docs/python_README.md](docs/python_README.md) | Python 模塊導航文檔 |
 | [python/README.md](python/README.md) | Python 程式目錄說明 |
 

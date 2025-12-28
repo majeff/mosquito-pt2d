@@ -1,12 +1,41 @@
 # 文件與程式一致性檢查報告
 
-**檢查日期**: 2025-12-25
-**最後更新**: 2025-12-25（固件穩定性改進）
+**檢查日期**: 2025-12-28
+**最後更新**: 2025-12-28（即時觀測升級 - v2.4.0）
 **專案**: mosquito-pt2d - 蚊子追蹤 AI 雲台系統
 
 ---
 
 ## 📝 最新變更記錄
+
+### 2025-12-27 即時觀測升級（v2.4.0）
+
+#### 📱 新增功能
+1. **影像串流系統**：
+   - HTTP-MJPEG 串流伺服器（`streaming_server.py`）
+   - Flask Web 介面即時觀看
+   - 手機遠端觀測支持
+
+2. **整合程式**：
+   - 新增 `streaming_tracking_system.py` - AI+追蹤+串流一體化
+   - 雙目攝像頭三種串流模式（並排/單一/獨立）
+   - 實時統計資訊顯示（FPS、檢測數、追蹤狀態）
+
+3. **深度估測**：
+   - 新增 `depth_estimator.py` - 立體視覺深度計算
+   - 使用 Semi-Global Block Matching (SGBM) 算法
+   - 顯示蚊子距離（厘米）在檢測框下方
+
+4. **Web 介面**：
+   - 實時視頻流顯示
+   - 系統狀態監控
+   - 統計數據儀表板
+
+#### 📚 文檔更新
+- ✅ 新增 `STREAMING_GUIDE.md` - 完整串流配置指南
+- ✅ 更新 `python_README.md` - 添加 depth_estimator 模塊文檔
+- ✅ 更新 `README.md` - 版本號 v2.4.0，即時觀測特點
+- ✅ 新增「專案版本信息」表格，清晰顯示各組件版本
 
 ### 2025-12-25 固件穩定性重構（v2.3.0）
 
@@ -234,14 +263,30 @@ imgsz: 輸入影像大小，預設 320（Orange Pi 5 推薦）
 | 串口通訊 | test_serial_protocol.py | 所有命令格式 | ✅ |
 | 追蹤邏輯 | test_tracking_logic.py | 超時機制 | ✅ |
 | 多目標追蹤 | test_multi_target_tracking.py | 4個場景 | ✅ |
-| AI 檢測器 | ❌ 缺少 | - | ⚠️ |
-| 雙目相機 | ❌ 缺少 | - | ⚠️ |
-| 雷射控制 | ❌ 缺少 | - | ⚠️ |
+| AI 檢測器 | test_mosquito_detector.py | 模型推理、信心度過濾 | ✅ |
+| 雙目相機 | test_stereo_camera.py | 立體視覺、深度計算 | ✅ |
+| 雷射控制 | test_laser_controller.py | 控制指令、冷卻機制 | ✅ |
 
-**建議**:
-1. 添加 `test_mosquito_detector.py` 測試 AI 檢測功能
-2. 添加 `test_stereo_camera.py` 測試雙目相機
-3. 添加 `test_laser_controller.py` 測試雷射控制
+**新增測試**:
+
+1. **test_mosquito_detector.py** - AI 檢測單元測試
+   - ✅ 模型載入測試（RKNN/ONNX/PyTorch 自動選擇）
+   - ✅ 檢測結果驗證（信心度過濾 0.4）
+   - ✅ 多目標檢測（同時檢測多隻蚊子）
+   - ✅ 性能基準測試（FPS/延遲）
+
+2. **test_stereo_camera.py** - 雙目相機單元測試
+   - ✅ 相機初始化測試（640x480 解析度）
+   - ✅ 深度估測驗證（SGBM 算法）
+   - ✅ 深度計算精度檢查（0.5-5m 範圍）
+   - ✅ 畸變矯正測試
+
+3. **test_laser_controller.py** - 雷射控制單元測試
+   - ✅ 控制指令測試（開啟/關閉）
+   - ✅ 冷卻機制驗證（0.5 秒間隔）
+   - ✅ 異常處理測試
+
+**結論**: ✅ 所有核心模塊測試已覆蓋
 
 ---
 
@@ -345,14 +390,14 @@ self.position_update_interval = 0.5 # 位置更新間隔（秒）
 - ✅ **AI 檢測器預設參數已修正為一致**
 
 **持續改進方向**:
-- ℹ️ 補充完整參數文檔
-- ℹ️ 添加更多單元測試覆蓋
+- ✅ **補充完整參數文檔** - 已完成
+- ✅ **添加更多單元測試覆蓋** - 已完成
 
 ### 建議修正優先級
 
 1. ~~**立即修正**: mosquito_detector.py 預設參數~~ ✅ **已完成**
-2. **近期改善**: 補充完整參數文檔
-3. **長期規劃**: 添加更多單元測試
+2. ~~**近期改善**: 補充完整參數文檔~~ ✅ **已完成**
+3. ~~**長期規劃**: 添加更多單元測試~~ ✅ **已完成**
 
 ---
 
@@ -369,16 +414,22 @@ self.position_update_interval = 0.5 # 位置更新間隔（秒）
 - [x] 在 README.md 補充所有 mosquito_tracker.py 參數（冷卻時間）
 - [x] 在 README.md 添加「完整文檔索引」章節
 - [x] 確保所有文件至少被引用一次
+- [x] 添加專案整體版本號到 README.md（v2.4.0）
+- [x] 更新 CONSISTENCY_CHECK.md 到 v2.4.0
+- [x] 添加 `test_mosquito_detector.py` - AI 檢測單元測試
+- [x] 添加 `test_stereo_camera.py` - 雙目相機單元測試
+- [x] 添加 `test_laser_controller.py` - 雷射控制單元測試
 
-### 📝 持續改進建議（非必要）
+### 📝 後續持續改進建議
 
-- [ ] 創建 `test_mosquito_detector.py` - AI 檢測單元測試
-- [ ] 創建 `test_stereo_camera.py` - 雙目相機單元測試
-- [ ] 創建 `test_laser_controller.py` - 雷射控制單元測試
-- [ ] 添加專案整體版本號到 README.md
+- [ ] 實現高階集成測試（多組件協作）
+- [ ] 添加性能基準測試套件
+- [ ] 實現自動化 CI/CD 測試流程
+- [ ] 添加深度學習模型驗證測試
 
 ---
 
+**最後更新**: 2025-12-28
 **檢查人員**: GitHub Copilot
 **檢查工具**: 自動代碼掃描 + 人工審核
 **下次檢查建議**: 每次重大功能更新後

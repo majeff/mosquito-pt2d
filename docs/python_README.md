@@ -73,16 +73,16 @@ pip3 install rknn_toolkit2-1.5.0-cp38-cp38-linux_aarch64.whl
 # 建立模型目錄
 mkdir -p models
 
-# 下載蚊子檢測模型
-# 參見 MOSQUITO_MODELS.md 獲取模型下載來源
-# 範例：從 Roboflow / Kaggle / GitHub 下載
+# 蚊子檢測模型改進與訓練
+# 參見 MOSQUITO_MODELS.md 獲取模型改進指南
+# 預設模型已包含在 models/ 目錄中
 
-# 將模型放置到 models/ 目錄
+# 將自訓練的新模型放置到 models/ 目錄
 # models/mosquito_yolov8.pt
 ```
 
 **模型資源:**
-- 參見 [MOSQUITO_MODELS.md](MOSQUITO_MODELS.md) - 詳細的模型下載指南
+- 參見 [MOSQUITO_MODELS.md](MOSQUITO_MODELS.md) - 詳細的模型持續改進與訓練指南
 - 參見 [../python/README.md](../python/README.md) - AI 檢測與追蹤整合指南
 
 ### 3. 硬體連接
@@ -244,8 +244,8 @@ python mosquito_detector.py
 - `q`: 退出
 - `s`: 儲存當前幀
 
-**模型來源:**
-- 參見 [MOSQUITO_MODELS.md](MOSQUITO_MODELS.md) 獲取現有蚊子檢測模型
+**模型資源:**
+- 參見 [MOSQUITO_MODELS.md](MOSQUITO_MODELS.md) 了解模型改進與訓練
 - 參見 [../python/README.md](../python/README.md) 了解詳細配置
 
 ---

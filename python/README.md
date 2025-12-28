@@ -28,7 +28,7 @@
 
 - **[Python 完整使用說明](../docs/python_README.md)** - Python 端完整使用指南
 - **[AI 檢測與追蹤整合指南](README.md)** - 本目錄文件（取代 AI_DETECTION_GUIDE）
-- **[蚊子檢測模型資源](../docs/MOSQUITO_MODELS.md)** - 模型下載和訓練指南
+- **[蚊子檢測模型資源](../docs/MOSQUITO_MODELS.md)** - 模型持續改進與訓練指南
 - **[Serial 通訊檢查](../docs/SERIAL_CHECK_SUMMARY.md)** - Serial 通訊格式檢查結果
 
 ## 📦 快速開始
