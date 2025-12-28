@@ -105,7 +105,7 @@ This project incorporates the following third-party libraries and components:
   Homepage: https://www.ZL-robot.com/
   Copyright: 杭州众灵科技
   License: Reference implementation (provided as-is for hardware control)
-  Notes: The docs/pt2d_sample/ directory contains example code and documentation from Hangzhou Zhongling Technology 
+  Notes: The docs/pt2d_sample/ directory contains example code and documentation from Hangzhou Zhongling Technology
          for controlling the ZL-KPZ bus servo control board. These examples include:
          - basic/: Simple examples demonstrating servo control methods
          - uart/: UART communication examples for bus servo commands

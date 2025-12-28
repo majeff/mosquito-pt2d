@@ -224,7 +224,7 @@ class StreamingTrackingSystem:
         # 記錄檢測數量
         if detections:
             self.stats['detections'] += len(detections)
-            
+
             # 🎯 深度估計（如果啟用且有右眼影像）
             if self.depth_estimator and right_frame is not None:
                 for detection in detections:
@@ -297,19 +297,19 @@ class StreamingTrackingSystem:
 
                 if bbox and distance_cm:
                     x1, y1, x2, y2 = bbox
-                    
+
                     # 在檢測框下方顯示距離資訊
                     distance_text = f"{distance_cm:.1f}cm"
                     text_size = cv2.getTextSize(distance_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
                     text_x = x1
                     text_y = y2 + 25
-                    
+
                     # 繪製背景
                     cv2.rectangle(frame,
                                 (text_x, text_y - text_size[1] - 5),
                                 (text_x + text_size[0] + 5, text_y + 5),
                                 (0, 0, 0), -1)
-                    
+
                     # 繪製距離文字（橙色）
                     cv2.putText(frame, distance_text,
                               (text_x + 2, text_y),
