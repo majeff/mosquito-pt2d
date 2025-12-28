@@ -95,53 +95,130 @@ python python/label_samples.py
 
 ### 步驟 3: 部署新模型
 
-等待 Google Drive 本地同步完成後，執行單一 Python 腳本（預設同時導出 ONNX 與 RKNN）：
+等待 Google Drive 本地同步完成後，根據您的硬體平台選擇對應的部署方式：
+
+#### 🔹 Orange Pi 5（自動部署）
+
+執行單一 Python 腳本（自動導出 ONNX 與 RKNN）：
 
 ```sh
 python python/deploy_model.py
 # 預設目標由系統自動判斷（Linux 部署機）；可覆寫：
-python python/deploy_model.py --imgsz 320 --rknn-target rk3588
-# 預設自動量化（從已標註樣本生成 dataset.txt）；如需停用量化：
-python python/deploy_model.py --imgsz 320 --rknn-no-quant
-# 自訂量化清單（覆寫自動生成）：
-python python/deploy_model.py --imgsz 320 --rknn-quant-dataset path/to/dataset.txt
+python python/deploy_model.py --imgsz 640 --rknn-target rk3588
 ```
 
-選項：
-- `--imgsz <int>`：ONNX 導出解析度（預設取自 config.DEFAULT_IMGSZ）
-- `--skip-onnx`：略過 ONNX 導出（僅複製模型）
- - `--export-rknn`：強制導出 RKNN（一般不需使用）
- - `--skip-rknn`：略過 RKNN 導出（預設會導出）
-  - `--rknn-target <str>`：RKNN 目標平台（未提供則自動偵測，否則預設 rk3588）
-  - `--onnx-opset <int>` / `--onnx-dynamic` / `--onnx-half`：覆寫 ONNX 導出參數（依目標平台帶入保守預設）
- - `--rknn-quant-dataset <txt>`：覆寫量化資料集清單（選填）
- - `--rknn-no-quant`：禁用 RKNN 量化（不生成 dataset.txt）
+#### 🔹 RDK X5（手動轉換）
+
+RDK X5 需要額外的手動步驟將 ONNX 模型轉換為 BIN 格式：
+
+```bash
+# 1. 首先導出 ONNX 格式（在本地或 Orange Pi 5）
+python python/deploy_model.py --skip-rknn
+
+# 2. 在 RDK X5 上使用 hb_mapper 轉換
+# 參考：https://developer.d-robotics.cc/rdk_doc/Quick_start/install_os/
+cd /opt/horizon/hb_mapper
+
+# 創建配置文件 yolov8_config.yaml
+cat > yolov8_config.yaml << EOF
+model_parameters:
+  onnx_model: 'models/mosquito_yolov8.onnx'
+  march: 'bayes-e'
+  layer_out_dump: False
+  working_dir: 'model_output'
+  output_model_file_prefix: 'mosquito_yolov8'
+input_parameters:
+  input_name: 'images'
+  input_type_rt: 'nv12'
+  input_layout_rt: 'NHWC'
+  input_type_train: 'rgb'
+  input_layout_train: 'NCHW'
+  norm_type: 'data_scale'
+  scale_value: 0.003921568627451
+  input_shape: '1x3x640x640'
+calibration_parameters:
+  cal_data_dir: './calibration_data'
+  cal_data_type: 'float32'
+  calibration_type: 'default'
+compiler_parameters:
+  compile_mode: 'latency'
+  debug: False
+  optimize_level: 'O3'
+EOF
+
+# 執行轉換
+./hb_mapper makertbin --config yolov8_config.yaml
+
+# 3. 複製生成的 BIN 模型
+cp model_output/mosquito_yolov8.bin ~/mosquito-pt2d/models/
+```
 
 **部署檢查清單**：
 - [ ] 已備份舊模型
 - [ ] 新模型已複製到 `models/` 目錄
-- [ ] 已轉換 ONNX 格式
-- [ ] 已轉換 RKNN 格式（可選）
+- [ ] Orange Pi 5: 已轉換 ONNX + RKNN 格式
+- [ ] RDK X5: 已轉換 ONNX + BIN 格式
 - [ ] 測試新模型效果
+
+---
+
+## 📊 硬體平台比較
+
+### 支援的平台與模型格式
+
+| 平台 | 推理引擎 | 模型格式 | 硬體加速 | 典型 FPS (640×640) |
+|------|---------|---------|---------|-------------------|
+| **RDK X5** | `hobot_dnn` | `.bin` | BPU (Bayes-e, 10 TOPS) | ~30-60 FPS |
+| **Orange Pi 5** | `rknnlite` | `.rknn` | NPU (RK3588, 6 TOPS) | ~25-50 FPS |
+
+### RDK X5 專用配置
+
+#### 安裝 hobot_dnn
+```bash
+# RDK X5 Ubuntu 20.04
+pip3 install hobot_dnn
+```
+
+#### 驗證 BPU 可用性
+```python
+import hobot_dnn.pyeasy_dnn as dnn
+
+# 載入模型
+models = dnn.load("models/mosquito_yolov8.bin")
+print(f"輸入數量: {len(models[0].inputs)}")
+print(f"輸出數量: {len(models[0].outputs)}")
+```
+
+#### 已知限制
+1. **模型轉換**: RDK X5 的 BIN 模型需要在 RDK X5 本機使用 `hb_mapper` 轉換
+2. **NV12 格式**: BPU 原生支援 NV12 輸入格式，系統自動處理轉換
+3. **工具鏈**: 需要安裝 RDK X5 OpenExplore 工具鏈
+
+#### 參考資源
+- [RDK X5 官方文檔](https://developer.d-robotics.cc/rdk_doc)
+- [hobot_dnn API](https://github.com/D-Robotics/hobot_dnn)
+- [YOLO OpenExplore 工具鏈](https://github.com/D-Robotics/oe-toolchain)
 
 ---
 
 ##  完整工作流程圖
 
 ```
-Orange Pi 5 自動收集樣本
+Orange Pi 5 / RDK X5 自動收集樣本
 
 本地電腦: python label_samples.py（標註）
 
 Google Drive 本地同步（上傳樣本 + 模型）
 
-Google Colab: 訓練模型（15-30 分鐘）
+Google Colab: 訓練模型（15-30 分鐘，輸出 .pt）
 
-Google Drive 本地同步（下載新模型）
+Google Drive 本地同步（下載新模型 .pt）
 
-本地電腦: 轉換格式（ONNX/RKNN）
+本地電腦/平台：
+├─ Orange Pi 5: deploy_model.py → ONNX + RKNN（自動）
+└─ RDK X5: deploy_model.py → ONNX，手動 hb_mapper → BIN
 
-Orange Pi 5: 部署測試
+Orange Pi 5 / RDK X5: 部署測試
 ```
 
 ---

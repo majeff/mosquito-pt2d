@@ -152,7 +152,7 @@ python mosquito_tracker.py
 ## 🔗 更多資訊
 
 - [項目根目錄 README](../README.md)
-- [硬體連接說明](../docs/hardware.md)
-- [Orange Pi 5 配置](../docs/orangepi5_hardware.md)
+- [硬體連接說明（包含 RDK X5 配置）](../docs/hardware.md)
+- [蚊子模型訓練與部署（包含 RDK X5 流程）](../docs/MOSQUITO_MODELS.md)
 - [通訊協議說明](../docs/protocol.md)
 - [影像串流指南](../docs/STREAMING_GUIDE.md) - 讓手機觀看即時影像

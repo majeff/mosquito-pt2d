@@ -179,124 +179,36 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 
 ## 🔧 Hardware Requirements
 
-### Main Controller
+**See detailed specs in** [REFERENCE.md - Hardware Specifications](REFERENCE.md#hardware-specifications)
 
-| Component | Specification | Quantity | Note |
-|-----------|---------------|----------|------|
-| **ARM Development Board** | 8GB RAM + NPU | 1 | Main controller for AI image recognition<br>**Recommended Options**:<br>• Orange Pi 5 (RK3588, 6 TOPS NPU)<br>• Radaxa Potato Pi RDK X5 (More affordable)<br>• Radxa ROCK 5B<br>**Must support RKNN NPU acceleration** |
-| Power Supply | 5V/3-4A USB-C | 1 | Board power (adjust per model) |
-
-### Vision System
-
-| Component | Specification | Quantity | Note |
-|-----------|---------------|----------|------|
-| **Dual Cameras** | 1080p USB | 2 | Left and right cameras, field detection |
-
-### Pan-Tilt Control System
-
-| Component | Specification | Quantity | Note |
-|-----------|---------------|----------|------|
-| Arduino Board | Nano | 1 |  |
-| **2D Pan-Tilt** | Metal/Plastic | 1 | With servo mounts, camera support |
-| **Bus Servos** | SP-15D/SP-15S | 2 | Pan & Tilt axis, serial servos |
-| Servo Power | **6V-8.4V / 2A** | 1 | Recommended 7.4V Li-Po battery |
-
-### Laser Marking System
-
-| Component | Specification | Quantity | Note |
-|-----------|---------------|----------|------|
-| **Laser Module** | 1mW Red Laser | 1 | Target marking (safety class)<br>Controlled by Arduino |
+**Quick Checklist**:
+- **ARM Development Board**: RDK X5 (recommended, 10 TOPS BPU) or Orange Pi 5 (6 TOPS NPU)
+- **Dual Cameras**: USB 1080p @60fps (3840×1080 stereo)
+- **Arduino Nano**: Servo and laser control
+- **Servos ×2**: SP-15D/S (15kg·cm, Pan/Tilt axis)
+- **Laser Module**: 5V Red 1mW
+- **Power**: 5V/4A USB-C (board) + 7.4V/2A (servo)
 
 ## 💻 Software Requirements
 
-### ARM Development Board
+**See detailed setup in** [docs/python_README.md](docs/python_README.md) and [REFERENCE.md - Standard Parameters](REFERENCE.md#standard-parameters)
 
-- **OS**: Ubuntu 22.04 LTS (ARM64) or Armbian
-- **Python**: 3.8+ (usually pre-installed)
-- **NPU Support**: RKNN Toolkit Lite 2.x (for NPU acceleration)
-- **Required Packages**:
-  - OpenCV (`opencv-python`)
-  - PySerial (`pyserial`)
-  - NumPy (`numpy`)
-  - RKNN Toolkit Lite (NPU inference)
-
-
+**Quick Setup**:
 ```bash
-# ARM Board Installation
-sudo apt update
-sudo apt install python3-pip python3-opencv
-pip3 install -r python/requirements.txt
+# ARM Board
+sudo apt update && sudo apt install python3-pip python3-opencv git -y
+cd python && pip3 install -r requirements.txt
 
-# Install RKNN Toolkit Lite (version provided by board vendor)
-# Orange Pi 5: Refer to official documentation
-# Radaxa Potato Pi RDK X5: Refer to official SDK
+# Arduino IDE/PlatformIO - Upload firmware
+# See include/config.h and docs/protocol.md
 ```
-
-### Arduino
-
-- [PlatformIO IDE](https://platformio.org/) or [Arduino IDE](https://www.arduino.cc/en/software)
-- USB driver (CH340/CP2102, etc.)
-
-### Development (Optional)
-
-- For development and testing, Windows/Linux PC can be used
-- Python 3.8+
-- Same Python packages
 
 ## 📦 Installation
 
-### 1. Upload Arduino Firmware
-
-#### Using PlatformIO (Recommended)
-
-```bash
-# Clone repository
-git clone https://github.com/majeff/mosquito-pt2d.git
-cd mosquito-pt2d
-
-# Upload firmware
-platformio run --target upload
-```
-
-#### Using Arduino IDE
-
-Refer to [include/config.h](include/config.h) and [docs/protocol.md](docs/protocol.md)
-
-### 2. Orange Pi 5 System Setup
-
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install required packages
-sudo apt install python3-pip python3-opencv git -y
-
-# Clone project
-git clone https://github.com/majeff/mosquito-pt2d.git
-cd mosquito-pt2d/python
-
-# Install Python dependencies
-pip3 install -r requirements.txt
-```
-
-### 3. Hardware Connection
-
-Refer to [docs/hardware.md](docs/hardware.md)
-
-**Key Points:**
-- **Orange Pi 5** is the main controller, runs all Python programs
-- Arduino Nano connects to Orange Pi 5 via USB (device is `/dev/ttyUSB*` or `/dev/ttyACM*`)
-- Dual **1080p cameras** connect to Orange Pi 5 via USB 3.0
-- Bus servos connect to Arduino via software serial (Nano D10/D11 → Servo bus)
-- **1mW laser module** is controlled by Arduino, no external MOSFET needed
-- Servos need independent power (6V-8.4V)
-- All GND must be common (Orange Pi, Arduino, servo, laser)
-
-### 4. Test Hardware Connection
-
-```bash
-# Test camera
-python3 stereo_camera.py
+See complete guides:
+- **Firmware Upload**: [include/config.h](include/config.h) and [docs/protocol.md](docs/protocol.md)
+- **Python Setup**: [docs/python_README.md](docs/python_README.md)
+- **Hardware Wiring**: [docs/hardware.md](docs/hardware.md)
 
 # Test Arduino communication
 python3 pt2d_controller.py
@@ -1195,13 +1107,11 @@ Complete Nginx configuration examples are included in the documentation. For mor
 | [CONSISTENCY_CHECK.md](CONSISTENCY_CHECK.md) | Document-code consistency check report |
 | [LICENSE](LICENSE) | Apache 2.0 License |
 | [NOTICE](NOTICE) | Project and third-party notices |
-
 ### 🔧 Hardware & Configuration Documents
 
 | Document | Description |
 |----------|-------------|
-| [docs/hardware.md](docs/hardware.md) | Hardware connection detailed instructions (with wiring diagrams) |
-| [docs/orangepi5_hardware.md](docs/orangepi5_hardware.md) | Orange Pi 5 hardware configuration guide |
+| [docs/hardware.md](docs/hardware.md) | Hardware connection detailed instructions (including Orange Pi 5 / RDK X5 configuration and wiring diagrams) |
 | [docs/protocol.md](docs/protocol.md) | Serial communication protocol technical specifications |
 | [include/config.h](include/config.h) | Firmware parameters and pin mapping |
 

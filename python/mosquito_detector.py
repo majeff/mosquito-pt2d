@@ -15,7 +15,8 @@
 """
 蚊子影像識別模組
 使用深度學習AI模型（YOLO）偵測蚊子
-支援多種推理引擎：RKNN (NPU) → ONNX (CPU優化) → PyTorch (CPU)
+支援硬體加速推理引擎：hobot_dnn (BPU) / rknnlite (NPU)
+注意：ONNX/PyTorch 僅用於訓練和模型轉換，不用於實際偵測
 """
 
 import cv2
@@ -44,18 +45,14 @@ except ImportError:
     logger.debug("rknnlite 未安裝（僅 Orange Pi 5 需要）")
 
 try:
-    import onnxruntime as ort
-    ONNX_AVAILABLE = True
+    from hobot_dnn import pyeasy_dnn as dnn
+    HOBOT_DNN_AVAILABLE = True
 except ImportError:
-    ONNX_AVAILABLE = False
-    logger.debug("onnxruntime 未安裝")
+    HOBOT_DNN_AVAILABLE = False
+    logger.debug("hobot_dnn 未安裝（僅 RDK X5 需要）")
 
-try:
-    from ultralytics import YOLO
-    YOLO_AVAILABLE = True
-except ImportError:
-    logger.warning("ultralytics 未安裝，請執行: pip install ultralytics")
-    YOLO_AVAILABLE = False
+# ONNX 和 PyTorch 僅用於訓練和模型轉換，不用於實際偵測
+# 實際部署時請使用硬體加速格式：.bin (RDK X5) 或 .rknn (Orange Pi 5)
 
 
 class MosquitoDetector:
@@ -76,13 +73,15 @@ class MosquitoDetector:
                  save_annotations: bool = True,
                  save_full_frame: bool = False):
         """
-        初始化AI蚊子偵測器 (Orange Pi 5 優化)
-        自動選擇最佳推理引擎：RKNN (NPU) → ONNX (CPU優化) → PyTorch (CPU)
+        初始化AI蚊子偵測器 (硬體加速專用)
+        自動選擇硬體加速推理引擎：
+        - RDK X5: .bin (hobot_dnn BPU)
+        - Orange Pi 5: .rknn (rknnlite NPU)
 
         Args:
             model_path: 模型路徑（可不含副檔名），或 models/ 目錄下的基本名稱
                        例如: "mosquito_yolov8" 會自動搜尋
-                       mosquito_yolov8.rknn → mosquito_yolov8.onnx → mosquito_yolov8.pt
+                       mosquito_yolov8.bin → mosquito_yolov8.rknn
             confidence_threshold: 信心度閾值（0-1），預設 0.4（推薦範圍 0.3-0.7）
             iou_threshold: IoU閾值（用於NMS），預設 0.45
             imgsz: 輸入影像大小，預設 640（推薦值）
@@ -142,14 +141,14 @@ class MosquitoDetector:
         # 根據副檔名載入對應的推理引擎
         ext = Path(actual_model_path).suffix.lower()
 
-        if ext == '.rknn' and RKNN_AVAILABLE:
+        if ext == '.bin' and HOBOT_DNN_AVAILABLE:
+            self._load_hobot_model(actual_model_path)
+        elif ext == '.rknn' and RKNN_AVAILABLE:
             self._load_rknn_model(actual_model_path)
-        elif ext == '.onnx' and ONNX_AVAILABLE:
-            self._load_onnx_model(actual_model_path)
-        elif ext == '.pt' and YOLO_AVAILABLE:
-            self._load_pytorch_model(actual_model_path)
+        elif ext in ['.onnx', '.pt']:
+            raise RuntimeError(f"偵測不支援 {ext} 格式（僅用於訓練）。請使用 deploy_model.py 轉換為 .bin (RDK X5) 或 .rknn (Orange Pi 5)")
         else:
-            raise RuntimeError(f"不支援的模型格式或缺少對應的推理引擎: {ext}")
+            raise RuntimeError(f"不支援的模型格式: {ext}。請使用 .bin (RDK X5) 或 .rknn (Orange Pi 5)")
 
         logger.info(f"AI蚊子偵測器已初始化，使用 {self.backend.upper()} 後端")
 
@@ -178,11 +177,11 @@ class MosquitoDetector:
             base_name = base_path.stem if base_path.suffix else str(base_path)
             base_dir = base_path.parent if base_path.parent.name else Path('models')
 
-            # 優先順序：RKNN → ONNX → PyTorch
+            # 優先順序：BIN (RDK X5) → RKNN (Orange Pi 5)
+            # 僅使用硬體加速格式以獲得最佳效能
             search_paths.extend([
-                base_dir / f"{base_name}.rknn",
-                base_dir / f"{base_name}.onnx",
-                base_dir / f"{base_name}.pt"
+                base_dir / f"{base_name}.bin",
+                base_dir / f"{base_name}.rknn"
             ])
 
         # 在 models/ 目錄搜尋預設名稱
@@ -190,9 +189,8 @@ class MosquitoDetector:
         if models_dir.exists():
             for default_name in ['mosquito_yolov8', 'mosquito', 'yolov8n']:
                 search_paths.extend([
-                    models_dir / f"{default_name}.rknn",
-                    models_dir / f"{default_name}.onnx",
-                    models_dir / f"{default_name}.pt"
+                    models_dir / f"{default_name}.bin",
+                    models_dir / f"{default_name}.rknn"
                 ])
 
         # 嘗試找到第一個存在的模型
@@ -201,13 +199,24 @@ class MosquitoDetector:
                 logger.info(f"✓ 找到模型: {path}")
                 return str(path)
 
-        # 如果允許回退，使用預訓練模型
-        if fallback and YOLO_AVAILABLE:
-            logger.info("使用 YOLOv8n 預訓練模型（通用物體檢測）")
-            logger.warning("⚠️ 建議下載蚊子專用模型以獲得更好效果")
-            return 'yolov8n.pt'
-
+        # 未找到硬體加速模型
+        logger.error("未找到硬體加速模型 (.bin 或 .rknn)")
+        logger.error("請使用 deploy_model.py 將訓練好的模型轉換為對應格式")
         return None
+
+    def _load_hobot_model(self, model_path: str):
+        """載入 RDK X5 BIN 模型（BPU 加速）"""
+        logger.info(f"載入 RDK X5 BIN 模型: {model_path}")
+
+        # 載入模型
+        self.hobot_models = dnn.load(model_path)
+
+        # 獲取輸入輸出信息
+        logger.info(f"BPU 模型已載入，輸入數量: {len(self.hobot_models[0].inputs)}")
+        logger.info(f"BPU 模型輸出數量: {len(self.hobot_models[0].outputs)}")
+
+        self.backend = 'hobot_dnn'
+        logger.info("✓ RDK X5 BPU 加速已啟用")
 
     def _load_rknn_model(self, model_path: str):
         """載入 RKNN 模型（NPU 加速）"""
@@ -224,27 +233,6 @@ class MosquitoDetector:
 
         self.backend = 'rknn'
         logger.info("✓ RKNN NPU 加速已啟用")
-
-    def _load_onnx_model(self, model_path: str):
-        """載入 ONNX 模型（CPU 優化）"""
-        logger.info(f"載入 ONNX 模型: {model_path}")
-        providers = ['CPUExecutionProvider']
-        self.onnx_session = ort.InferenceSession(model_path, providers=providers)
-
-        # 獲取輸入輸出名稱
-        self.onnx_input_name = self.onnx_session.get_inputs()[0].name
-        self.onnx_output_names = [o.name for o in self.onnx_session.get_outputs()]
-
-        self.backend = 'onnx'
-        logger.info("✓ ONNX CPU 優化推理已啟用")
-
-    def _load_pytorch_model(self, model_path: str):
-        """載入 PyTorch 模型（Ultralytics YOLO）"""
-        logger.info(f"載入 PyTorch 模型: {model_path}")
-        self.model = YOLO(model_path)
-        self.backend = 'pytorch'
-        self.device = 'cpu'
-        logger.info(f"✓ PyTorch CPU 推理已啟用，輸入解析度: {self.imgsz}x{self.imgsz}")
 
     def _check_disk_usage(self) -> bool:
         """
@@ -381,12 +369,10 @@ class MosquitoDetector:
             if self.detection_mode == 'tiling':
                 detections, result_frame = self._detect_tiled(frame)
             else:
-                if self.backend == 'rknn':
+                if self.backend == 'hobot_dnn':
+                    detections, result_frame = self._detect_hobot(frame)
+                elif self.backend == 'rknn':
                     detections, result_frame = self._detect_rknn(frame)
-                elif self.backend == 'onnx':
-                    detections, result_frame = self._detect_onnx(frame)
-                elif self.backend == 'pytorch':
-                    detections, result_frame = self._detect_pytorch(frame)
                 else:
                     raise RuntimeError(f"未知的推理後端: {self.backend}")
 
@@ -413,14 +399,11 @@ class MosquitoDetector:
         """
         使用目前後端在單張影像上推理（回傳偵測結果，座標相對於 img）。
         """
-        if self.backend == 'rknn':
+        if self.backend == 'hobot_dnn':
+            dets, _ = self._detect_hobot(img)
+            return dets
+        elif self.backend == 'rknn':
             dets, _ = self._detect_rknn(img)
-            return dets
-        elif self.backend == 'onnx':
-            dets, _ = self._detect_onnx(img)
-            return dets
-        elif self.backend == 'pytorch':
-            dets, _ = self._detect_pytorch(img)
             return dets
         else:
             raise RuntimeError(f"未知的推理後端: {self.backend}")
@@ -522,59 +505,22 @@ class MosquitoDetector:
             return 0.0
         return inter / union
 
-    def _detect_pytorch(self, frame: np.ndarray) -> Tuple[List[Dict], np.ndarray]:
-        """使用 PyTorch (Ultralytics YOLO) 推理"""
-        # 執行推理
-        results = self.model.predict(
-            frame,
-            conf=self.confidence_threshold,
-            iou=self.iou_threshold,
-            imgsz=self.imgsz,
-            device=self.device,
-            verbose=False
-        )
-
-        detections = []
-
-        if len(results) > 0:
-            result = results[0]
-
-            # 解析檢測結果
-            for box in result.boxes:
-                # 獲取邊界框座標
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                x, y, w, h = int(x1), int(y1), int(x2 - x1), int(y2 - y1)
-
-                # 獲取信心度和類別
-                confidence = float(box.conf[0])
-                class_id = int(box.cls[0])
-                class_name = self.model.names[class_id]
-
-                detection = {
-                    'bbox': (x, y, w, h),
-                    'confidence': confidence,
-                    'class_id': class_id,
-                    'class_name': class_name,
-                    'center': (x + w // 2, y + h // 2)
-                }
-
-                detections.append(detection)
-
-        return detections, frame
-
-    def _detect_onnx(self, frame: np.ndarray) -> Tuple[List[Dict], np.ndarray]:
-        """使用 ONNX Runtime 推理"""
-        # 預處理
+    def _detect_hobot(self, frame: np.ndarray) -> Tuple[List[Dict], np.ndarray]:
+        """使用 RDK X5 BPU (hobot_dnn) 推理"""
+        # 預處理：調整大小並轉換為 NV12 格式（RDK X5 BPU 專用）
         img = cv2.resize(frame, (self.imgsz, self.imgsz))
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = img.transpose(2, 0, 1).astype(np.float32) / 255.0
-        img = np.expand_dims(img, axis=0)
 
-        # 推理
-        outputs = self.onnx_session.run(self.onnx_output_names, {self.onnx_input_name: img})
+        # 將 BGR 轉為 NV12 (BPU 原生格式)
+        nv12_data = dnn.pyimg_to_nv12(img)
 
-        # 後處理（假設 YOLO 輸出格式）
-        detections = self._parse_yolo_output(outputs[0], frame.shape[:2])
+        # BPU 推理
+        outputs = self.hobot_models[0].forward(nv12_data)
+
+        # 取得輸出數據（假設第一個輸出是檢測結果）
+        output_data = outputs[0].buffer
+
+        # 後處理（YOLO 格式）
+        detections = self._parse_yolo_output(output_data, frame.shape[:2])
 
         return detections, frame
 
@@ -734,11 +680,11 @@ class MosquitoDetector:
 
 
 def test_mosquito_detector():
-    """測試AI蚊子偵測器（支援 RKNN/ONNX/PyTorch）"""
+    """測試AI蚊子偵測器（硬體加速專用）"""
     print("=== 測試AI蚊子偵測器 ===")
-    print("自動選擇最佳推理引擎：RKNN (NPU) → ONNX (CPU優化) → PyTorch (CPU)")
+    print("硬體加速推理：hobot_dnn (BPU) / rknnlite (NPU)")
     print("按 'q' 退出, 's' 儲存當前幀")
-    print("\n提示：首次執行會自動下載YOLOv8n模型（約6MB）")
+    print("\n注意：請確保已使用 deploy_model.py 轉換模型為 .bin 或 .rknn 格式")
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -746,10 +692,10 @@ def test_mosquito_detector():
         return
 
     try:
-        # 初始化AI偵測器（自動選擇 RKNN → ONNX → PyTorch）
-        # 指定基本名稱，會自動搜尋 models/mosquito.{rknn,onnx,pt}
+        # 初始化AI偵測器（硬體加速專用）
+        # 指定基本名稱，會自動搜尋 models/mosquito.{bin,rknn}
         detector = MosquitoDetector(
-            model_path='models/mosquito',  # 自動選擇最佳格式
+            model_path='models/mosquito',  # 自動選擇硬體加速格式
             confidence_threshold=0.3,
             imgsz=DEFAULT_IMGSZ  # 從 config.py 讀取，可統一修改
         )

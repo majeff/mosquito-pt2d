@@ -170,129 +170,36 @@
 
 ## 🔧 硬體需求
 
-### 主控端
+**詳細規格見** [REFERENCE.md - 硬體規格](REFERENCE.md#硬體規格)
 
-| 組件 | 規格 | 數量 | 備註 |
-|-----|------|------|------|
-| **ARM 開發板** | 8GB RAM + NPU | 1 | 主控制器，運行 AI 影像識別<br>**推薦選項**：<br>• Orange Pi 5 (RK3588, 6 TOPS NPU)<br>• 地瓜派 RDK X5 (更便宜)<br>• Radxa ROCK 5B<br>**必須支援 RKNN NPU 加速** |
-| 電源供應器 | 5V/3-4A USB-C | 1 | 開發板供電（依型號調整） |
-
-### 視覺系統
-
-| 組件 | 規格 | 數量 | 備註 |
-|-----|------|------|------|
-| **雙目攝像頭** | 1080p USB | 2 | 左右攝像頭，視野偵測 |
-
-### 雲台控制系統
-
-| 組件 | 規格 | 數量 | 備註 |
-|-----|------|------|------|
-| Arduino 開發板 | Nano | 1 |  |
-| **2D 雲台支架** | 金屬或塑膠 | 1 | 含舵機安裝位，承載攝像頭 |
-| **總線舵機** | SP-15D/SP-15S | 2 | Pan & Tilt 軸，串口舵機 |
-| 舵機電源 | **6V-8.4V / 2A** | 1 | 推薦 7.4V 鋰電池 |
-
-### 雷射標記系統
-
-| 組件 | 規格 | 數量 | 備註 |
-|-----|------|------|------|
-| **雷射模組** | 1mW 紅光雷射 | 1 | 目標標記用（安全等級）<br>由 Arduino 控制 |
+**快速清單**:
+- **ARM 開發板**: RDK X5 (推薦, 10 TOPS BPU) 或 Orange Pi 5 (6 TOPS NPU)
+- **雙目攝像頭**: USB 1080p @60fps (3840×1080 雙眼)
+- **Arduino Nano**: 舵機和雷射控制
+- **舵機 ×2**: SP-15D/S (15kg·cm, Pan/Tilt 軸)
+- **雷射模組**: 5V 紅光 1mW
+- **電源**: 5V/4A USB-C (開發板) + 7.4V/2A (舵機)
 
 ## 💻 軟體需求
 
-### ARM 開發板端
+**詳細安裝步驟見** [REFERENCE.md - 標準參數](REFERENCE.md#標準參數) 和 [docs/python_README.md](docs/python_README.md)
 
-- **作業系統**: Ubuntu 22.04 LTS (ARM64) 或 Armbian
-- **Python**: 3.8+ (通常預裝)
-- **NPU 支援**: RKNN Toolkit Lite 2.x（用於 NPU 加速）
-- **必要套件**:
-  - OpenCV (`opencv-python`)
-  - PySerial (`pyserial`)
-  - NumPy (`numpy`)
-  - RKNN Toolkit Lite（NPU 推理）
-
+**快速準備**:
 ```bash
-# ARM 開發板安裝
-sudo apt update
-sudo apt install python3-pip python3-opencv
-pip3 install -r python/requirements.txt
+# ARM 開發板
+sudo apt update && sudo apt install python3-pip python3-opencv git -y
+cd python && pip3 install -r requirements.txt
 
-# 安裝 RKNN Toolkit Lite（依開發板提供的版本）
-# Orange Pi 5: 參考官方文檔
-# 地瓜派 RDK X5: 參考官方 SDK
+# Arduino IDE/PlatformIO - 上傳固件
+# 見 include/config.h 和 docs/protocol.md
 ```
-
-### Arduino 端
-
-- [PlatformIO IDE](https://platformio.org/) 或 [Arduino IDE](https://www.arduino.cc/en/software)
-- USB 驅動程式（CH340/CP2102 等）
-
-### 開發端（可選）
-
-- 用於開發與測試，可使用 Windows/Linux PC
-- Python 3.8+
-- 相同的 Python 套件
 
 ## 📦 安裝說明
 
-### 1. Arduino 韌體上傳
-
-#### 使用 PlatformIO（推薦）
-
-### 2. ARM 開發板系統設置
-
-```bash
-# 更新系統
-sudo apt update && sudo apt upgrade -y
-
-# 安裝必要套件
-sudo apt install python3-pip python3-opencv git -y
-
-# 進入專案目錄
-### 4. 硬體連接
-
-參考 [docs/hardware.md](docs/hardware.md)
-
-**關鍵點:**
-- **ARM 開發板**（Orange Pi 5 / 地瓜派 RDK X5 等）為主控制器，運行所有 Python 程式
-- Arduino Nano 透過 USB 連接至開發板（裝置為 `/dev/ttyUSB*` 或 `/dev/ttyACM*`）
-- 雙目 **1080p 攝像頭**透過 USB 3.0 連接至開發板
-- 總線舵機透過軟串口連接 Arduino（Nano D10/D11 → 舵機總線）
-- **1mW 雷射模組**由 Arduino 控制（透過串口指令）
-- 舍機需要獨立供電 (6V-8.4V)
-- 所有 GND 必須共地（開發板、Arduino、舍機）
-```
-
-### 3. 測試硬體連接
-
-```bash
-# 測試攝像頭
-python3 stereo_camera.py
-
-# 測試 Arduino 通訊
-python3 pt2d_controller.py
-```
-#### 使用 Arduino IDE
-
-參考 [include/config.h](include/config.h) 與 [docs/protocol.md](docs/protocol.md)
-
-### 2. Python 環境設置
-
-```bash
-# 進入 Python 目錄
-cd python
-
-# 安裝依賴
-pip install -r requirements.txt
-```
-
-### 3. 硬體連接
-
-參考 [docs/hardware.md](docs/hardware.md)
-
-**關鍵點:**
-- Arduino Nano 透過 USB 連接至 Orange Pi 5（裝置為 `/dev/ttyUSB*` 或 `/dev/ttyACM*`）
-- 舵機透過總線連接至 Arduino（Nano D10/D11）
+見完整指南:
+- **固件上傳**: [include/config.h](include/config.h) 和 [docs/protocol.md](docs/protocol.md)
+- **Python 環境**: [docs/python_README.md](docs/python_README.md)
+- **硬體接線**: [docs/hardware.md](docs/hardware.md)
 - 攝像頭透過 USB 連接至 Orange Pi 5
 - 舵機需要獨立供電 (6V-8.4V)
 - 所有 GND 必須共地
@@ -1197,13 +1104,11 @@ location /nginx_status {
 | [docs/SERIAL_CHECK_SUMMARY.md](docs/SERIAL_CHECK_SUMMARY.md) | 串口通訊格式檢查與對照摘要 |
 | [LICENSE](LICENSE) | Apache 2.0 授權條款 |
 | [NOTICE](NOTICE) | 版權與第三方相依標註 |
-
 ### 🔧 硬體與配置文檔
 
 | 文檔 | 說明 |
 |------|------|
-| [docs/hardware.md](docs/hardware.md) | 硬體連接詳細說明（含接線圖） |
-| [docs/orangepi5_hardware.md](docs/orangepi5_hardware.md) | Orange Pi 5 硬體配置指南 |
+| [docs/hardware.md](docs/hardware.md) | 硬體連接詳細說明（含 Orange Pi 5 / RDK X5 配置與接線圖） |
 | [docs/protocol.md](docs/protocol.md) | 串口通訊協議技術規格 |
 | [include/config.h](include/config.h) | 固件參數與引腳設定 |
 
@@ -1213,7 +1118,8 @@ location /nginx_status {
 |------|------|
 | [python/README.md](python/README.md) | AI 檢測與追蹤整合指南 |
 | [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ 影像串流指南（手機觀看） |
-| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | ⭐ 蚊子檢測模型持續改進指南（樣本收集→訓練） |
+| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | ⭐ 蚊子檢測模型持續改進指南（包含 RDK X5/Orange Pi 5 部署） |
+| [docs/hardware.md](docs/hardware.md) | 硬體連接詳細說明（包含 RDK X5 配置） |
 | [docs/python_README.md](docs/python_README.md) | Python 模塊導航文檔 |
 | [python/README.md](python/README.md) | Python 程式目錄說明 |
 
