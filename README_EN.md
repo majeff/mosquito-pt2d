@@ -728,7 +728,7 @@ sudo usermod -a -G dialout $USER
 ### AI Detection Poor Performance
 
 **Improvement suggestions**:
-1. **Use mosquito-specific model** - See [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md)
+1. **Retrain on low-confidence sample images** - See [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md)
 2. **Increase lighting** - Ensure sufficient ambient light (minimum 0.5 lux)
 3. **Adjust AI parameters**:
    ```python
@@ -779,7 +779,7 @@ mosquito-pt2d/
 │   ├── mosquito_yolov8.onnx          # ONNX model (CPU optimized)
 │   └── mosquito_yolov8.pt            # PyTorch model
 ├── docs/                             # Documentation directory
-│   ├── STREAMING_GUIDE.md            # Video streaming guide ⭐ New
+│   ├── STREAMING_GUIDE.md            # Video streaming guide
 │   ├── hardware.md                   # Hardware connection guide
 │   ├── protocol.md                   # Communication protocol details
 │   └── protocol.md                   # Communication protocol details

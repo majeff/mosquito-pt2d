@@ -141,7 +141,61 @@ python stereo_camera.py
 
 ---
 
-### 2. `mosquito_detector.py` - AI 蚊子偵測模組
+### 2. `depth_estimator.py` - 雙目深度估計模組
+
+基於立體視覺原理計算目標的深度（距離）。
+
+**主要功能:**
+- 計算視差圖（Stereo SGBM）
+- 估計目標深度/距離
+- 支援檢測框深度估計
+- 深度視覺化彩色圖
+
+**技術參數:**
+- 焦距：3.0mm
+- 雙目基線：120mm（12cm）
+- 有效測距範圍：0.5m - 5m
+- 深度公式：`Z = (f × B) / d`
+
+**使用範例:**
+
+```python
+from depth_estimator import DepthEstimator
+from stereo_camera import StereoCamera
+
+# 初始化深度估計器
+estimator = DepthEstimator(
+    focal_length=3.0,
+    baseline=120.0,
+    image_width=1920
+)
+
+# 讀取雙目影像
+camera = StereoCamera(left_id=0, right_id=1)
+ret, left, right = camera.read()
+
+# 估計特定點的深度
+point = (960, 540)  # 影像中心
+depth = estimator.estimate_depth_at_point(left, right, point)
+print(f"距離: {depth:.2f}m ({depth*100:.1f}cm)")
+
+# 估計檢測框的深度
+bbox = (100, 100, 200, 200)  # (x1, y1, x2, y2)
+depth_info = estimator.estimate_depth_for_detection(left, right, bbox)
+if depth_info:
+    print(f"目標距離: {depth_info['distance_cm']:.1f}cm")
+```
+
+**測試:**
+
+```bash
+python depth_estimator.py
+# 左鍵點擊測量深度，'d' 切換深度圖，'q' 退出
+```
+
+---
+
+### 3. `mosquito_detector.py` - AI 蚊子偵測模組
 
 使用深度學習 AI 模型（YOLOv8）進行蚊子偵測，針對 Orange Pi 5 優化。
 
@@ -196,7 +250,7 @@ python mosquito_detector.py
 
 ---
 
-### 3. `pt2d_controller.py` - Arduino 雲台控制模組
+### 4. `pt2d_controller.py` - Arduino 雲台控制模組
 
 透過串口與 Arduino 通訊，控制 2D 雲台。
 
@@ -232,7 +286,7 @@ python3 pt2d_controller.py
 
 ---
 
-### 4. `mosquito_tracker.py` - AI 主追蹤系統
+### 5. `mosquito_tracker.py` - AI 主追蹤系統
 
 整合所有模組，實現基於 AI 的自動蚊子追蹤。
 
@@ -567,13 +621,32 @@ python convert_to_rknn.py
 
 ```python
 # 使用雙目視覺估計蚊子距離
+from depth_estimator import DepthEstimator
 from stereo_camera import StereoCamera
 
-stereo = StereoCamera(left_id=0, right_id=1)
-left_frame, right_frame = stereo.read()
+# 初始化
+estimator = DepthEstimator(
+    focal_length=3.0,     # 焦距 3.0mm
+    baseline=120.0,       # 雙目基線 12cm
+    image_width=1920      # 單眼解析度
+)
+camera = StereoCamera(left_id=0, right_id=1)
 
-# 計算視差和深度
-# 實作參見 hardware.md 深度估計公式
+# 讀取影像
+ret, left, right = camera.read()
+
+# AI 檢測蚊子
+from mosquito_detector import MosquitoDetector
+detector = MosquitoDetector()
+detections, _ = detector.detect(left)
+
+# 計算每個蚊子的距離
+for detection in detections:
+    bbox = detection['bbox']  # (x1, y1, x2, y2)
+    depth_info = estimator.estimate_depth_for_detection(left, right, bbox)
+    if depth_info:
+        distance = depth_info['distance_cm']
+        print(f"蚊子距離: {distance:.1f}cm")
 ```
 
 ### 記錄追蹤資料
@@ -608,13 +681,13 @@ for i in range(1, len(self.trajectory)):
 
 ### 主要文檔
 - **[../python/README.md](../python/README.md)** - AI 蚊子偵測與追蹤整合指南（取代 AI_DETECTION_GUIDE）
-- **[MOSQUITO_MODELS.md](MOSQUITO_MODELS.md)** - 蚊子檢測模型資源和下載指南
+- **[MOSQUITO_MODELS.md](MOSQUITO_MODELS.md)** - 蚊子檢測模型持續改進指南
 - **[../docs/hardware.md](../docs/hardware.md)** - 硬體連接詳細說明（含雙目攝像頭規格）
 - **[../docs/protocol.md](../docs/protocol.md)** - Arduino 通訊協議
 
 ### 快速參考
-- **AI 模型**: 從 Roboflow、Kaggle、GitHub 下載蚊子檢測模型
-- **性能優化**: 使用 320x320 解析度，ONNX/RKNN 格式
+- **AI 模型**: 預設模型已包含在 models/ 目錄中
+- **性能優化**: 使用 640x640 解析度，ONNX/RKNN 格式
 - **雙目攝像頭**: 3840×1080 @ 60fps，12cm 基線距離
 - **NPU 加速**: RKNN Toolkit 2 轉換和使用指南
 
@@ -632,7 +705,7 @@ for i in range(1, len(self.trajectory)):
 
 ## 📝 授權
 
-本專案採用 MIT 授權，詳見 [LICENSE](../LICENSE)。
+本專案採用 Apache 2.0 授權，詳見 [LICENSE](../LICENSE)。
 
 ---
 

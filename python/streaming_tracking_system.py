@@ -32,7 +32,9 @@ from streaming_server import StreamingServer
 from mosquito_detector import MosquitoDetector
 from mosquito_tracker import MosquitoTracker
 from pt2d_controller import PT2DController
-from config import DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ
+from depth_estimator import DepthEstimator
+from config import (DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ,
+                   DEFAULT_DEVICE_IP, DEFAULT_EXTERNAL_URL)
 import cv2
 import numpy as np
 import sys
@@ -51,7 +53,8 @@ class StreamingTrackingSystem:
                  dual_camera: bool = True,
                  stream_mode: str = "single",
                  save_samples: bool = True,
-                 sample_conf_range: tuple = (0.35, 0.65)):
+                 sample_conf_range: tuple = (0.35, 0.65),
+                 enable_depth: bool = True):
         """
         初始化完整系統
 
@@ -64,6 +67,7 @@ class StreamingTrackingSystem:
             stream_mode: 串流模式 ("side_by_side", "single", "dual_stream")
             save_samples: 是否儲存中等信心度樣本
             sample_conf_range: 樣本信心度範圍 (min, max)
+            enable_depth: 是否啟用深度估計
         """
         print("=" * 60)
         print("🦟 蚊子追蹤系統 + 手機串流整合啟動")
@@ -74,6 +78,7 @@ class StreamingTrackingSystem:
         self.dual_camera = dual_camera
         self.stream_mode = stream_mode
         self.camera_id = camera_id
+        self.enable_depth = enable_depth and dual_camera  # 深度估計需要雙目攝像頭
 
         # 統計資訊
         self.stats = {
@@ -128,8 +133,22 @@ class StreamingTrackingSystem:
             self.tracker = None
             print(f"      ⚠ 追蹤器未啟用（需要雲台連接）")
 
-        # 4. 初始化串流伺服器
-        print("[4/4] 初始化串流伺服器...")
+        # 4. 初始化深度估計器（如果啟用）
+        print("[4/6] 初始化深度估計器...")
+        if self.enable_depth:
+            self.depth_estimator = DepthEstimator(
+                focal_length=3.0,        # 鏡頭焦距 3.0mm
+                baseline=120.0,          # 雙目基線 12cm
+                image_width=1920,        # 單眼解析度
+                sensor_width=5.0         # 感光元件寬度
+            )
+            print(f"      ✓ 深度估計已啟用（測距範圍: 0.5-5m）")
+        else:
+            self.depth_estimator = None
+            print(f"      ⚠ 深度估計未啟用（需要雙目攝像頭）")
+
+        # 5. 初始化串流伺服器
+        print("[5/6] 初始化串流伺服器...")
         self.server = StreamingServer(http_port=http_port, fps=30)
         self.server.run(threaded=True)
         print(f"      ✓ 串流伺服器已啟動 (端口 {http_port})")
@@ -146,14 +165,24 @@ class StreamingTrackingSystem:
         print("🎉 系統已完全啟動！")
         print("=" * 60)
         print()
-        print(f"📱 手機觀看: http://[你的IP]:{http_port}")
+        # 生成訪問地址
+        device_ip = DEFAULT_DEVICE_IP or "[你的IP]"
+        local_url = f"http://{device_ip}:{http_port}"
+        print(f"📱 本機訪問: {local_url}")
+
+        # 如果設置了外部 URL，顯示外部訪問方式
+        if DEFAULT_EXTERNAL_URL:
+            print(f"🌐 遠端訪問: {DEFAULT_EXTERNAL_URL}")
+
         if self.server_right:
-            print(f"📱 右側視角: http://[你的IP]:{http_port + 1}")
+            right_url = f"http://{device_ip}:{http_port + 1}"
+            print(f"📱 右側視角（本機）: {right_url}")
         print()
         print("ℹ️  系統配置:")
         print(f"   - AI 檢測: ✓ 啟用 ({self.detector.backend.upper()})")
         print(f"   - 雲台追蹤: {'✓ 啟用' if self.has_pt else '✗ 停用'}")
         print(f"   - 雷射標記: {'✓ 啟用' if self.has_laser else '✗ 停用'}")
+        print(f"   - 深度估計: {'✓ 啟用' if self.enable_depth else '✗ 停用'}")
         print(f"   - 樣本儲存: {'✓ 啟用' if save_samples else '✗ 停用'}")
         print(f"   - 雙目攝像頭: {'✓ 啟用' if dual_camera else '✗ 停用'}")
         print(f"   - 串流模式: {stream_mode}")
@@ -195,6 +224,20 @@ class StreamingTrackingSystem:
         # 記錄檢測數量
         if detections:
             self.stats['detections'] += len(detections)
+            
+            # 🎯 深度估計（如果啟用且有右眼影像）
+            if self.depth_estimator and right_frame is not None:
+                for detection in detections:
+                    bbox = detection.get('bbox')
+                    if bbox:
+                        x1, y1, x2, y2 = bbox
+                        # 估計深度
+                        depth_info = self.depth_estimator.estimate_depth_for_detection(
+                            left_frame, right_frame, (x1, y1, x2, y2)
+                        )
+                        if depth_info:
+                            detection['depth'] = depth_info['depth']
+                            detection['distance_cm'] = depth_info['distance_cm']
 
         # 追蹤控制（如果啟用）
         if self.tracker and detections:
@@ -203,8 +246,8 @@ class StreamingTrackingSystem:
         else:
             self.stats['tracking_active'] = False
 
-        # 繪製 AI 標註
-        result_left = self.detector.draw_detections(result_left, detections)
+        # 繪製 AI 標註（包含深度資訊）
+        result_left = self._draw_detections_with_depth(result_left, detections)
 
         # 添加系統資訊
         self._draw_system_info(result_left, detections)
@@ -231,36 +274,79 @@ class StreamingTrackingSystem:
             # 單一視角
             return result_left
 
+    def _draw_detections_with_depth(self, frame: np.ndarray, detections: list) -> np.ndarray:
+        """
+        繪製檢測結果（包含深度資訊）
+
+        Args:
+            frame: 影像幀
+            detections: 檢測結果列表
+
+        Returns:
+            標註後的影像
+        """
+        # 先繪製基本檢測框
+        frame = self.detector.draw_detections(frame, detections)
+
+        # 如果啟用深度估計，添加深度資訊
+        if self.depth_estimator and detections:
+            for detection in detections:
+                bbox = detection.get('bbox')
+                depth = detection.get('depth')
+                distance_cm = detection.get('distance_cm')
+
+                if bbox and distance_cm:
+                    x1, y1, x2, y2 = bbox
+                    
+                    # 在檢測框下方顯示距離資訊
+                    distance_text = f"{distance_cm:.1f}cm"
+                    text_size = cv2.getTextSize(distance_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                    text_x = x1
+                    text_y = y2 + 25
+                    
+                    # 繪製背景
+                    cv2.rectangle(frame,
+                                (text_x, text_y - text_size[1] - 5),
+                                (text_x + text_size[0] + 5, text_y + 5),
+                                (0, 0, 0), -1)
+                    
+                    # 繪製距離文字（橙色）
+                    cv2.putText(frame, distance_text,
+                              (text_x + 2, text_y),
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
+
+        return frame
+
     def _draw_system_info(self, frame: np.ndarray, detections: list):
         """在畫面上繪製系統資訊"""
         y_pos = 30
         line_height = 35
 
         # 標題
-        cv2.putText(frame, "AI Mosquito Tracking", (10, y_pos),
+        cv2.putText(frame, "AI 蚊子追蹤", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         y_pos += line_height
 
         # 檢測數量
-        cv2.putText(frame, f"Detections: {len(detections)}", (10, y_pos),
+        cv2.putText(frame, f"檢測數: {len(detections)}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         y_pos += line_height
 
         # 追蹤狀態
         tracking_color = (0, 255, 0) if self.stats['tracking_active'] else (128, 128, 128)
-        tracking_text = "TRACKING" if self.stats['tracking_active'] else "IDLE"
-        cv2.putText(frame, f"Status: {tracking_text}", (10, y_pos),
+        tracking_text = "追蹤中" if self.stats['tracking_active'] else "待命"
+        cv2.putText(frame, f"狀態: {tracking_text}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, tracking_color, 2)
         y_pos += line_height
 
         # FPS
         elapsed = time.time() - self.stats['start_time']
         fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
-        cv2.putText(frame, f"FPS: {fps:.1f}", (10, y_pos),
+        cv2.putText(frame, f"幀率: {fps:.1f}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
         # 串流資訊（右上角）
-        cv2.putText(frame, f"Clients: {self.server.stats['clients']}",
+        cv2.putText(frame, f"客户端: {self.server.stats['clients']}",
                    (frame.shape[1] - 200, 30),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
@@ -307,7 +393,7 @@ class StreamingTrackingSystem:
                     display = result
 
                 # 本地預覽
-                cv2.imshow('Mosquito Tracking System', display)
+                cv2.imshow('蚊子追蹤系統', display)
 
                 # 鍵盤控制
                 key = cv2.waitKey(1) & 0xFF

@@ -7,6 +7,21 @@
 
 一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（OrangePi5+YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能並提供即時觀測。
 
+---
+
+## 🔍 專案版本信息
+
+| 項目 | 版本 | 備註 |
+|-----|------|------|
+| **整體專案版本** | **v2.4.0** | 2025-12-27 |
+| 固件版本 | v2.3.0 | Arduino、Orange Pi 5 |
+| Python 環境 | 3.8+ | 支持 YOLOv8 推理 |
+| AI 模型 | YOLOv8 | RKNN/ONNX/PyTorch 多後端 |
+| 協議版本 | v2.3.0 | UART 串口通訊協議 |
+| 開源協議 | Apache 2.0 | - |
+
+---
+
 ## 📜 版本歷史
 
 ### v2.4.0（2025-12-27）📱 即時觀測升級
@@ -667,7 +682,7 @@ sudo usermod -a -G dialout $USER
 ### AI 偵測效果不佳
 
 **改進建議**:
-1. **使用蚊子專用模型** - 參見 [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md)
+1. **針對信心度不佳圖片進行再訓練** - 參見 [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md)
 2. **增加照明** - 確保環境光線充足（最低 0.5 lux）
 3. **調整 AI 參數**:
    ```python
@@ -769,7 +784,7 @@ mosquito-pt2d/
 │   ├── mosquito_yolov8.onnx          # ONNX 模型（CPU 優化）
 │   └── mosquito_yolov8.pt            # PyTorch 模型
 ├── docs/                             # 文檔目錄
-│   ├── STREAMING_GUIDE.md            # 影像串流指南 ⭐ 新增
+│   ├── STREAMING_GUIDE.md            # 影像串流指南
 │   ├── hardware.md                   # 硬體連接說明
 │   ├── protocol.md                   # 通訊協議詳細說明
 │   └── protocol.md                   # 通訊協議詳細說明

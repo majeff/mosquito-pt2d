@@ -34,3 +34,80 @@ Example:
   Homepage: https://opencv.org/
   Copyright: OpenCV team
   Notes: Used for image capture and drawing annotations
+
+---
+
+This project incorporates the following third-party libraries and components:
+
+### Core Dependencies (from python/requirements.txt)
+
+- Name: OpenCV
+  Version: >= 4.8.0
+  License: BSD-3-Clause
+  Homepage: https://opencv.org/
+  Copyright: OpenCV team
+  Notes: Used for image capture, processing, and drawing detections/tracking annotations
+
+- Name: PySerial
+  Version: >= 3.5
+  License: BSD
+  Homepage: https://github.com/pyserial/pyserial
+  Copyright: Chris Liechti
+  Notes: Used for Arduino/UART serial communication and protocol handling
+
+- Name: NumPy
+  Version: >= 1.24.0
+  License: BSD
+  Homepage: https://numpy.org/
+  Copyright: NumPy developers
+  Notes: Used for numerical computations and array operations
+
+- Name: Ultralytics YOLOv8
+  Version: >= 8.0.0
+  License: AGPL-3.0
+  Homepage: https://github.com/ultralytics/ultralytics
+  Copyright: Ultralytics Inc.
+  Notes: AI model for mosquito detection and tracking (CPU inference)
+
+- Name: ONNX Runtime
+  Version: >= 1.15.0
+  License: MIT
+  Homepage: https://onnxruntime.ai/
+  Copyright: Microsoft Corporation
+  Notes: Used for ONNX model inference with optimization for Orange Pi 5
+
+- Name: Flask
+  Version: >= 2.3.0
+  License: BSD-3-Clause
+  Homepage: https://flask.palletsprojects.com/
+  Copyright: Armin Ronacher and contributors
+  Notes: Used for HTTP-MJPEG video streaming and web interface
+
+### Optional Dependencies
+
+- Name: PyTorch
+  Version: >= 2.0.0 (Optional - CPU version)
+  License: BSD
+  Homepage: https://pytorch.org/
+  Notes: Optional for local YOLOv8 model inference on Orange Pi 5
+
+- Name: RKNN Toolkit2
+  Version: Latest
+  License: Proprietary
+  Homepage: https://github.com/rockchip-linux/rknn-toolkit2
+  Notes: Optional for NPU acceleration on Orange Pi 5 RK3588 processor
+
+### Hardware Reference Code & Examples
+
+- Name: ZL-KPZ Control Board Example Code
+  Location: docs/pt2d_sample/
+  Source: 杭州众灵科技 (Hangzhou Zhongling Technology Co., Ltd.)
+  Homepage: https://www.ZL-robot.com/
+  Copyright: 杭州众灵科技
+  License: Reference implementation (provided as-is for hardware control)
+  Notes: The docs/pt2d_sample/ directory contains example code and documentation from Hangzhou Zhongling Technology 
+         for controlling the ZL-KPZ bus servo control board. These examples include:
+         - basic/: Simple examples demonstrating servo control methods
+         - uart/: UART communication examples for bus servo commands
+         - Control board documentation and command reference manuals
+         All code in this directory is provided as reference material for educational and development purposes.

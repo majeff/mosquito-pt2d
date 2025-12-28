@@ -44,10 +44,10 @@
 - **舵機總線**: 支援 ZL 系列總線舵機（115200 bps）
 
 #### 4. 總線舵機 ×2
-   - 型號: LewanSoul LX-16A, Feetech SCS15, HTS 等
+   - 型號: SP-15D / SP-15S（15kg·cm）
    - 通訊方式: 串口 (UART)
    - 工作電壓: 6V-8.4V（推薦 7.4V）
-   - 波特率: 9600 或 115200
+   - 波特率: 115200
    - 轉動角度: 0-270°
    - 配置: Pan 舵機 (ID=1) + Tilt 舵機 (ID=2)
 
@@ -206,16 +206,13 @@ ZL-KPZ 控制板              雷射頭模組
 
 ---
 
-## �🔧 總線舵機規格
+## 🔧 總線舵機規格
 
-### 支援型號對照表
+### 本專案使用型號
 
-| 型號 | 扭矩 | 速度 | 工作電壓 | 通訊方式 | 本專案使用 |
-|------|------|------|----------|---------|---------|
-| ZD361D | 15kg·cm | 0.16s/60° | 6-8.4V | 串口 (UART) | |
-| LX-16A | 16kg·cm | 0.1s/60° | 6-8.4V | 串口 (UART) | |
-| SCS15 | 15kg·cm | 0.1s/60° | 6-8.4V | 串口 (UART) | |
-| HTS-35H | 35kg·cm | 0.16s/60° | 6-8.4V | 串口 (UART) | ✓ (本專案) |
+| 型號 | 扭矩 | 速度 | 工作電壓 | 通訊方式 |
+|------|------|------|----------|---------|
+| SP-15D / SP-15S | 15kg·cm | 0.1s/60° | 6-8.4V | 串口 (UART) 115200 bps |
 
 ### Arduino 開發板選擇
 
@@ -675,9 +672,7 @@ python streaming_tracking_system.py
 
 | 型號 | 扭矩 | 速度 | 電流 | 工作電壓 | 適用場景 |
 |------|------|------|------|---------|---------|
-| LX-16A | 16kg·cm | 0.1s/60° | 200-800mA | 6-8.4V | 推薦 ✓ |
-| SCS15 | 15kg·cm | 0.1s/60° | 200-750mA | 6-8.4V | 推薦 ✓ |
-| HTS-35H | 35kg·cm | 0.16s/60° | 300-1200mA | 6-8.4V | 重負載 ✓✓ |
+| SP-15D / SP-15S | 15kg·cm | 0.1s/60° | 200-800mA | 6-8.4V | 標準負載 ✓ |
 
 ### 電源需求總表
 
@@ -700,11 +695,6 @@ python streaming_tracking_system.py
 - [Arduino Nano 規格](https://docs.arduino.cc/hardware/nano)
 - [OpenCV 雙目視覺教學](https://docs.opencv.org/4.x/dd/d53/tutorial_py_depthmap.html)
 - [YOLO 物體檢測](https://docs.ultralytics.com/)
-
-### 總線舵機相關
-- [LewanSoul LX-16A 說明](https://www.lewansoul.com/)
-- [Feetech SCS15 規格](https://www.feetechrc.com/)
-- [總線舵機通訊協議](https://github.com/lewansoul/lewansoul-lx16a)
 
 ### 雙目視覺資源
 - [立體視覺原理](https://en.wikipedia.org/wiki/Stereopsis)
