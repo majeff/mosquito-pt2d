@@ -250,3 +250,5 @@ imgsz=224  # 從 320 降到 224
 ---
 
 **最後更新**: 2025年12月27日
+
+![GA Tracking](https://ga4.ma7.in/ga/github/MOSQUITO_MODELS/蚊子檢測模型持續改進指南)

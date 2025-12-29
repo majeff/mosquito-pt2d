@@ -433,3 +433,5 @@ self.position_update_interval = 0.5 # 位置更新間隔（秒）
 **檢查人員**: GitHub Copilot
 **檢查工具**: 自動代碼掃描 + 人工審核
 **下次檢查建議**: 每次重大功能更新後
+
+![GA Tracking](https://ga4.ma7.in/ga/github/CONSISTENCY_CHECK/文件與程式一致性檢查報告)

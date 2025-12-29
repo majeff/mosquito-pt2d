@@ -718,3 +718,5 @@ for i in range(1, len(self.trajectory)):
 **版本**: 2.0.0 (AI 檢測版)
 **更新日期**: 2025年12月23日
 **硬體平台**: Orange Pi 5
+
+![GA Tracking](https://ga4.ma7.in/ga/github/python_README/Python端說明)

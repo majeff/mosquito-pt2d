@@ -552,3 +552,5 @@ sudo ufw disable
 - [FFmpeg 文檔](https://ffmpeg.org/documentation.html)
 - [RTSP 協議說明](https://en.wikipedia.org/wiki/Real_Time_Streaming_Protocol)
 - [Flask 文檔](https://flask.palletsprojects.com/)
+
+![GA Tracking](https://ga4.ma7.in/ga/github/STREAMING_GUIDE/影像串流指南)

@@ -1174,6 +1174,12 @@ For questions or suggestions, please contact via:
 - Email: jeff@ma7.in
 - GitHub Issues: [Submit Issue](https://github.com/majeff/mosquito-pt2d/issues)
 
+---
+
+## 📊 Usage Analytics Tracking
+
+This project uses Google Analytics for anonymous user data tracking to understand documentation access and improve content quality. Tracking is completely anonymous and does not collect personal information.
+
 ## 🙏 Acknowledgments
 
 Thanks to all developers who contributed to this project!
@@ -1181,3 +1187,5 @@ Thanks to all developers who contributed to this project!
 ---
 
 **Built with ❤️ for Arduino Community**
+
+![GA Tracking](https://ga4.ma7.in/ga/github/README_EN/README)

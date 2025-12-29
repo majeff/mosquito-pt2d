@@ -563,3 +563,5 @@ controller.home()
 - **v2.3.0** (2025-12-25): 添加GETINFO命令，改進舵機檢測
 - **v2.2.0**: 添加看門狗定時器
 - **v2.1.0**: 初始版本
+
+![GA Tracking](https://ga4.ma7.in/ga/github/protocol/串口通信協議說明)

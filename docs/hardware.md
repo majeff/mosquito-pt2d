@@ -232,3 +232,5 @@ python pt2d_controller.py
 
 **最後更新**: 2025年12月
 **適用硬體**: Orange Pi 5 / RDK X5 + Arduino Nano
+
+![GA Tracking](https://ga4.ma7.in/ga/github/hardware/硬體連接詳細說明)

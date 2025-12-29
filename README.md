@@ -1163,6 +1163,12 @@ location /nginx_status {
 - Email: jeff@ma7.in
 - GitHub Issues: [提交問題](https://github.com/majeff/mosquito-pt2d/issues)
 
+---
+
+## 📊 使用統計追蹤
+
+本專案使用 Google Analytics 進行匿名使用者數據追蹤，以了解文檔訪問情況和改進內容質量。追蹤完全匿名，不會收集個人信息。
+
 ## 🙏 致謝
 
 感謝所有為本專案做出貢獻的開發者！
@@ -1170,3 +1176,5 @@ location /nginx_status {
 ---
 
 **Built with ❤️ for Arduino Community**
+
+![GA Tracking](https://ga4.ma7.in/ga/github/README/README)

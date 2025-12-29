@@ -189,3 +189,5 @@ with PT2DController('COM3') as pt:
 
 ### 狀態
 🟢 **所有 Serial 通訊格式已檢查完畢，並完成必要修復**
+
+![GA Tracking](https://ga4.ma7.in/ga/github/SERIAL_CHECK_SUMMARY/通訊格式檢查結果)

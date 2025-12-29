@@ -315,3 +315,5 @@ SERVO_CENTER = 90
 **最後更新**: 2025年12月28日
 **版本**: v1.0.0
 **維護者**: Mosquito PT2D 專案團隊
+
+![GA Tracking](https://ga4.ma7.in/ga/github/REFERENCE/專案規範與參考)
