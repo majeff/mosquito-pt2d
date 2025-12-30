@@ -4,6 +4,7 @@
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20RDK%20X5%20%2F%20Orange%20Pi%205-red.svg)
+![GA Tracking](https://ga4.ma7.in/ga/github/README/README)
 
 一個基於 Arduino 的 2D 雲台（Pan-Tilt）控制系統，整合雙目 USB 攝像頭與 **AI 深度學習（RDK X5 / Orange Pi 5 + YOLOv8）** 技術，實現智能蚊子辨識、追蹤與雷射標記功能並提供即時觀測。
 
@@ -1176,5 +1177,3 @@ location /nginx_status {
 ---
 
 **Built with ❤️ for Arduino Community**
-
-![GA Tracking](https://ga4.ma7.in/ga/github/README/README)
