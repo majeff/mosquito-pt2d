@@ -588,8 +588,15 @@ class MosquitoDetector:
         img = cv2.resize(frame, (self.imgsz, self.imgsz))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+        # 添加 batch 維度：(H, W, C) -> (1, H, W, C)
+        img = np.expand_dims(img, axis=0)
+
         # NPU 推理
         outputs = self.rknn.inference(inputs=[img])
+
+        if outputs is None or len(outputs) == 0:
+            logger.warning("RKNN 推理返回空結果")
+            return [], frame
 
         # 後處理（假設 YOLO 輸出格式）
         detections = self._parse_yolo_output(outputs[0], frame.shape[:2])
