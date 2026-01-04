@@ -56,7 +56,10 @@ class StreamingTrackingSystem:
                  stream_mode: str = "single",
                  save_samples: bool = True,
                  sample_conf_range: tuple = (0.35, 0.65),
-                 enable_depth: bool = True):
+                 enable_depth: bool = True,
+                 enable_rtsp: bool = False,
+                 rtsp_url: str = None,
+                 rtsp_bitrate: int = 2000):
         """
         初始化完整系統
 
@@ -70,6 +73,9 @@ class StreamingTrackingSystem:
             save_samples: 是否儲存中等信心度樣本
             sample_conf_range: 樣本信心度範圍 (min, max)
             enable_depth: 是否啟用深度估計
+            enable_rtsp: 是否啟用 RTSP 推流
+            rtsp_url: RTSP 推流地址
+            rtsp_bitrate: RTSP 視頻碼率 (kbps)
         """
         print("=" * 60)
         print("🦟 蚊子追蹤系統 + 手機串流整合啟動")
@@ -156,9 +162,25 @@ class StreamingTrackingSystem:
 
         # 5. 初始化串流伺服器
         print("[5/6] 初始化串流伺服器...")
-        self.server = StreamingServer(http_port=http_port, fps=30)
+        self.server = StreamingServer(
+            http_port=http_port, 
+            fps=30,
+            rtsp_url=rtsp_url if enable_rtsp else None
+        )
         self.server.run(threaded=True)
         print(f"      ✓ 串流伺服器已啟動 (端口 {http_port})")
+
+        # 6. 初始化 RTSP 推流（如果啟用）
+        self.enable_rtsp = enable_rtsp
+        self.rtsp_bitrate = rtsp_bitrate
+        if enable_rtsp and rtsp_url:
+            print("[6/6] 初始化 RTSP 推流...")
+            # 稍後在第一幀時啟動 RTSP（需要知道幀尺寸）
+            self.rtsp_enabled = False
+            self.rtsp_initialized = False
+        else:
+            self.rtsp_enabled = False
+            self.rtsp_initialized = True
 
         # 雙串流模式（僅在 dual_stream 模式）
         self.server_right = None
@@ -211,6 +233,20 @@ class StreamingTrackingSystem:
         ⚠️ 重要：此函數每幀只調用一次 AI 檢測，不會重複！
         """
         self.stats['total_frames'] += 1
+
+        # 在第一幀時啟動 RTSP（需要知道幀尺寸）
+        if self.enable_rtsp and not self.rtsp_initialized:
+            h, w = frame.shape[:2]
+            try:
+                if self.server.enable_rtsp_push(w, h, bitrate=self.rtsp_bitrate):
+                    print("      ✓ RTSP 推流已啟動")
+                    self.rtsp_enabled = True
+                else:
+                    print("      ⚠ RTSP 推流啟動失敗")
+            except Exception as e:
+                print(f"      ⚠ RTSP 初始化失敗: {e}")
+            finally:
+                self.rtsp_initialized = True
 
         # 分離左右畫面（如果是雙目）
         if self.dual_camera:
@@ -574,6 +610,14 @@ def main():
     parser.add_argument('--no-save-samples', action='store_true',
                        help='停用中等信心度樣本儲存')
 
+    # RTSP 推流參數
+    parser.add_argument('--rtsp', action='store_true',
+                       help='啟用 RTSP 推流（需要安裝 MediaMTX + FFmpeg）')
+    parser.add_argument('--rtsp-url', type=str, default='rtsp://0.0.0.0:8554/mosquito',
+                       help='RTSP 推流地址 (預設: rtsp://0.0.0.0:8554/mosquito)')
+    parser.add_argument('--rtsp-bitrate', type=int, default=2000,
+                       help='RTSP 視頻碼率 kbps (預設: 2000，範圍: 1000-3000)')
+
     args = parser.parse_args()
 
     print()
@@ -603,6 +647,10 @@ def main():
     print(f"   - 串流模式: {args.mode}")
     print(f"   - HTTP 端口: {args.port_http}")
     print(f"   - 樣本儲存: {'停用' if args.no_save_samples else '啟用'}")
+    print(f"   - RTSP 推流: {'✓ 啟用' if args.rtsp else '✗ 停用'}")
+    if args.rtsp:
+        print(f"     → 推流地址: {args.rtsp_url}")
+        print(f"     → 碼率: {args.rtsp_bitrate} kbps")
     print()
 
     # 創建並運行系統
@@ -613,7 +661,10 @@ def main():
         http_port=args.port_http,
         dual_camera=dual_camera,
         stream_mode=args.mode,
-        save_samples=not args.no_save_samples
+        save_samples=not args.no_save_samples,
+        enable_rtsp=args.rtsp,
+        rtsp_url=args.rtsp_url if args.rtsp else None,
+        rtsp_bitrate=args.rtsp_bitrate
     )
 
     system.run()
