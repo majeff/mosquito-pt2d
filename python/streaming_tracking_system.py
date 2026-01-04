@@ -115,12 +115,15 @@ class StreamingTrackingSystem:
             if self.pt_controller.is_connected:
                 print(f"      ✓ Arduino 已連接 ({arduino_port})")
                 self.has_pt = True
+                self.has_laser = True  # 雲台連接成功時啟用雷射功能
             else:
                 print(f"      ⚠ 無法連接 Arduino，僅運行檢測模式")
                 self.has_pt = False
+                self.has_laser = False
         except Exception as e:
             print(f"      ⚠ 雲台初始化失敗: {e}")
             self.has_pt = False
+            self.has_laser = False
             self.pt_controller = None
 
         # 3. 初始化追蹤器
