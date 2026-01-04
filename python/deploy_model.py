@@ -117,21 +117,33 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="僅檢查來源模型，不實際複製")
     args = parser.parse_args()
 
-    project_root = Path(__file__).resolve().parent.parent
-    local_models_dir = project_root / "models"
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
+
+    # 優先使用標準結構 (project_root/models/)，如果不存在則使用 python/models/
+    standard_models_dir = project_root / "models"
+    local_models_dir = script_dir / "models"
+
+    # 如果標準目錄不存在但 python/models/ 存在，使用 python/models/
+    if not standard_models_dir.exists() and local_models_dir.exists():
+        target_models_dir = local_models_dir
+        print("⚠️  注意：使用非標準結構 python/models/")
+        print(f"   建議：將 {local_models_dir} 移動到 {standard_models_dir}")
+    else:
+        target_models_dir = standard_models_dir
 
     try:
         print("="*60)
         print("模型部署工具 - 簡化版")
         print("="*60)
         print(f"專案目錄: {project_root}")
-        print(f"目標模型目錄: {local_models_dir}")
+        print(f"目標模型目錄: {target_models_dir}")
         print()
 
         # 備份現有模型
-        backup_existing_models(local_models_dir)
+        backup_existing_models(target_models_dir)
 
-        copied_models, training_models = copy_all_models_from_drive(local_models_dir)
+        copied_models, training_models = copy_all_models_from_drive(target_models_dir)
 
         print()
         print("="*60)

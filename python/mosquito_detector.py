@@ -208,6 +208,7 @@ class MosquitoDetector:
 
         # 未找到硬體加速模型
         logger.error("未找到硬體加速模型 (.bin 或 .rknn)")
+        logger.error(f"搜尋路徑: {', '.join(str(p.parent) for p in search_paths[:3] if p.parent)}")
         logger.error("請使用 deploy_model.py 將訓練好的模型轉換為對應格式")
         return None
 
