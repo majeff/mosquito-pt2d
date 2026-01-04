@@ -401,9 +401,9 @@ class StreamingTrackingSystem:
         def signal_handler(signum, frame):
             print("\n\n🛑 用戶中斷 (Ctrl+C)")
             self._running = False
-        
+
         signal.signal(signal.SIGINT, signal_handler)
-        
+
         # 開啟攝像頭
         cap = cv2.VideoCapture(self.camera_id)
 
