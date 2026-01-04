@@ -259,11 +259,10 @@ python3 mosquito_tracker.py
 python3 streaming_tracking_system.py
 ```
 
-**Hotkeys:**
-- `q`: Exit system
-- `t`: Toggle tracking mode
-- `s`: Save screenshot
-- `h`: Home pan-tilt
+**Control:**
+- `Ctrl+C`: Exit system
+- **No local display window (headless mode)**
+- View video via browser HTTP stream
 
 **Mobile Viewing:**
 1. Ensure mobile and Orange Pi 5 are on same network
@@ -274,6 +273,10 @@ python3 streaming_tracking_system.py
 - Real-time video (with AI detection boxes, confidence)
 - FPS, detection count, tracking status
 - Connected client count
+
+**System Status Output:**
+- Statistics printed every 100 frames (frame count, FPS, detections, tracking status)
+- Terminal displays system running status
 
 ---
 

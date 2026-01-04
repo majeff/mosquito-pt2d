@@ -492,14 +492,11 @@ def main():
         # 更新串流
         server.update_frame(result)
 
-        # 本地預覽（可選）
-        cv2.imshow('Local Preview', result)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        # Headless 模式：無本地顯示窗口
+        # 通過瀏覽器訪問 http://[IP]:5000 查看影像
+        time.sleep(0.03)  # 控制幀率 ~30 FPS
 
     cap.release()
-    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()

@@ -244,11 +244,10 @@ python mosquito_tracker.py
 python streaming_tracking_system.py
 ```
 
-**快捷鍵:**
-- `q`: 退出系統
-- `t`: 切換追蹤模式
-- `s`: 儲存截圖
-- `h`: 雲台歸位
+**控制方式:**
+- `Ctrl+C`: 退出系統
+- **無本地顯示窗口（headless 模式）**
+- 通過瀏覽器訪問 HTTP 串流查看影像
 
 **手機觀看:**
 1. 確保手機與開發板在同一網路
@@ -259,6 +258,10 @@ python streaming_tracking_system.py
 - 即時影像（包含 AI 檢測框、信心度）
 - FPS、檢測數、追蹤狀態
 - 連線客戶端數量
+
+**系統狀態輸出:**
+- 每 100 幀輸出一次統計信息（幀數、FPS、檢測數、追蹤狀態）
+- 終端機顯示系統運行狀態
 
 ---
 

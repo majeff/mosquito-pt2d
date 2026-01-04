@@ -334,7 +334,7 @@ class MosquitoTracker:
             cv2.putText(frame, f"[{camera_side}] {class_name} ({target_x}, {target_y})",
                        (target_x - 100, target_y - 15),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            cv2.putText(frame, f"信心度: {confidence:.2f}",
+            cv2.putText(frame, f"Confidence: {confidence:.2f}",
                        (target_x - 50, target_y + h + 20),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
@@ -360,7 +360,7 @@ class MosquitoTracker:
                     # 未超時，保持追蹤狀態，等待目標重新出現
                     logger.debug(f"暫時失去目標 ({time_since_last_detection:.1f}s)，保持追蹤狀態...")
                     # 在畫面上顯示等待狀態
-                    cv2.putText(left_frame, f"等待目標中... ({time_since_last_detection:.1f}s)",
+                    cv2.putText(left_frame, f"Waiting for target... ({time_since_last_detection:.1f}s)",
                                (10, self.camera_height - 30),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
@@ -445,15 +445,15 @@ class MosquitoTracker:
                                 result = display_frame.copy()
 
                     # 顯示狀態資訊
-                    mode_text = "追蹤中" if self.tracking_active else "掃描中"
+                    mode_text = "TRACKING" if self.tracking_active else "SCANNING"
                     if temp_paused:
-                        mode_text = "暫停 (溫度)"
+                        mode_text = "PAUSED (Temp)"
                     color = (0, 0, 255) if self.tracking_active else (0, 255, 0)
                     if temp_paused:
                         color = (0, 165, 255)  # 橘色
-                    cv2.putText(result, f"模式: {mode_text}", (10, 30),
+                    cv2.putText(result, f"Mode: {mode_text}", (10, 30),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-                    cv2.putText(result, f"左: {len(left_detections)} | 右: {len(right_detections)}", (10, 60),
+                    cv2.putText(result, f"L: {len(left_detections)} | R: {len(right_detections)}", (10, 60),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
                     # 獲取當前雲台位置（使用緩存減少串口讀取）
@@ -470,7 +470,7 @@ class MosquitoTracker:
                     pan, tilt = self.cached_pan, self.cached_tilt
 
                     # 顯示位置資訊
-                    cv2.putText(result, f"水平: {pan} | 垂直: {tilt}", (10, 90),
+                    cv2.putText(result, f"Pan: {pan} | Tilt: {tilt}", (10, 90),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
                     # 顯示溫度資訊
@@ -486,8 +486,8 @@ class MosquitoTracker:
 
                     # 顯示偵測模式（分塊/整體）
                     try:
-                        mode_text = '分塊' if getattr(self.detector, 'detection_mode', 'tiling') == 'tiling' else '整體'
-                        cv2.putText(result, f"偵測: {mode_text}", (10, 150),
+                        mode_text = 'Tiling' if getattr(self.detector, 'detection_mode', 'tiling') == 'tiling' else 'Whole'
+                        cv2.putText(result, f"Detection: {mode_text}", (10, 150),
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 255, 200), 2)
                     except Exception:
                         pass

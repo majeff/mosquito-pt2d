@@ -325,30 +325,30 @@ class StreamingTrackingSystem:
         line_height = 35
 
         # 標題
-        cv2.putText(frame, "AI 蚊子追蹤", (10, y_pos),
+        cv2.putText(frame, "AI Mosquito Tracking", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         y_pos += line_height
 
         # 檢測數量
-        cv2.putText(frame, f"檢測數: {len(detections)}", (10, y_pos),
+        cv2.putText(frame, f"Detections: {len(detections)}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         y_pos += line_height
 
         # 追蹤狀態
         tracking_color = (0, 255, 0) if self.stats['tracking_active'] else (128, 128, 128)
-        tracking_text = "追蹤中" if self.stats['tracking_active'] else "待命"
-        cv2.putText(frame, f"狀態: {tracking_text}", (10, y_pos),
+        tracking_text = "TRACKING" if self.stats['tracking_active'] else "STANDBY"
+        cv2.putText(frame, f"Status: {tracking_text}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, tracking_color, 2)
         y_pos += line_height
 
         # FPS
         elapsed = time.time() - self.stats['start_time']
         fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
-        cv2.putText(frame, f"幀率: {fps:.1f}", (10, y_pos),
+        cv2.putText(frame, f"FPS: {fps:.1f}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
         # 串流資訊（右上角）
-        cv2.putText(frame, f"客户端: {self.server.stats['clients']}",
+        cv2.putText(frame, f"Clients: {self.server.stats['clients']}",
                    (frame.shape[1] - 200, 30),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
@@ -460,6 +460,13 @@ def main():
     stream_mode = mode_map.get(mode_choice, "single")
 
     print()
+    print("攝像頭配置:")
+    print("1. 單目（單一 USB 攝像頭）")
+    print("2. 雙目（立體視覺，支援深度估計）")
+    camera_choice = input("選擇模式 [1]: ").strip() or "1"
+    dual_camera = (camera_choice == "2")
+
+    print()
 
     # 創建並運行系統
     system = StreamingTrackingSystem(
@@ -467,7 +474,7 @@ def main():
         camera_id=0,
         model_path="models/mosquito",
         http_port=5000,
-        dual_camera=True,
+        dual_camera=dual_camera,
         stream_mode=stream_mode
     )
 
