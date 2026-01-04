@@ -178,27 +178,36 @@ class MosquitoDetector:
         # 建立搜尋路徑列表
         search_paths = []
 
+        # 獲取腳本目錄和專案根目錄
+        script_dir = Path(__file__).resolve().parent
+        project_root = script_dir.parent
+
         if model_path:
             # 用戶指定了基本名稱（無副檔名）
             base_path = Path(model_path)
             base_name = base_path.stem if base_path.suffix else str(base_path)
-            base_dir = base_path.parent if base_path.parent.name else Path('models')
 
-            # 優先順序：BIN (RDK X5) → RKNN (Orange Pi 5)
-            # 僅使用硬體加速格式以獲得最佳效能
-            search_paths.extend([
-                base_dir / f"{base_name}.bin",
-                base_dir / f"{base_name}.rknn"
-            ])
-
-        # 在 models/ 目錄搜尋預設名稱
-        models_dir = Path('models')
-        if models_dir.exists():
-            for default_name in ['mosquito_yolov8', 'mosquito', 'yolov8n']:
+            # 如果指定了目錄，使用該目錄
+            if base_path.parent.name:
+                base_dir = base_path.parent
                 search_paths.extend([
-                    models_dir / f"{default_name}.bin",
-                    models_dir / f"{default_name}.rknn"
+                    base_dir / f"{base_name}.bin",
+                    base_dir / f"{base_name}.rknn"
                 ])
+
+        # 支援兩種目錄結構，按優先順序搜尋
+        models_dirs = [
+            script_dir / 'models',        # python/models/ (當前目錄下)
+            project_root / 'models',      # ../models/ (專案根目錄)
+        ]
+
+        for models_dir in models_dirs:
+            if models_dir.exists():
+                for default_name in ['mosquito_yolov8', 'mosquito', 'yolov8n']:
+                    search_paths.extend([
+                        models_dir / f"{default_name}.bin",
+                        models_dir / f"{default_name}.rknn"
+                    ])
 
         # 嘗試找到第一個存在的模型
         for path in search_paths:
@@ -208,7 +217,8 @@ class MosquitoDetector:
 
         # 未找到硬體加速模型
         logger.error("未找到硬體加速模型 (.bin 或 .rknn)")
-        logger.error(f"搜尋路徑: {', '.join(str(p.parent) for p in search_paths[:3] if p.parent)}")
+        logger.error(f"搜尋的目錄: {', '.join(str(d) for d in models_dirs if d.exists())}")
+        logger.error(f"預期的檔名: mosquito_yolov8.{{bin,rknn}} 或 mosquito.{{bin,rknn}}")
         logger.error("請使用 deploy_model.py 將訓練好的模型轉換為對應格式")
         return None
 
