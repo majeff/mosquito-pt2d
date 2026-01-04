@@ -354,10 +354,15 @@ class StreamingServer:
 
         # 檢查 FFmpeg 是否安裝
         if not shutil.which('ffmpeg'):
-            logger.error("FFmpeg 未安裝！請先安裝：")
+            logger.error("❌ FFmpeg 未安裝！")
+            logger.error("請先安裝：")
             logger.error("  Ubuntu/Debian: sudo apt install ffmpeg")
+            logger.error("  Orange Pi: sudo apt install ffmpeg")
             logger.error("  Windows: 從 https://ffmpeg.org/download.html 下載")
             return False
+
+        logger.info(f"正在啟動 RTSP 推流到 {self.rtsp_url}")
+        logger.info(f"解析度: {frame_width}x{frame_height}, FPS: {self.fps}, 碼率: {bitrate}kbps")
 
         self.rtsp_frame_size = (frame_width, frame_height)
 
@@ -381,21 +386,45 @@ class StreamingServer:
 
         try:
             # 啟動 FFmpeg 進程
+            logger.info(f"執行: {' '.join(ffmpeg_cmd[:10])}...")
             self.rtsp_process = subprocess.Popen(
                 ffmpeg_cmd,
                 stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=False
             )
+
+            # 給 FFmpeg 一點時間初始化
+            import time
+            time.sleep(1)
+
+            # 檢查進程是否還在運行
+            if self.rtsp_process.poll() is not None:
+                # 進程已退出，獲取錯誤信息
+                _, stderr = self.rtsp_process.communicate(timeout=1)
+                error_msg = stderr.decode('utf-8', errors='ignore') if stderr else "未知錯誤"
+                logger.error(f"❌ FFmpeg 啟動失敗:")
+                logger.error(f"{error_msg}")
+                logger.error(f"⚠️  請檢查：")
+                logger.error(f"  1. MediaMTX 是否在運行？(應該在 {self.rtsp_url.split(':')[0]}:{self.rtsp_url.split('/')[2].split(':')[1]} 監聽)")
+                logger.error(f"  2. RTSP URL 是否正確？")
+                logger.error(f"  3. FFmpeg 版本是否支援 RTSP？")
+                self.rtsp_process = None
+                return False
+
             self.stats['rtsp_enabled'] = True
-            logger.info(f"✓ RTSP 推流已啟動")
-            logger.info(f"  目標: {self.rtsp_url}")
-            logger.info(f"  解析度: {frame_width}x{frame_height}")
-            logger.info(f"  碼率: {bitrate}kbps, 預設: {preset}")
+            logger.info(f"✅ RTSP 推流已啟動！")
+            logger.info(f"   目標: {self.rtsp_url}")
             return True
 
         except Exception as e:
-            logger.error(f"RTSP 推流啟動失敗: {e}")
+            logger.error(f"❌ RTSP 推流啟動失敗: {e}")
+            logger.error(f"⚠️  請檢查：")
+            logger.error(f"  1. MediaMTX 是否安裝並運行？")
+            logger.error(f"  2. FFmpeg 是否安裝？")
+            logger.error(f"  3. RTSP 地址是否正確？")
+            self.rtsp_process = None
             return False
 
     def disable_rtsp_push(self):
@@ -448,25 +477,24 @@ def test_streaming():
     """測試串流伺服器（HTTP-MJPEG，無本機顯示）"""
     import cv2
 
-    print("=" * 60)
-    print("影像串流伺服器測試（遠端模式）")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("影像串流伺服器測試（遠端模式）")
+    logger.info("=" * 60)
 
     # 初始化串流伺服器
     server = StreamingServer(http_port=5000, fps=30)
     server.run(threaded=True)
 
-    print(f"\n✓ 伺服器已啟動")
-    print(f"\n📱 觀看方式：")
-    print(f"   在瀏覽器輸入: http://[伺服器IP]:5000")
-    print(f"\n按 Ctrl+C 退出")
-    print()
+    logger.info(f"\n✓ 伺服器已啟動")
+    logger.info(f"\n📱 觀看方式：")
+    logger.info(f"   在瀏覽器輸入: http://[伺服器IP]:5000")
+    logger.info(f"\n按 Ctrl+C 退出")
 
     # 開啟攝像頭
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
-        print("無法開啟攝像頭")
+        logger.error("無法開啟攝像頭")
         return
 
     frame_count = 0
@@ -491,29 +519,29 @@ def test_streaming():
 
             # 每 100 幀輸出一次狀態
             if frame_count % 100 == 0:
-                print(f"幀數: {frame_count}, 連線數: {server.stats['clients']}")
+                logger.info(f"幀數: {frame_count}, 連線數: {server.stats['clients']}")
 
             # 短暫休眠以控制幀率
             time.sleep(1.0 / server.fps)
 
     except KeyboardInterrupt:
-        print("\n用戶中斷")
+        logger.info("\n用戶中斷")
     finally:
         cap.release()
-        print("測試完成")
+        logger.info("測試完成")
 
 
 def test_rtsp_streaming():
     """測試 RTSP 串流（需先啟動 MediaMTX，無本機顯示）"""
     import cv2
 
-    print("=" * 60)
-    print("RTSP 串流測試（遠端模式）")
-    print("=" * 60)
-    print()
-    print("⚠️  請確認已啟動 MediaMTX:")
-    print("   ./mediamtx")
-    print()
+    logger.info("=" * 60)
+    logger.info("RTSP 串流測試（遠端模式）")
+    logger.info("=" * 60)
+    logger.info("")
+    logger.info("⚠️  請確認已啟動 MediaMTX:")
+    logger.info("   ./mediamtx")
+    logger.info("")
     input("按 Enter 繼續...")
 
     # 初始化串流伺服器（HTTP + RTSP）
@@ -527,32 +555,30 @@ def test_rtsp_streaming():
     # 開啟攝像頭
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("無法開啟攝像頭")
+        logger.error("無法開啟攝像頭")
         return
 
     # 獲取影像尺寸
     ret, frame = cap.read()
     if not ret:
-        print("無法讀取影像")
+        logger.error("無法讀取影像")
         return
 
     height, width = frame.shape[:2]
 
     # 啟動 RTSP 推流
-    print(f"\n啟動 RTSP 推流 ({width}x{height})...")
-    if server.enable_rtsp_push(width, height):
-        print(f"\n✓ RTSP 串流已啟動")
-        print(f"\n📱 觀看方式：")
-        print(f"   HTTP-MJPEG: http://[伺服器IP]:5000")
-        print(f"   RTSP: rtsp://[伺服器IP]:8554/mosquito")
-        print(f"\n🎬 RTSP 播放器：")
-        print(f"   - VLC Media Player")
-        print(f"   - 手機 APP: RTSP Player, VLC for Mobile")
-        print(f"\n按 Ctrl+C 退出")
-        print()
+    logger.info(f"\n啟動 RTSP 推流 ({width}x{height})...")
+    if server.enable_rtsp_push(width, height, bitrate=2000):
+        logger.info(f"\n✓ RTSP 串流已啟動")
+        logger.info(f"\n📱 觀看方式：")
+        logger.info(f"   HTTP-MJPEG: http://[伺服器IP]:5000")
+        logger.info(f"   RTSP: rtsp://[伺服器IP]:8554/mosquito")
+        logger.info(f"\n🎬 RTSP 播放器：")
+        logger.info(f"   - VLC Media Player")
+        logger.info(f"   - 手機 APP: RTSP Player, VLC for Mobile")
+        logger.info(f"\n按 Ctrl+C 退出")
     else:
-        print("\n✗ RTSP 推流啟動失敗，僅運行 HTTP-MJPEG")
-        print()
+        logger.warning("\n✗ RTSP 推流啟動失敗，僅運行 HTTP-MJPEG")
 
     frame_count = 0
 
@@ -579,17 +605,17 @@ def test_rtsp_streaming():
             # 每 100 幀輸出一次狀態
             if frame_count % 100 == 0:
                 rtsp_status = "ON" if server.stats['rtsp_enabled'] else "OFF"
-                print(f"幀數: {frame_count}, HTTP 連線: {server.stats['clients']}, RTSP: {rtsp_status}")
+                logger.info(f"幀數: {frame_count}, HTTP 連線: {server.stats['clients']}, RTSP: {rtsp_status}")
 
             # 短暫休眠以控制幀率
             time.sleep(1.0 / server.fps)
 
     except KeyboardInterrupt:
-        print("\n用戶中斷")
+        logger.info("\n用戶中斷")
     finally:
         server.cleanup()
         cap.release()
-        print("測試完成")
+        logger.info("測試完成")
 
 
 if __name__ == "__main__":

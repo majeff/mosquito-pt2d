@@ -848,14 +848,14 @@ class MosquitoDetector:
 
 def test_mosquito_detector():
     """測試AI蚊子偵測器（硬體加速專用）"""
-    print("=== 測試AI蚊子偵測器 ===")
-    print("硬體加速推理：hobot_dnn (BPU) / rknnlite (NPU)")
-    print("按 'q' 退出, 's' 儲存當前幀")
-    print("\n注意：請確保已使用 deploy_model.py 轉換模型為 .bin 或 .rknn 格式")
+    logger.info("=== 測試AI蚊子偵測器 ===")
+    logger.info("硬體加速推理：hobot_dnn (BPU) / rknnlite (NPU)")
+    logger.info("按 'q' 退出, 's' 儲存當前幀")
+    logger.info("\n注意：請確保已使用 deploy_model.py 轉換模型為 .bin 或 .rknn 格式")
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("無法開啟攝像頭")
+        logger.error("無法開啟攝像頭")
         return
 
     try:
@@ -926,16 +926,16 @@ def test_mosquito_detector():
             elif key == ord('s'):
                 filename = f"detection_frame_{frame_count}.jpg"
                 cv2.imwrite(filename, result)
-                print(f"已儲存: {filename}")
+                logger.info(f"已儲存: {filename}")
 
     except Exception as e:
-        print(f"錯誤: {e}")
+        logger.error(f"錯誤: {e}")
         import traceback
         traceback.print_exc()
     finally:
         cap.release()
         cv2.destroyAllWindows()
-        print("測試完成")
+        logger.info("測試完成")
 
 
 if __name__ == "__main__":

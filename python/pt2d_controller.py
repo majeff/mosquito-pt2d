@@ -582,7 +582,7 @@ class PT2DController:
 
 def test_controller():
     """測試控制器基本功能"""
-    print("=== 測試 Arduino PT2D 控制器 ===")
+    logger.info("=== 測試 Arduino PT2D 控制器 ===")
 
     # 請根據實際串口修改
     port = 'COM3'  # Windows
@@ -592,34 +592,34 @@ def test_controller():
 
     with PT2DController(port) as pt:
         if not pt.is_connected:
-            print(f"無法連接至 {port}")
+            logger.error(f"無法連接至 {port}")
             return
 
-        print("\n1. 移動到中心位置")
-        print(pt.move_to(135, 90))
+        logger.info("\n1. 移動到中心位置")
+        logger.info(pt.move_to(135, 90))
         time.sleep(2)
 
-        print("\n2. 獲取當前位置")
+        logger.info("\n2. 獲取當前位置")
         pan, tilt = pt.get_position()
-        print(f"當前位置: Pan={pan}°, Tilt={tilt}°")
+        logger.info(f"當前位置: Pan={pan}°, Tilt={tilt}°")
 
-        print("\n3. 設置速度為 60")
-        print(pt.set_speed(60))
+        logger.info("\n3. 設置速度為 60")
+        logger.info(pt.set_speed(60))
 
-        print("\n4. 相對移動 (+45°, +20°)")
-        print(pt.move_by(45, 20))
+        logger.info("\n4. 相對移動 (+45°, +20°)")
+        logger.info(pt.move_by(45, 20))
         time.sleep(2)
 
-        print("\n5. 執行擺動測試")
+        logger.info("\n5. 執行擺動測試")
         if pt.swing_test():
-            print("✓ 擺動測試成功")
+            logger.info("✓ 擺動測試成功")
         else:
-            print("✗ 擺動測試失敗")
+            logger.warning("✗ 擺動測試失敗")
 
-        print("\n6. 回到初始位置")
-        print(pt.home())
+        logger.info("\n6. 回到初始位置")
+        logger.info(pt.home())
 
-    print("\n測試完成")
+    logger.info("\n測試完成")
 
 
 if __name__ == "__main__":

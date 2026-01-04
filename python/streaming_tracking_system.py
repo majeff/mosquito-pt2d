@@ -42,7 +42,15 @@ import sys
 import time
 import argparse
 import signal
+import logging
 from pathlib import Path
+
+# 配置 logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 class StreamingTrackingSystem:
@@ -78,10 +86,9 @@ class StreamingTrackingSystem:
             rtsp_url: RTSP 推流地址
             rtsp_bitrate: RTSP 視頻碼率 (kbps)
         """
-        print("=" * 60)
-        print("🦟 蚊子追蹤系統 + 手機串流整合啟動")
-        print("=" * 60)
-        print()
+        logger.info("=" * 60)
+        logger.info("🦟 蚊子追蹤系統 + 手機串流整合啟動")
+        logger.info("=" * 60)
 
         # 系統配置
         self.dual_camera = dual_camera
@@ -100,7 +107,7 @@ class StreamingTrackingSystem:
         }
 
         # 1. 初始化 AI 檢測器（只創建一次！）
-        print("[1/5] 初始化 AI 檢測器...")
+        logger.info("[1/5] 初始化 AI 檢測器...")
         self.detector = MosquitoDetector(
             model_path=model_path,
             confidence_threshold=DEFAULT_CONFIDENCE_THRESHOLD,
@@ -113,42 +120,42 @@ class StreamingTrackingSystem:
             save_annotations=True,
             save_full_frame=False
         )
-        print(f"      ✓ 使用 {self.detector.backend.upper()} 後端")
+        logger.info(f"      ✓ 使用 {self.detector.backend.upper()} 後端")
         if save_samples:
-            print(f"      ✓ 樣本儲存已啟用 (信心度 {sample_conf_range[0]}-{sample_conf_range[1]})")
+            logger.info(f"      ✓ 樣本儲存已啟用 (信心度 {sample_conf_range[0]}-{sample_conf_range[1]})")
 
         # 2. 初始化雲台控制器
-        print("[2/5] 初始化雲台控制器...")
+        logger.info("[2/5] 初始化雲台控制器...")
         try:
             self.pt_controller = PT2DController(arduino_port)
             if self.pt_controller.is_connected:
-                print(f"      ✓ Arduino 已連接 ({arduino_port})")
+                logger.info(f"      ✓ Arduino 已連接 ({arduino_port})")
                 self.has_pt = True
                 self.has_laser = True  # 雲台連接成功時啟用雷射功能
             else:
-                print(f"      ⚠ 無法連接 Arduino，僅運行檢測模式")
+                logger.warning(f"      ⚠ 無法連接 Arduino，僅運行檢測模式")
                 self.has_pt = False
                 self.has_laser = False
         except Exception as e:
-            print(f"      ⚠ 雲台初始化失敗: {e}")
+            logger.warning(f"      ⚠ 雲台初始化失敗: {e}")
             self.has_pt = False
             self.has_laser = False
             self.pt_controller = None
 
         # 3. 初始化追蹤器
-        print("[3/5] 初始化追蹤器...")
+        logger.info("[3/5] 初始化追蹤器...")
         if self.has_pt:
             self.tracker = MosquitoTracker(
                 detector=self.detector,
                 pt_controller=self.pt_controller
             )
-            print(f"      ✓ 追蹤器已就緒")
+            logger.info(f"      ✓ 追蹤器已就緒")
         else:
             self.tracker = None
-            print(f"      ⚠ 追蹤器未啟用（需要雲台連接）")
+            logger.warning(f"      ⚠ 追蹤器未啟用（需要雲台連接）")
 
         # 4. 初始化深度估計器（如果啟用）
-        print("[4/6] 初始化深度估計器...")
+        logger.info("[4/6] 初始化深度估計器...")
         if self.enable_depth:
             self.depth_estimator = DepthEstimator(
                 focal_length=3.0,        # 鏡頭焦距 3.0mm
@@ -156,30 +163,37 @@ class StreamingTrackingSystem:
                 image_width=1920,        # 單眼解析度
                 sensor_width=5.0         # 感光元件寬度
             )
-            print(f"      ✓ 深度估計已啟用（測距範圍: 0.5-5m）")
+            logger.info(f"      ✓ 深度估計已啟用（測距範圍: 0.5-5m）")
         else:
             self.depth_estimator = None
-            print(f"      ⚠ 深度估計未啟用（需要雙目攝像頭）")
+            logger.info(f"      ⚠ 深度估計未啟用（需要雙目攝像頭）")
 
         # 5. 初始化串流伺服器
-        print("[5/6] 初始化串流伺服器...")
+        logger.info("[5/6] 初始化串流伺服器...")
         self.server = StreamingServer(
             http_port=http_port,
             fps=30,
             rtsp_url=rtsp_url if enable_rtsp else None
         )
         self.server.run(threaded=True)
-        print(f"      ✓ 串流伺服器已啟動 (端口 {http_port})")
+        logger.info(f"      ✓ 串流伺服器已啟動 (端口 {http_port})")
 
         # 6. 初始化 RTSP 推流（如果啟用）
         self.enable_rtsp = enable_rtsp
+        self.rtsp_url = rtsp_url
         self.rtsp_bitrate = rtsp_bitrate
         if enable_rtsp and rtsp_url:
-            print("[6/6] 初始化 RTSP 推流...")
+            logger.info("[6/6] 初始化 RTSP 推流...")
+            logger.info(f"      ✓ RTSP 已配置")
+            logger.info(f"         URL: {rtsp_url}")
+            logger.info(f"         碼率: {rtsp_bitrate}kbps")
+            logger.info(f"      ⏳ RTSP 推流將在第一幀時啟動...")
             # 稍後在第一幀時啟動 RTSP（需要知道幀尺寸）
             self.rtsp_enabled = False
             self.rtsp_initialized = False
         else:
+            if enable_rtsp:
+                logger.warning(f"⚠️  RTSP 已啟用但 URL 未設定")
             self.rtsp_enabled = False
             self.rtsp_initialized = True
 
@@ -188,44 +202,41 @@ class StreamingTrackingSystem:
         if stream_mode == "dual_stream" and dual_camera:
             self.server_right = StreamingServer(http_port=http_port + 1, fps=30)
             self.server_right.run(threaded=True)
-            print(f"      ✓ 右側串流已啟動 (端口 {http_port + 1})")
+            logger.info(f"      ✓ 右側串流已啟動 (端口 {http_port + 1})")
 
-        print()
-        print("=" * 60)
-        print("🎉 系統已完全啟動！")
-        print("=" * 60)
-        print()
+        logger.info("=" * 60)
+        logger.info("🎉 系統已完全啟動！")
+        logger.info("=" * 60)
         # 生成訪問地址
         device_ip = DEFAULT_DEVICE_IP or "[你的IP]"
         local_url = f"http://{device_ip}:{http_port}"
-        print(f"📱 本機訪問: {local_url}")
+        logger.info(f"📱 本機訪問: {local_url}")
 
         # 如果設置了外部 URL，顯示外部訪問方式
         if DEFAULT_EXTERNAL_URL:
-            print(f"🌐 遠端訪問: {DEFAULT_EXTERNAL_URL}")
+            logger.info(f"🌐 遠端訪問: {DEFAULT_EXTERNAL_URL}")
 
         if self.server_right:
             right_url = f"http://{device_ip}:{http_port + 1}"
-            print(f"📱 右側視角（本機）: {right_url}")
-        print()
-        print("ℹ️  系統配置:")
-        print(f"   - AI 檢測: ✓ 啟用 ({self.detector.backend.upper()})")
-        print(f"   - 雲台追蹤: {'✓ 啟用' if self.has_pt else '✗ 停用'}")
-        print(f"   - 雷射標記: {'✓ 啟用' if self.has_laser else '✗ 停用'}")
-        print(f"   - 深度估計: {'✓ 啟用' if self.enable_depth else '✗ 停用'}")
-        print(f"   - 樣本儲存: {'✓ 啟用' if save_samples else '✗ 停用'}")
-        print(f"   - 雙目攝像頭: {'✓ 啟用' if dual_camera else '✗ 停用'}")
-        print(f"   - 串流模式: {stream_mode}")
-        print()
-        print("⚡ 性能說明:")
-        print(f"   - AI 負載: 每幀只執行一次檢測")
-        print(f"   - 記憶體: 單一檢測器實例")
-        print(f"   - CPU: 最優化利用")
-        print()
-        print("🎮 控制方式:")
-        print("   Ctrl+C - 退出系統")
-        print("   (通過瀏覽器訪問 HTTP 串流查看影像)")
-        print()
+            logger.info(f"📱 右側視角（本機）: {right_url}")
+
+        logger.info("ℹ️  系統配置:")
+        logger.info(f"   - AI 檢測: ✓ 啟用 ({self.detector.backend.upper()})")
+        logger.info(f"   - 雲台追蹤: {'✓ 啟用' if self.has_pt else '✗ 停用'}")
+        logger.info(f"   - 雷射標記: {'✓ 啟用' if self.has_laser else '✗ 停用'}")
+        logger.info(f"   - 深度估計: {'✓ 啟用' if self.enable_depth else '✗ 停用'}")
+        logger.info(f"   - 樣本儲存: {'✓ 啟用' if save_samples else '✗ 停用'}")
+        logger.info(f"   - 雙目攝像頭: {'✓ 啟用' if dual_camera else '✗ 停用'}")
+        logger.info(f"   - 串流模式: {stream_mode}")
+
+        logger.info("⚡ 性能說明:")
+        logger.info(f"   - AI 負載: 每幀只執行一次檢測")
+        logger.info(f"   - 記憶體: 單一檢測器實例")
+        logger.info(f"   - CPU: 最優化利用")
+
+        logger.info("🎮 控制方式:")
+        logger.info("   Ctrl+C - 退出系統")
+        logger.info("   (通過瀏覽器訪問 HTTP 串流查看影像)")
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -238,14 +249,20 @@ class StreamingTrackingSystem:
         # 在第一幀時啟動 RTSP（需要知道幀尺寸）
         if self.enable_rtsp and not self.rtsp_initialized:
             h, w = frame.shape[:2]
+            logger.info(f"🔧 正在初始化 RTSP...")
+            logger.info(f"   RTSP URL: {self.rtsp_url}")
+            logger.info(f"   RTSP 碼率: {self.rtsp_bitrate}kbps")
+            logger.info(f"   幀尺寸: {w}x{h}")
             try:
                 if self.server.enable_rtsp_push(w, h, bitrate=self.rtsp_bitrate):
-                    print("      ✓ RTSP 推流已啟動")
+                    logger.info("✅ RTSP 推流已啟動")
                     self.rtsp_enabled = True
                 else:
-                    print("      ⚠ RTSP 推流啟動失敗")
+                    logger.warning("⚠️  RTSP 推流啟動返回 False")
             except Exception as e:
-                print(f"      ⚠ RTSP 初始化失敗: {e}")
+                logger.error(f"❌ RTSP 初始化失敗: {e}")
+                import traceback
+                traceback.print_exc()
             finally:
                 self.rtsp_initialized = True
 
@@ -399,7 +416,7 @@ class StreamingTrackingSystem:
         """運行主循環"""
         # 設置信號處理器，確保 Ctrl+C 能立即被捕捉
         def signal_handler(signum, frame):
-            print("\n\n🛑 用戶中斷 (Ctrl+C)")
+            logger.info("\n\n🛑 用戶中斷 (Ctrl+C)")
             self._running = False
 
         signal.signal(signal.SIGINT, signal_handler)
@@ -413,17 +430,16 @@ class StreamingTrackingSystem:
             cap.set(cv2.CAP_PROP_FPS, 60)
 
         if not cap.isOpened():
-            print("✗ 無法開啟攝像頭")
+            logger.error("✗ 無法開啟攝像頭")
             return
 
-        print(f"✓ 攝像頭已開啟 (ID: {self.camera_id})")
-        print()
+        logger.info(f"✓ 攝像頭已開啟 (ID: {self.camera_id})")
 
         try:
             while self._running:  # 使用執行標誌控制迴圈
                 ret, frame = cap.read()
                 if not ret:
-                    print("✗ 無法讀取影像")
+                    logger.error("✗ 無法讀取影像")
                     break
 
                 # ⚡ 處理影像（每幀只執行一次 AI 檢測）
@@ -445,7 +461,7 @@ class StreamingTrackingSystem:
                     elapsed = time.time() - self.stats['start_time']
                     fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
                     avg_detections = self.stats['detections'] / self.stats['total_frames'] if self.stats['total_frames'] > 0 else 0
-                    print(f"[狀態] 幀數: {self.stats['total_frames']} | "
+                    logger.info(f"[狀態] 幀數: {self.stats['total_frames']} | "
                           f"FPS: {fps:.1f} | "
                           f"總檢測: {self.stats['detections']} (平均 {avg_detections:.1f}/幀) | "
                           f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'}")
@@ -454,25 +470,25 @@ class StreamingTrackingSystem:
                 time.sleep(0.03)  # ~30 FPS
 
         except Exception as e:
-            print(f"\n❌ 發生錯誤: {e}")
+            logger.error(f"\n❌ 發生錯誤: {e}")
             import traceback
             traceback.print_exc()
             self._running = False
 
         finally:
             # 清理資源（確保執行）
-            print("\n⏳ 正在關閉系統...")
+            logger.info("\n⏳ 正在關閉系統...")
             self._cleanup(cap)
 
     def _cleanup(self, cap):
         """清理所有資源（優雅關閉）"""
-        print("   → 釋放攝像頭...")
+        logger.info("   → 釋放攝像頭...")
         try:
             cap.release()
         except:
             pass
 
-        print("   → 關閉串流伺服器...")
+        logger.info("   → 關閉串流伺服器...")
         try:
             if self.server:
                 self.server.shutdown()
@@ -485,14 +501,14 @@ class StreamingTrackingSystem:
         except:
             pass
 
-        print("   → 關閉雲台...")
+        logger.info("   → 關閉雲台...")
         try:
             if self.pt_controller:
                 self.pt_controller.close()
         except:
             pass
 
-        print("   → 關閉追蹤器...")
+        logger.info("   → 關閉追蹤器...")
         try:
             if self.tracker:
                 if hasattr(self.tracker, 'stop'):
@@ -500,7 +516,7 @@ class StreamingTrackingSystem:
         except:
             pass
 
-        print("   → 關閉檢測器...")
+        logger.info("   → 關閉檢測器...")
         try:
             if self.detector:
                 if hasattr(self.detector, 'cleanup'):
@@ -509,21 +525,19 @@ class StreamingTrackingSystem:
             pass
 
         # 顯示統計
-        print()
-        print("=" * 60)
-        print("📊 系統統計")
-        print("=" * 60)
-        print(f"總幀數: {self.stats['total_frames']}")
-        print(f"總檢測: {self.stats['detections']}")
+        logger.info("=" * 60)
+        logger.info("📊 系統統計")
+        logger.info("=" * 60)
+        logger.info(f"總幀數: {self.stats['total_frames']}")
+        logger.info(f"總檢測: {self.stats['detections']}")
         if hasattr(self.detector, 'saved_sample_count'):
-            print(f"已儲存樣本: {self.detector.saved_sample_count}")
+            logger.info(f"已儲存樣本: {self.detector.saved_sample_count}")
         elapsed = time.time() - self.stats['start_time']
         if elapsed > 0:
-            print(f"運行時間: {elapsed:.1f} 秒")
-            print(f"平均 FPS: {self.stats['total_frames'] / elapsed:.1f}")
-        print("=" * 60)
-        print("✅ 系統已關閉")
-        print()
+            logger.info(f"運行時間: {elapsed:.1f} 秒")
+            logger.info(f"平均 FPS: {self.stats['total_frames'] / elapsed:.1f}")
+        logger.info("=" * 60)
+        logger.info("✅ 系統已關閉")
 
 
 def detect_dual_camera(camera_id: int = 0) -> bool:
@@ -539,7 +553,7 @@ def detect_dual_camera(camera_id: int = 0) -> bool:
     """
     cap = cv2.VideoCapture(camera_id)
     if not cap.isOpened():
-        print(f"⚠ 無法開啟攝像頭 {camera_id}，假設為單目")
+        logger.warning(f"⚠ 無法開啟攝像頭 {camera_id}，假設為單目")
         return False
 
     # 讀取一幀來獲取實際解析度
@@ -547,7 +561,7 @@ def detect_dual_camera(camera_id: int = 0) -> bool:
     cap.release()
 
     if not ret or frame is None:
-        print(f"⚠ 無法讀取攝像頭畫面，假設為單目")
+        logger.warning(f"⚠ 無法讀取攝像頭畫面，假設為單目")
         return False
 
     width = frame.shape[1]
@@ -555,8 +569,8 @@ def detect_dual_camera(camera_id: int = 0) -> bool:
     # 判斷邏輯：雙目攝像頭寬度通常 >= 2560 (兩個 1280x720 或更高)
     is_dual = width >= 2560
 
-    print(f"📷 攝像頭解析度: {width}x{frame.shape[0]}")
-    print(f"📷 檢測結果: {'雙目' if is_dual else '單目'} 攝像頭")
+    logger.info(f"📷 攝像頭解析度: {width}x{frame.shape[0]}")
+    logger.info(f"📷 檢測結果: {'雙目' if is_dual else '單目'} 攝像頭")
 
     return is_dual
 
@@ -579,6 +593,9 @@ def main():
 
   # 自定義串口和串流模式
   python streaming_tracking_system.py --port COM3 --mode side_by_side
+
+  # 啟用 RTSP 推流
+  python streaming_tracking_system.py --rtsp --rtsp-url rtsp://0.0.0.0:8554/mosquito
         """
     )
 
@@ -624,38 +641,33 @@ def main():
 
     args = parser.parse_args()
 
-    print()
-    print("=" * 60)
-    print("🦟 蚊子追蹤系統 + 手機串流")
-    print("=" * 60)
-    print()
+    logger.info("=" * 60)
+    logger.info("🦟 蚊子追蹤系統 + 手機串流")
+    logger.info("=" * 60)
 
     # 自動檢測或使用指定的攝像頭模式
     if args.dual:
         dual_camera = True
-        print("📷 攝像頭模式: 雙目（手動指定）")
+        logger.info("📷 攝像頭模式: 雙目（手動指定）")
     elif args.single:
         dual_camera = False
-        print("📷 攝像頭模式: 單目（手動指定）")
+        logger.info("📷 攝像頭模式: 單目（手動指定）")
     else:
-        print("📷 自動檢測攝像頭模式...")
+        logger.info("📷 自動檢測攝像頭模式...")
         dual_camera = detect_dual_camera(args.camera)
 
-    print()
-
     # 顯示配置
-    print("⚙️  系統配置:")
-    print(f"   - Arduino 串口: {args.port}")
-    print(f"   - 攝像頭 ID: {args.camera}")
-    print(f"   - 攝像頭模式: {'雙目' if dual_camera else '單目'}")
-    print(f"   - 串流模式: {args.mode}")
-    print(f"   - HTTP 端口: {args.port_http}")
-    print(f"   - 樣本儲存: {'停用' if args.no_save_samples else '啟用'}")
-    print(f"   - RTSP 推流: {'✓ 啟用' if args.rtsp else '✗ 停用'}")
+    logger.info("⚙️  系統配置:")
+    logger.info(f"   - Arduino 串口: {args.port}")
+    logger.info(f"   - 攝像頭 ID: {args.camera}")
+    logger.info(f"   - 攝像頭模式: {'雙目' if dual_camera else '單目'}")
+    logger.info(f"   - 串流模式: {args.mode}")
+    logger.info(f"   - HTTP 端口: {args.port_http}")
+    logger.info(f"   - 樣本儲存: {'停用' if args.no_save_samples else '啟用'}")
+    logger.info(f"   - RTSP 推流: {'✓ 啟用' if args.rtsp else '✗ 停用'}")
     if args.rtsp:
-        print(f"     → 推流地址: {args.rtsp_url}")
-        print(f"     → 碼率: {args.rtsp_bitrate} kbps")
-    print()
+        logger.info(f"     → 推流地址: {args.rtsp_url}")
+        logger.info(f"     → 碼率: {args.rtsp_bitrate} kbps")
 
     # 創建並運行系統
     system = StreamingTrackingSystem(

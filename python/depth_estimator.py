@@ -271,11 +271,11 @@ def test_depth_estimation():
     """測試深度估計"""
     from stereo_camera import StereoCamera
 
-    print("=== 測試深度估計 ===")
-    print("說明:")
-    print("  - 左鍵點擊：測量點擊位置的深度")
-    print("  - 'd' 鍵：切換深度圖顯示")
-    print("  - 'q' 鍵：退出")
+    logger.info("=== 測試深度估計 ===")
+    logger.info("說明:")
+    logger.info("  - 左鍵點擊：測量點擊位置的深度")
+    logger.info("  - 'd' 鍵：切換深度圖顯示")
+    logger.info("  - 'q' 鍵：退出")
 
     # 初始化攝像頭和深度估計器
     camera = StereoCamera(left_id=0, right_id=1, width=1920, height=1080)
@@ -337,7 +337,7 @@ def test_depth_estimation():
                 break
             elif key == ord('d'):
                 show_depth_map = not show_depth_map
-                print(f"深度圖顯示: {'開啟' if show_depth_map else '關閉'}")
+                logger.info(f"深度圖顯示: {'開啟' if show_depth_map else '關閉'}")
 
     finally:
         camera.release()

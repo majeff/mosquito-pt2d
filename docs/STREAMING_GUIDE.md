@@ -506,6 +506,85 @@ if __name__ == "__main__":
 
 ## 🐛 故障排除
 
+### RTSP 推流故障排除
+
+#### 檢查清單
+
+如果 RTSP 不能正常啟動，請按以下步驟檢查：
+
+**1. 檢查 FFmpeg 安裝**
+```bash
+# Linux/Orange Pi
+ffmpeg -version
+
+# 如果未安裝
+sudo apt update
+sudo apt install ffmpeg
+
+# Windows - 下載並添加到 PATH
+# https://ffmpeg.org/download.html
+```
+
+**2. 檢查 MediaMTX 是否在運行**
+```bash
+# 下載 MediaMTX
+# Linux ARM64 (Orange Pi):
+wget https://github.com/bluenviron/mediamtx/releases/download/v1.7.0/mediamtx_v1.7.0_linux_arm64.tar.gz
+tar -xzf mediamtx_v1.7.0_linux_arm64.tar.gz
+
+# 運行
+./mediamtx
+
+# 驗證是否監聽 8554 端口
+netstat -tuln | grep 8554
+# 或
+ss -tuln | grep 8554
+```
+
+**3. 檢查網絡連接**
+```bash
+# 測試 MediaMTX 連接
+nc -zv 0.0.0.0 8554
+
+# 或使用 Python
+python -c "import socket; s=socket.socket(); s.settimeout(2); print('OK' if s.connect_ex(('0.0.0.0', 8554))==0 else 'FAILED'); s.close()"
+```
+
+**4. 查看詳細日誌**
+
+運行系統時會顯示詳細的 RTSP 初始化信息：
+```bash
+python streaming_tracking_system.py --rtsp
+```
+
+查看日誌輸出：
+```
+[6/6] 初始化 RTSP 推流...
+      ✓ RTSP 已配置
+         URL: rtsp://0.0.0.0:8554/mosquito
+         碼率: 2000kbps
+      ⏳ RTSP 推流將在第一幀時啟動...
+...
+🔧 正在初始化 RTSP...
+   RTSP URL: rtsp://0.0.0.0:8554/mosquito
+   RTSP 碼率: 2000kbps
+   幀尺寸: 1920x1080
+正在啟動 RTSP 推流到 rtsp://0.0.0.0:8554/mosquito
+解析度: 1920x1080, FPS: 30, 碼率: 2000kbps
+✅ RTSP 推流已啟動！
+```
+
+如果看到錯誤信息，根據提示進行修復。
+
+**常見錯誤及解決方案：**
+
+| 錯誤 | 原因 | 解決方法 |
+|------|------|----------|
+| `❌ FFmpeg 未安裝！` | FFmpeg 未安裝或不在 PATH | 安裝 FFmpeg 並確保可以在命令行執行 |
+| `❌ FFmpeg 啟動失敗` | MediaMTX 未運行 | 啟動 MediaMTX 並確保監聽 8554 端口 |
+| `Connection refused` | MediaMTX 未監聽正確的地址 | 檢查 mediamtx.yml 配置 |
+| `管道已斷開` | RTSP URL 錯誤或網絡問題 | 驗證 URL 格式和網絡連接 |
+
 ### 問題 1: 手機無法連線
 
 **檢查項目：**
