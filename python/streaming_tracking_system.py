@@ -41,6 +41,7 @@ import numpy as np
 import sys
 import time
 import argparse
+import signal
 from pathlib import Path
 
 
@@ -396,6 +397,13 @@ class StreamingTrackingSystem:
 
     def run(self):
         """運行主循環"""
+        # 設置信號處理器，確保 Ctrl+C 能立即被捕捉
+        def signal_handler(signum, frame):
+            print("\n\n🛑 用戶中斷 (Ctrl+C)")
+            self._running = False
+        
+        signal.signal(signal.SIGINT, signal_handler)
+        
         # 開啟攝像頭
         cap = cv2.VideoCapture(self.camera_id)
 
@@ -444,10 +452,6 @@ class StreamingTrackingSystem:
 
                 # 簡單延時控制幀率
                 time.sleep(0.03)  # ~30 FPS
-
-        except KeyboardInterrupt:
-            print("\n\n🛑 用戶中斷 (Ctrl+C)")
-            self._running = False
 
         except Exception as e:
             print(f"\n❌ 發生錯誤: {e}")
