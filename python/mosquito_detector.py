@@ -458,6 +458,9 @@ class MosquitoDetector:
 
             return detections, result_frame
 
+        except KeyboardInterrupt:
+            # 讓 KeyboardInterrupt 正常傳播，觸發優雅關閉
+            raise
         except RuntimeError as e:
             logger.error(f"AI 推理失敗 (Runtime): {e}")
             return [], frame
@@ -643,6 +646,9 @@ class MosquitoDetector:
         # NPU 推理
         try:
             outputs = self.rknn.inference(inputs=[img])
+        except KeyboardInterrupt:
+            # 讓 KeyboardInterrupt 正常傳播，觸發優雅關閉
+            raise
         except Exception as e:
             logger.error(f"RKNN 推理失敗: {e}")
             return [], frame
@@ -656,6 +662,9 @@ class MosquitoDetector:
             if len(outputs[0].shape) == 0 or outputs[0].size == 0:
                 logger.warning("RKNN 推理輸出為空張量")
                 return [], frame
+        except KeyboardInterrupt:
+            # 讓 KeyboardInterrupt 正常傳播
+            raise
         except Exception as e:
             logger.warning(f"檢查 RKNN 輸出失敗: {e}")
             return [], frame
