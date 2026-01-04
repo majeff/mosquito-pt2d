@@ -163,7 +163,7 @@ class StreamingTrackingSystem:
         # 5. 初始化串流伺服器
         print("[5/6] 初始化串流伺服器...")
         self.server = StreamingServer(
-            http_port=http_port, 
+            http_port=http_port,
             fps=30,
             rtsp_url=rtsp_url if enable_rtsp else None
         )
