@@ -148,9 +148,21 @@ class MosquitoDetector:
         # 根據副檔名載入對應的推理引擎
         ext = Path(actual_model_path).suffix.lower()
 
-        if ext == '.bin' and HOBOT_DNN_AVAILABLE:
+        if ext == '.bin':
+            if not HOBOT_DNN_AVAILABLE:
+                raise RuntimeError(
+                    f"找到 BIN 模型但 hobot_dnn 庫未安裝\n"
+                    f"請在 RDK X5 上安裝: pip install hobot_dnn"
+                )
             self._load_hobot_model(actual_model_path)
-        elif ext == '.rknn' and RKNN_AVAILABLE:
+        elif ext == '.rknn':
+            if not RKNN_AVAILABLE:
+                raise RuntimeError(
+                    f"找到 RKNN 模型但 rknnlite 庫未安裝\n"
+                    f"請在 Orange Pi 5 上安裝:\n"
+                    f"  sudo apt update\n"
+                    f"  sudo apt install python3-rknnlite2"
+                )
             self._load_rknn_model(actual_model_path)
         elif ext in ['.onnx', '.pt']:
             raise RuntimeError(f"偵測不支援 {ext} 格式（僅用於訓練）。請使用 deploy_model.py 轉換為 .bin (RDK X5) 或 .rknn (Orange Pi 5)")
