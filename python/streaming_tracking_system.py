@@ -40,6 +40,7 @@ import cv2
 import numpy as np
 import sys
 import time
+import argparse
 from pathlib import Path
 
 
@@ -221,7 +222,8 @@ class StreamingTrackingSystem:
             right_frame = None
 
         # ⚡ AI 檢測（每幀只執行一次！）
-        detections, result_left = self.detector.detect(left_frame)
+        # 雙目模式：告知檢測器這是左眼畫面，只過濾上下邊緣
+        detections, result_left = self.detector.detect(left_frame, is_dual_left=self.dual_camera)
 
         # 記錄檢測數量
         if detections:
@@ -394,9 +396,10 @@ class StreamingTrackingSystem:
                 if self.stats['total_frames'] % 100 == 0:
                     elapsed = time.time() - self.stats['start_time']
                     fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
+                    avg_detections = self.stats['detections'] / self.stats['total_frames'] if self.stats['total_frames'] > 0 else 0
                     print(f"[狀態] 幀數: {self.stats['total_frames']} | "
                           f"FPS: {fps:.1f} | "
-                          f"檢測: {self.stats['detections']} | "
+                          f"總檢測: {self.stats['detections']} (平均 {avg_detections:.1f}/幀) | "
                           f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'}")
 
                 # 簡單延時控制幀率
@@ -429,53 +432,134 @@ class StreamingTrackingSystem:
             print()
 
 
+def detect_dual_camera(camera_id: int = 0) -> bool:
+    """
+    自動檢測是否為雙目攝像頭
+
+    Args:
+        camera_id: 攝像頭 ID
+
+    Returns:
+        True: 雙目攝像頭（寬度 >= 2560）
+        False: 單目攝像頭
+    """
+    cap = cv2.VideoCapture(camera_id)
+    if not cap.isOpened():
+        print(f"⚠ 無法開啟攝像頭 {camera_id}，假設為單目")
+        return False
+
+    # 讀取一幀來獲取實際解析度
+    ret, frame = cap.read()
+    cap.release()
+
+    if not ret or frame is None:
+        print(f"⚠ 無法讀取攝像頭畫面，假設為單目")
+        return False
+
+    width = frame.shape[1]
+
+    # 判斷邏輯：雙目攝像頭寬度通常 >= 2560 (兩個 1280x720 或更高)
+    is_dual = width >= 2560
+
+    print(f"📷 攝像頭解析度: {width}x{frame.shape[0]}")
+    print(f"📷 檢測結果: {'雙目' if is_dual else '單目'} 攝像頭")
+
+    return is_dual
+
+
 def main():
-    """主程式入口"""
+    """主程式入口（參數型）"""
+    parser = argparse.ArgumentParser(
+        description='🦟 蚊子追蹤系統 + 手機串流',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+範例:
+  # 自動檢測模式（推薦）
+  python streaming_tracking_system.py
+
+  # 指定單目模式
+  python streaming_tracking_system.py --single
+
+  # 指定雙目模式
+  python streaming_tracking_system.py --dual
+
+  # 自定義串口和串流模式
+  python streaming_tracking_system.py --port COM3 --mode side_by_side
+        """
+    )
+
+    # 串口參數
+    default_port = 'COM3' if sys.platform.startswith('win') else '/dev/ttyUSB0'
+    parser.add_argument('--port', '-p', type=str, default=default_port,
+                       help=f'Arduino 串口 (預設: {default_port})')
+
+    # 攝像頭參數
+    parser.add_argument('--camera', '-c', type=int, default=0,
+                       help='攝像頭 ID (預設: 0)')
+
+    camera_group = parser.add_mutually_exclusive_group()
+    camera_group.add_argument('--dual', action='store_true',
+                             help='強制使用雙目模式')
+    camera_group.add_argument('--single', action='store_true',
+                             help='強制使用單目模式')
+
+    # 串流參數
+    parser.add_argument('--mode', '-m', type=str,
+                       choices=['single', 'side_by_side', 'dual_stream'],
+                       default='single',
+                       help='串流模式 (預設: single)')
+
+    parser.add_argument('--port-http', type=int, default=5000,
+                       help='HTTP 串流端口 (預設: 5000)')
+
+    # 模型參數
+    parser.add_argument('--model', type=str, default='models/mosquito',
+                       help='AI 模型路徑 (預設: models/mosquito)')
+
+    # 樣本儲存參數
+    parser.add_argument('--no-save-samples', action='store_true',
+                       help='停用中等信心度樣本儲存')
+
+    args = parser.parse_args()
+
     print()
     print("=" * 60)
     print("🦟 蚊子追蹤系統 + 手機串流")
     print("=" * 60)
     print()
 
-    # 檢查是否使用 Windows（可能需要調整串口）
-    default_port = 'COM3' if sys.platform.startswith('win') else '/dev/ttyUSB0'
-
-    # 簡單配置
-    print("系統配置:")
-    print()
-    arduino_port = input(f"Arduino 串口 [{default_port}]: ").strip() or default_port
-
-    print()
-    print("串流模式:")
-    print("1. 並排顯示 - 左側 AI 標註 + 右側原始")
-    print("2. 單一視角（預設）- 僅 AI 標註")
-    print("3. 獨立雙串流 - 左右分別串流")
-    mode_choice = input("選擇模式 [2]: ").strip() or "2"
-
-    mode_map = {
-        "1": "side_by_side",
-        "2": "single",
-        "3": "dual_stream"
-    }
-    stream_mode = mode_map.get(mode_choice, "single")
+    # 自動檢測或使用指定的攝像頭模式
+    if args.dual:
+        dual_camera = True
+        print("📷 攝像頭模式: 雙目（手動指定）")
+    elif args.single:
+        dual_camera = False
+        print("📷 攝像頭模式: 單目（手動指定）")
+    else:
+        print("📷 自動檢測攝像頭模式...")
+        dual_camera = detect_dual_camera(args.camera)
 
     print()
-    print("攝像頭配置:")
-    print("1. 單目（單一 USB 攝像頭）")
-    print("2. 雙目（立體視覺，支援深度估計）")
-    camera_choice = input("選擇模式 [1]: ").strip() or "1"
-    dual_camera = (camera_choice == "2")
 
+    # 顯示配置
+    print("⚙️  系統配置:")
+    print(f"   - Arduino 串口: {args.port}")
+    print(f"   - 攝像頭 ID: {args.camera}")
+    print(f"   - 攝像頭模式: {'雙目' if dual_camera else '單目'}")
+    print(f"   - 串流模式: {args.mode}")
+    print(f"   - HTTP 端口: {args.port_http}")
+    print(f"   - 樣本儲存: {'停用' if args.no_save_samples else '啟用'}")
     print()
 
     # 創建並運行系統
     system = StreamingTrackingSystem(
-        arduino_port=arduino_port,
-        camera_id=0,
-        model_path="models/mosquito",
-        http_port=5000,
+        arduino_port=args.port,
+        camera_id=args.camera,
+        model_path=args.model,
+        http_port=args.port_http,
         dual_camera=dual_camera,
-        stream_mode=stream_mode
+        stream_mode=args.mode,
+        save_samples=not args.no_save_samples
     )
 
     system.run()

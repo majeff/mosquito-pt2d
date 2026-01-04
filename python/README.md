@@ -132,11 +132,24 @@ python deploy_model.py --imgsz 320
 
 ```bash
 # 一體化系統（AI+追蹤+串流）
+# 基本執行（自動檢測單目/雙目）
 python streaming_tracking_system.py
+
+# 指定單目模式
+python streaming_tracking_system.py --single
+
+# 查看所有參數
+python streaming_tracking_system.py --help
 
 # 或僅啟動追蹤（無串流）
 python mosquito_tracker.py
 ```
+
+**主要參數：**
+- `--single/--dual`: 指定攝像頭模式（不指定則自動檢測）
+- `--port`: Arduino 串口
+- `--mode`: 串流模式（single/side_by_side/dual_stream）
+- `--no-save-samples`: 停用中等信心度樣本儲存
 
 ## 📂 模組說明
 

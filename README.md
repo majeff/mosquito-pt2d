@@ -241,8 +241,36 @@ python mosquito_tracker.py
 #### 方案 A: 完整系統（streaming_tracking_system.py）⭐ 推薦
 
 ```bash
+# 基本執行（自動檢測單目/雙目）
 python streaming_tracking_system.py
+
+# 指定單目模式
+python streaming_tracking_system.py --single
+
+# 指定雙目模式
+python streaming_tracking_system.py --dual
+
+# 自定義串口和串流模式
+python streaming_tracking_system.py --port /dev/ttyUSB0 --mode side_by_side
+
+# 查看所有參數
+python streaming_tracking_system.py --help
 ```
+
+**命令列參數：**
+- `--port, -p`: Arduino 串口（預設: Windows COM3, Linux /dev/ttyUSB0）
+- `--camera, -c`: 攝像頭 ID（預設: 0）
+- `--single`: 強制使用單目模式
+- `--dual`: 強制使用雙目模式
+- `--mode, -m`: 串流模式（single/side_by_side/dual_stream）
+- `--port-http`: HTTP 串流端口（預設: 5000）
+- `--model`: AI 模型路徑
+- `--no-save-samples`: 停用樣本儲存
+
+**自動檢測攝像頭模式：**
+- 系統會自動檢測攝像頭解析度
+- 寬度 ≥ 2560 自動識別為雙目
+- 單目模式自動停用深度估計
 
 **控制方式:**
 - `Ctrl+C`: 退出系統

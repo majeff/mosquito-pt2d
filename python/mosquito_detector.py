@@ -31,6 +31,7 @@ from config import (
     DEFAULT_IOU_THRESHOLD,
     DEFAULT_DETECTION_MODE,
     DEFAULT_TILE_OVERLAP,
+    DEFAULT_DETECTION_MARGIN,
     DEFAULT_MAX_SAMPLES,
     DEFAULT_SAVE_INTERVAL,
 )
@@ -67,6 +68,7 @@ class MosquitoDetector:
                  imgsz: int = DEFAULT_IMGSZ,
                  detection_mode: str = DEFAULT_DETECTION_MODE,  # 'tiling' 或 'whole'
                  tile_overlap: float = DEFAULT_TILE_OVERLAP,
+                 detection_margin: float = DEFAULT_DETECTION_MARGIN,
                  fallback_to_pretrained: bool = True,
                  save_uncertain_samples: bool = False,
                  uncertain_conf_range: Tuple[float, float] = (0.35, 0.65),
@@ -90,6 +92,7 @@ class MosquitoDetector:
             imgsz: 輸入影像大小，預設 640（推薦值）
                    - 320: 快速推理，適合低效能設備
                    - 640: 標準精度，推薦使用（Orange Pi 5 可流暢運行）
+            detection_margin: 檢測邊界邊距（0.0-0.5），排除邊緣區域，預設 0.1
             fallback_to_pretrained: 如果找不到自定義模型，是否使用預訓練模型
             save_uncertain_samples: 是否儲存信心度中等的樣本圖片以便後續檢驗與再訓練
             uncertain_conf_range: 中等信心度範圍 (min, max)，預設 (0.35, 0.65)
@@ -116,6 +119,13 @@ class MosquitoDetector:
         except Exception:
             self.tile_overlap = DEFAULT_TILE_OVERLAP
         self.tile_overlap = max(0.0, min(0.5, self.tile_overlap))
+
+        # 檢測邊界邊距
+        try:
+            self.detection_margin = float(detection_margin)
+        except Exception:
+            self.detection_margin = DEFAULT_DETECTION_MARGIN
+        self.detection_margin = max(0.0, min(0.5, self.detection_margin))
 
         # 儲存功能配置
         self.save_uncertain_samples = save_uncertain_samples
@@ -413,12 +423,13 @@ class MosquitoDetector:
             logger.error(f"生成標註文件失敗: {e}")
 
 
-    def detect(self, frame: np.ndarray) -> Tuple[List[Dict], np.ndarray]:
+    def detect(self, frame: np.ndarray, is_dual_left: bool = False) -> Tuple[List[Dict], np.ndarray]:
         """
         使用 AI 模型偵測蚊子（自動選擇 RKNN/ONNX/PyTorch）
 
         Args:
             frame: 輸入影像（BGR格式）
+            is_dual_left: 是否為雙目左眼畫面（只過濾上下邊緣）
 
         Returns:
             (偵測結果列表，包含bbox和confidence，處理後的影像)
@@ -433,6 +444,10 @@ class MosquitoDetector:
                     detections, result_frame = self._detect_rknn(frame)
                 else:
                     raise RuntimeError(f"未知的推理後端: {self.backend}")
+
+            # 過濾邊界區域的檢測結果
+            if self.detection_margin > 0 and detections:
+                detections = self._filter_margin_detections(detections, frame.shape[:2], is_dual_left)
 
             # 儲存信心度中等的樣本
             if self.save_uncertain_samples and detections:
@@ -452,6 +467,40 @@ class MosquitoDetector:
         except Exception as e:
             logger.error(f"AI 偵測發生未預期錯誤: {e}")
             return [], frame
+
+def _filter_margin_detections(self, detections: List[Dict], frame_shape: Tuple[int, int], is_dual_left: bool = False) -> List[Dict]:
+        """
+        過濾掉位於畫面邊緣區域的檢測結果
+
+        Args:
+            detections: 檢測結果列表
+            frame_shape: 影像尺寸 (height, width)
+            is_dual_left: 是否為雙目左眼（True 時只過濾上下邊緣）
+
+        Returns:
+            過濾後的檢測結果列表
+        """
+        if self.detection_margin <= 0:
+            return detections
+
+        h, w = frame_shape
+        margin_y = int(h * self.detection_margin)
+
+        filtered = []
+        for det in detections:
+            cx, cy = det['center']
+
+            # 雙目左眼：只檢查上下邊界（左右邊界不是真正的邊緣）
+            if is_dual_left:
+                if margin_y <= cy < h - margin_y:
+                    filtered.append(det)
+            else:
+                # 單目：檢查四邊
+                margin_x = int(w * self.detection_margin)
+                if (margin_x <= cx < w - margin_x) and (margin_y <= cy < h - margin_y):
+                    filtered.append(det)
+
+        return filtered
 
     def _run_backend_once(self, img: np.ndarray) -> List[Dict]:
         """

@@ -256,8 +256,36 @@ python3 mosquito_tracker.py
 #### Option A: Complete System (streaming_tracking_system.py) ⭐ Recommended
 
 ```bash
+# Basic execution (auto-detect mono/dual)
 python3 streaming_tracking_system.py
+
+# Specify mono camera mode
+python3 streaming_tracking_system.py --single
+
+# Specify dual camera mode
+python3 streaming_tracking_system.py --dual
+
+# Custom port and streaming mode
+python3 streaming_tracking_system.py --port /dev/ttyUSB0 --mode side_by_side
+
+# View all parameters
+python3 streaming_tracking_system.py --help
 ```
+
+**Command Line Parameters:**
+- `--port, -p`: Arduino serial port (default: Windows COM3, Linux /dev/ttyUSB0)
+- `--camera, -c`: Camera ID (default: 0)
+- `--single`: Force mono camera mode
+- `--dual`: Force dual camera mode
+- `--mode, -m`: Streaming mode (single/side_by_side/dual_stream)
+- `--port-http`: HTTP streaming port (default: 5000)
+- `--model`: AI model path
+- `--no-save-samples`: Disable sample saving
+
+**Auto Camera Detection:**
+- System automatically detects camera resolution
+- Width ≥ 2560 recognized as dual camera
+- Mono mode automatically disables depth estimation
 
 **Control:**
 - `Ctrl+C`: Exit system
