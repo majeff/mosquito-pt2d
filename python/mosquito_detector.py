@@ -468,7 +468,7 @@ class MosquitoDetector:
             logger.error(f"AI 偵測發生未預期錯誤: {e}")
             return [], frame
 
-def _filter_margin_detections(self, detections: List[Dict], frame_shape: Tuple[int, int], is_dual_left: bool = False) -> List[Dict]:
+    def _filter_margin_detections(self, detections: List[Dict], frame_shape: Tuple[int, int], is_dual_left: bool = False) -> List[Dict]:
         """
         過濾掉位於畫面邊緣區域的檢測結果
 
