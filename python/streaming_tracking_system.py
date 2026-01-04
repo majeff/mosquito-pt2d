@@ -342,7 +342,7 @@ class StreamingTrackingSystem:
         else:
             tracking_text = "STANDBY"
             tracking_color = (128, 128, 128)
-        
+
         cv2.putText(frame, f"Status: {tracking_text}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, tracking_color, 2)
         y_pos += line_height
