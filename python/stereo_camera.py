@@ -24,6 +24,7 @@ import logging
 import os
 import sys
 import time
+import platform
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,10 +41,23 @@ def list_available_cameras(max_test: int = 5) -> List[dict]:
         可用的攝像頭信息列表，每個元素包含 id 和 backend
     """
     available = []
-    backends = [
-        (cv2.CAP_DSHOW, "DirectShow"),
-        (cv2.CAP_MSMF, "Media Foundation"),
-    ]
+
+    # 根據操作系統選擇合適的後端
+    system = platform.system()
+    if system == "Windows":
+        backends = [
+            (cv2.CAP_DSHOW, "DirectShow"),
+            (cv2.CAP_MSMF, "Media Foundation"),
+        ]
+    elif system == "Linux":
+        backends = [
+            (cv2.CAP_V4L2, "Video4Linux2"),
+            (cv2.CAP_ANY, "Default"),
+        ]
+    else:  # macOS or others
+        backends = [
+            (cv2.CAP_ANY, "Default"),
+        ]
 
     # 臨時抑制 OpenCV 錯誤輸出
     original_stderr = sys.stderr
@@ -110,15 +124,24 @@ class StereoCamera:
             是否成功開啟
         """
         try:
-            # 嘗試不同的視訊後端開啟左攝像頭（或單目攝像頭）
-            backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF, cv2.CAP_ANY]
+            # 根據操作系統選擇合適的後端
+            system = platform.system()
+            if system == "Windows":
+                backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF, cv2.CAP_ANY]
+                backend_names = {cv2.CAP_DSHOW: "DSHOW", cv2.CAP_MSMF: "MSMF", cv2.CAP_ANY: "ANY"}
+            elif system == "Linux":
+                backends = [cv2.CAP_V4L2, cv2.CAP_ANY]
+                backend_names = {cv2.CAP_V4L2: "V4L2", cv2.CAP_ANY: "ANY"}
+            else:
+                backends = [cv2.CAP_ANY]
+                backend_names = {cv2.CAP_ANY: "ANY"}
+
             self.left_cap = None
 
             for backend in backends:
                 self.left_cap = cv2.VideoCapture(self.left_id, backend)
                 if self.left_cap.isOpened():
-                    backend_name = {cv2.CAP_DSHOW: "DSHOW", cv2.CAP_MSMF: "MSMF", cv2.CAP_ANY: "ANY"}
-                    logger.info(f"使用 {backend_name.get(backend, 'UNKNOWN')} 後端開啟攝像頭")
+                    logger.info(f"使用 {backend_names.get(backend, 'UNKNOWN')} 後端開啟攝像頭")
                     break
                 else:
                     self.left_cap.release()
