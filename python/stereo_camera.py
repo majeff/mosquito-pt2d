@@ -19,24 +19,74 @@
 
 import cv2
 import numpy as np
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 import logging
+import os
+import sys
+import time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class StereoCamera:
-    """雙目 USB 攝像頭類"""
+def list_available_cameras(max_test: int = 5) -> List[dict]:
+    """
+    列出可用的攝像頭設備
 
-    def __init__(self, left_id: int = 0, right_id: int = 1,
+    Args:
+        max_test: 最多測試的攝像頭數量
+
+    Returns:
+        可用的攝像頭信息列表，每個元素包含 id 和 backend
+    """
+    available = []
+    backends = [
+        (cv2.CAP_DSHOW, "DirectShow"),
+        (cv2.CAP_MSMF, "Media Foundation"),
+    ]
+
+    # 臨時抑制 OpenCV 錯誤輸出
+    original_stderr = sys.stderr
+    sys.stderr = open(os.devnull, 'w')
+
+    try:
+        for i in range(max_test):
+            for backend, backend_name in backends:
+                try:
+                    cap = cv2.VideoCapture(i, backend)
+                    if cap.isOpened():
+                        # 嘗試讀取一幀來確認攝像頭真的可用
+                        ret, _ = cap.read()
+                        if ret:
+                            available.append({
+                                'id': i,
+                                'backend': backend,
+                                'backend_name': backend_name
+                            })
+                            cap.release()
+                            break  # 找到可用的後端就停止
+                    cap.release()
+                except:
+                    pass
+    finally:
+        # 恢復錯誤輸出
+        sys.stderr.close()
+        sys.stderr = original_stderr
+
+    return available
+
+
+class StereoCamera:
+    """雙目/單目 USB 攝像頭類"""
+
+    def __init__(self, left_id: int = 0, right_id: Optional[int] = None,
                  width: int = 640, height: int = 480, fps: int = 30):
         """
-        初始化雙目攝像頭
+        初始化攝像頭（支援單目/雙目模式）
 
         Args:
-            left_id: 左攝像頭設備 ID
-            right_id: 右攝像頭設備 ID
+            left_id: 左攝像頭設備 ID（單目模式時為主攝像頭 ID）
+            right_id: 右攝像頭設備 ID（設為 None 時啟用單目模式）
             width: 影像寬度
             height: 影像高度
             fps: 幀率
@@ -46,6 +96,7 @@ class StereoCamera:
         self.width = width
         self.height = height
         self.fps = fps
+        self.is_stereo = right_id is not None  # 判斷是否為雙目模式
 
         self.left_cap = None
         self.right_cap = None
@@ -53,16 +104,28 @@ class StereoCamera:
 
     def open(self) -> bool:
         """
-        開啟雙目攝像頭
+        開啟攝像頭（單目/雙目）
 
         Returns:
             是否成功開啟
         """
         try:
-            # 開啟左攝像頭
-            self.left_cap = cv2.VideoCapture(self.left_id, cv2.CAP_DSHOW)
-            if not self.left_cap.isOpened():
-                logger.error(f"無法開啟左攝像頭 (ID: {self.left_id})")
+            # 嘗試不同的視訊後端開啟左攝像頭（或單目攝像頭）
+            backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF, cv2.CAP_ANY]
+            self.left_cap = None
+
+            for backend in backends:
+                self.left_cap = cv2.VideoCapture(self.left_id, backend)
+                if self.left_cap.isOpened():
+                    backend_name = {cv2.CAP_DSHOW: "DSHOW", cv2.CAP_MSMF: "MSMF", cv2.CAP_ANY: "ANY"}
+                    logger.info(f"使用 {backend_name.get(backend, 'UNKNOWN')} 後端開啟攝像頭")
+                    break
+                else:
+                    self.left_cap.release()
+
+            if not self.left_cap or not self.left_cap.isOpened():
+                logger.error(f"無法開啟{'左' if self.is_stereo else ''}攝像頭 (ID: {self.left_id})")
+                logger.info("嘗試運行 list_cameras() 查看可用攝像頭")
                 return False
 
             # 設定左攝像頭參數
@@ -70,20 +133,31 @@ class StereoCamera:
             self.left_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             self.left_cap.set(cv2.CAP_PROP_FPS, self.fps)
 
-            # 開啟右攝像頭
-            self.right_cap = cv2.VideoCapture(self.right_id, cv2.CAP_DSHOW)
-            if not self.right_cap.isOpened():
-                logger.error(f"無法開啟右攝像頭 (ID: {self.right_id})")
-                self.left_cap.release()
-                return False
+            # 如果是雙目模式，開啟右攝像頭
+            if self.is_stereo:
+                self.right_cap = None
+                for backend in backends:
+                    self.right_cap = cv2.VideoCapture(self.right_id, backend)
+                    if self.right_cap.isOpened():
+                        break
+                    else:
+                        self.right_cap.release()
 
-            # 設定右攝像頭參數
-            self.right_cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            self.right_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-            self.right_cap.set(cv2.CAP_PROP_FPS, self.fps)
+                if not self.right_cap or not self.right_cap.isOpened():
+                    logger.error(f"無法開啟右攝像頭 (ID: {self.right_id})")
+                    self.left_cap.release()
+                    return False
+
+                # 設定右攝像頭參數
+                self.right_cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                self.right_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                self.right_cap.set(cv2.CAP_PROP_FPS, self.fps)
 
             self.is_opened = True
-            logger.info(f"雙目攝像頭已開啟 (左: {self.left_id}, 右: {self.right_id})")
+            if self.is_stereo:
+                logger.info(f"雙目攝像頭已開啟 (左: {self.left_id}, 右: {self.right_id})")
+            else:
+                logger.info(f"單目攝像頭已開啟 (ID: {self.left_id})")
             logger.info(f"解析度: {self.width}x{self.height}, FPS: {self.fps}")
             return True
 
@@ -96,23 +170,32 @@ class StereoCamera:
 
     def read(self) -> Tuple[bool, Optional[np.ndarray], Optional[np.ndarray]]:
         """
-        讀取雙目影像
+        讀取影像（單目/雙目）
 
         Returns:
             (成功標誌, 左影像, 右影像)
+            單目模式下右影像為 None
         """
         if not self.is_opened:
             return False, None, None
 
         try:
             ret_left, frame_left = self.left_cap.read()
-            ret_right, frame_right = self.right_cap.read()
 
-            if ret_left and ret_right:
-                return True, frame_left, frame_right
+            if self.is_stereo:
+                ret_right, frame_right = self.right_cap.read()
+                if ret_left and ret_right:
+                    return True, frame_left, frame_right
+                else:
+                    logger.warning("讀取影像失敗")
+                    return False, None, None
             else:
-                logger.warning("讀取影像失敗")
-                return False, None, None
+                # 單目模式
+                if ret_left:
+                    return True, frame_left, None
+                else:
+                    logger.warning("讀取影像失敗")
+                    return False, None, None
 
         except (IOError, OSError) as e:
             logger.error(f"攝像頭 I/O 錯誤: {e}")
@@ -147,14 +230,17 @@ class StereoCamera:
 
     def get_stereo_frame(self) -> Optional[np.ndarray]:
         """
-        獲取並排拼接的雙目影像
+        獲取並排拼接的雙目影像（單目模式下返回單一影像）
 
         Returns:
-            左右拼接的影像，失敗返回 None
+            左右拼接的影像（雙目），或單一影像（單目），失敗返回 None
         """
         ret, left, right = self.read()
         if ret:
-            return np.hstack((left, right))
+            if self.is_stereo and right is not None:
+                return np.hstack((left, right))
+            else:
+                return left
         return None
 
     def release(self):
@@ -165,7 +251,7 @@ class StereoCamera:
             self.right_cap.release()
 
         self.is_opened = False
-        logger.info("雙目攝像頭已釋放")
+        logger.info(f"{'雙目' if self.is_stereo else '單目'}攝像頭已釋放")
 
     def __enter__(self):
         """上下文管理器入口"""
@@ -177,34 +263,86 @@ class StereoCamera:
         self.release()
 
 
-def test_stereo_camera():
-    """測試雙目攝像頭"""
-    print("=== 測試雙目攝像頭 ===")
-    print("按 'q' 退出")
+def list_cameras():
+    """列出並顯示所有可用的攝像頭"""
+    print("=== 檢測可用攝像頭 ===")
+    print("正在掃描...")
+    available = list_available_cameras()
 
-    with StereoCamera(left_id=0, right_id=1) as camera:
+    if available:
+        print(f"\n找到 {len(available)} 個可用攝像頭:")
+        for cam in available:
+            print(f"  - 攝像頭 ID: {cam['id']} (後端: {cam['backend_name']})")
+    else:
+        print("\n未找到可用的攝像頭")
+        print("\n可能的原因和解決方法：")
+        print("  1. 攝像頭未連接")
+        print("     → 請檢查 USB 連接")
+        print("  2. 攝像頭被其他程式占用")
+        print("     → 關閉其他使用攝像頭的應用程式（如 Skype、Teams、瀏覽器等）")
+        print("  3. 攝像頭驅動問題")
+        print("     → 在裝置管理員中檢查攝像頭狀態")
+        print("  4. 權限問題")
+        print("     → 確認應用程式有訪問攝像頭的權限（設定 > 隱私 > 相機）")
+        print("\n建議：")
+        print("  - 嘗試用 Windows 內建的「相機」應用測試攝像頭")
+        print("  - 重新插拔 USB 攝像頭")
+
+    return available
+
+
+def test_stereo_camera():
+    """測試雙目/單目攝像頭（無本機顯示，適合遠端執行）"""
+    print("=== 測試攝像頭（遠端模式）===\n")
+
+    # 先檢測可用攝像頭
+    available = list_cameras()
+    if not available:
+        return
+
+    print("\n按 Ctrl+C 退出\n")
+
+    # 使用第一個可用的攝像頭
+    cam_info = available[0]
+    camera_id = cam_info['id']
+    print(f"使用攝像頭 ID: {camera_id}")
+    print(f"後端: {cam_info['backend_name']}\n")
+
+    # 如果有多個攝像頭，提示雙目模式
+    if len(available) > 1:
+        print(f"提示：檢測到 {len(available)} 個攝像頭，可使用雙目模式")
+        print(f"      StereoCamera(left_id={available[0]['id']}, right_id={available[1]['id']})\n")
+
+    # 預設測試單目模式
+    with StereoCamera(left_id=camera_id) as camera:
         if not camera.is_opened:
             print("無法開啟攝像頭，請檢查設備連接")
             return
 
-        while True:
-            ret, left, right = camera.read()
+        mode = "雙目" if camera.is_stereo else "單目"
+        print(f"當前模式：{mode}")
+        print("攝像頭正在運行，每 100 幀輸出一次狀態...")
+        print()
 
-            if ret:
-                # 顯示左右影像
-                cv2.imshow('Left Camera', left)
-                cv2.imshow('Right Camera', right)
+        frame_count = 0
 
-                # 顯示拼接影像
-                stereo_frame = camera.get_stereo_frame()
-                if stereo_frame is not None:
-                    cv2.imshow('Stereo Camera', stereo_frame)
+        try:
+            while True:
+                ret, left, right = camera.read()
 
-            # 按 'q' 退出
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+                if ret:
+                    frame_count += 1
 
-    cv2.destroyAllWindows()
+                    # 每 100 幀輸出一次狀態
+                    if frame_count % 100 == 0:
+                        print(f"已處理 {frame_count} 幀影像")
+
+                # 短暫休眠以避免過度占用 CPU
+                time.sleep(0.01)
+
+        except KeyboardInterrupt:
+            print(f"\n用戶中斷，共處理 {frame_count} 幀")
+
     print("測試完成")
 
 

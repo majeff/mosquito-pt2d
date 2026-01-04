@@ -129,22 +129,22 @@ class StreamingServer:
                 <title>蚊子追蹤系統 - 即時監控</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
-                    body {
+                    body {{
                         font-family: Arial, sans-serif;
                         margin: 0;
                         padding: 20px;
                         background-color: #1a1a1a;
                         color: #fff;
-                    }
-                    .container {
+                    }}
+                    .container {{
                         max-width: 1200px;
                         margin: 0 auto;
-                    }
-                    h1 {
+                    }}
+                    h1 {{
                         text-align: center;
                         color: #4CAF50;
-                    }
-                    .video-container {
+                    }}
+                    .video-container {{
                         position: relative;
                         width: 100%;
                         max-width: 960px;
@@ -153,52 +153,52 @@ class StreamingServer:
                         border: 2px solid #4CAF50;
                         border-radius: 8px;
                         overflow: hidden;
-                    }
-                    img {
+                    }}
+                    img {{
                         width: 100%;
                         height: auto;
                         display: block;
-                    }
-                    .stats {
+                    }}
+                    .stats {{
                         background-color: #2d2d2d;
                         padding: 15px;
                         border-radius: 8px;
                         margin-top: 20px;
-                    }
-                    .stat-item {
+                    }}
+                    .stat-item {{
                         display: inline-block;
                         margin: 10px 20px;
-                    }
-                    .stat-label {
+                    }}
+                    .stat-label {{
                         color: #888;
                         font-size: 12px;
-                    }
-                    .stat-value {
+                    }}
+                    .stat-value {{
                         color: #4CAF50;
                         font-size: 24px;
                         font-weight: bold;
-                    }
-                    .info {
+                    }}
+                    .info {{
                         background-color: #2d2d2d;
                         padding: 15px;
                         border-radius: 8px;
                         margin-top: 20px;
-                    }
-                    .info h3 {
+                    }}
+                    .info h3 {{
                         margin-top: 0;
                         color: #4CAF50;
-                    }
-                    code {
+                    }}
+                    code {{
                         background-color: #1a1a1a;
                         padding: 2px 6px;
                         border-radius: 3px;
                         color: #4CAF50;
-                    }
-                    .offline {
+                    }}
+                    .offline {{
                         text-align: center;
                         padding: 50px;
                         color: #888;
-                    }
+                    }}
                 </style>
             </head>
             <body>
@@ -255,10 +255,10 @@ class StreamingServer:
 
                 <script>
                     // 定期更新統計資訊
-                    function updateStats() {{
+                    function updateStats() {{{{
                         fetch('/stats')
                             .then(response => response.json())
-                            .then(data => {{
+                            .then(data => {{{{
                                 document.getElementById('frames').textContent = data.total_frames;
                                 document.getElementById('clients').textContent = data.clients;
 
@@ -268,9 +268,9 @@ class StreamingServer:
                                 const minutes = Math.floor((uptime % 3600) / 60);
                                 const seconds = uptime % 60;
                                 document.getElementById('uptime').textContent =
-                                    `${{hours.toString().padStart(2, '0')}}:${{minutes.toString().padStart(2, '0')}}:${{seconds.toString().padStart(2, '0')}}`;
-                            }});
-                    }}
+                                    `${{{{hours.toString().padStart(2, '0')}}}}:${{{{minutes.toString().padStart(2, '0')}}}}:${{{{seconds.toString().padStart(2, '0')}}}}`;
+                            }}}});
+                    }}}}
 
                     // 每秒更新一次
                     setInterval(updateStats, 1000);
@@ -446,11 +446,11 @@ class StreamingServer:
 
 
 def test_streaming():
-    """測試串流伺服器（HTTP-MJPEG）"""
+    """測試串流伺服器（HTTP-MJPEG，無本機顯示）"""
     import cv2
 
     print("=" * 60)
-    print("影像串流伺服器測試")
+    print("影像串流伺服器測試（遠端模式）")
     print("=" * 60)
 
     # 初始化串流伺服器
@@ -458,9 +458,9 @@ def test_streaming():
     server.run(threaded=True)
 
     print(f"\n✓ 伺服器已啟動")
-    print(f"\n📱 手機觀看方式：")
-    print(f"   在手機瀏覽器輸入: http://[你的IP]:5000")
-    print(f"\n按 'q' 退出")
+    print(f"\n📱 觀看方式：")
+    print(f"   在瀏覽器輸入: http://[伺服器IP]:5000")
+    print(f"\n按 Ctrl+C 退出")
     print()
 
     # 開啟攝像頭
@@ -490,26 +490,26 @@ def test_streaming():
             # 更新串流影像
             server.update_frame(frame)
 
-            # 本地顯示
-            cv2.imshow('Streaming Server', frame)
+            # 每 100 幀輸出一次狀態
+            if frame_count % 100 == 0:
+                print(f"幀數: {frame_count}, 連線數: {server.stats['clients']}")
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            # 短暫休眠以控制幀率
+            time.sleep(1.0 / server.fps)
 
     except KeyboardInterrupt:
         print("\n用戶中斷")
     finally:
         cap.release()
-        cv2.destroyAllWindows()
         print("測試完成")
 
 
 def test_rtsp_streaming():
-    """測試 RTSP 串流（需先啟動 MediaMTX）"""
+    """測試 RTSP 串流（需先啟動 MediaMTX，無本機顯示）"""
     import cv2
 
     print("=" * 60)
-    print("RTSP 串流測試")
+    print("RTSP 串流測試（遠端模式）")
     print("=" * 60)
     print()
     print("⚠️  請確認已啟動 MediaMTX:")
@@ -544,12 +544,12 @@ def test_rtsp_streaming():
     if server.enable_rtsp_push(width, height):
         print(f"\n✓ RTSP 串流已啟動")
         print(f"\n📱 觀看方式：")
-        print(f"   HTTP-MJPEG: http://[你的IP]:5000")
-        print(f"   RTSP: rtsp://[你的IP]:8554/mosquito")
+        print(f"   HTTP-MJPEG: http://[伺服器IP]:5000")
+        print(f"   RTSP: rtsp://[伺服器IP]:8554/mosquito")
         print(f"\n🎬 RTSP 播放器：")
         print(f"   - VLC Media Player")
         print(f"   - 手機 APP: RTSP Player, VLC for Mobile")
-        print(f"\n按 'q' 退出")
+        print(f"\n按 Ctrl+C 退出")
         print()
     else:
         print("\n✗ RTSP 推流啟動失敗，僅運行 HTTP-MJPEG")
@@ -577,18 +577,19 @@ def test_rtsp_streaming():
             # 更新串流（同時推送到 HTTP 和 RTSP）
             server.update_frame(frame)
 
-            # 本地顯示
-            cv2.imshow('RTSP Streaming Test', frame)
+            # 每 100 幀輸出一次狀態
+            if frame_count % 100 == 0:
+                rtsp_status = "ON" if server.stats['rtsp_enabled'] else "OFF"
+                print(f"幀數: {frame_count}, HTTP 連線: {server.stats['clients']}, RTSP: {rtsp_status}")
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            # 短暫休眠以控制幀率
+            time.sleep(1.0 / server.fps)
 
     except KeyboardInterrupt:
         print("\n用戶中斷")
     finally:
         server.cleanup()
         cap.release()
-        cv2.destroyAllWindows()
         print("測試完成")
 
 
