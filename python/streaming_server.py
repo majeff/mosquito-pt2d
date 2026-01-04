@@ -434,15 +434,29 @@ class StreamingServer:
     def run(self, threaded: bool = True):
         """啟動 HTTP 伺服器"""
         if threaded:
-            thread = threading.Thread(target=self._run_server, daemon=True)
-            thread.start()
+            self.server_thread = threading.Thread(target=self._run_server, daemon=True)
+            self.server_thread.start()
             logger.info(f"HTTP 伺服器已在背景啟動 (端口 {self.http_port})")
         else:
             self._run_server()
 
     def _run_server(self):
         """執行 Flask 伺服器"""
-        self.app.run(host='0.0.0.0', port=self.http_port, threaded=True, debug=False)
+        try:
+            self.app.run(host='0.0.0.0', port=self.http_port, threaded=True, debug=False)
+        except Exception as e:
+            logger.error(f"串流伺服器錯誤: {e}")
+
+    def shutdown(self):
+        """優雅關閉伺服器"""
+        logger.info(f"正在關閉伺服器 (端口 {self.http_port})...")
+        try:
+            # 使用 werkzeug 伺服器關閉機制
+            func = self.app.wsgi_app.server.shutdown
+            if func:
+                func()
+        except:
+            pass
 
 
 def test_streaming():

@@ -81,6 +81,7 @@ class StreamingTrackingSystem:
         self.stream_mode = stream_mode
         self.camera_id = camera_id
         self.enable_depth = enable_depth and dual_camera  # 深度估計需要雙目攝像頭
+        self._running = True  # 運行標誌，用於優雅退出
 
         # 統計資訊
         self.stats = {
@@ -372,7 +373,7 @@ class StreamingTrackingSystem:
         print()
 
         try:
-            while True:
+            while self._running:  # 使用執行標誌控制迴圈
                 ret, frame = cap.read()
                 if not ret:
                     print("✗ 無法讀取影像")
@@ -405,31 +406,81 @@ class StreamingTrackingSystem:
                 # 簡單延時控制幀率
                 time.sleep(0.03)  # ~30 FPS
 
-                # 檢查是否需要退出（可通過 Ctrl+C）
-                # 註：無 cv2.waitKey()，使用 Ctrl+C 退出
-
         except KeyboardInterrupt:
-            print("\n\n用戶中斷 (Ctrl+C)")
+            print("\n\n🛑 用戶中斷 (Ctrl+C)")
+            self._running = False
+
+        except Exception as e:
+            print(f"\n❌ 發生錯誤: {e}")
+            import traceback
+            traceback.print_exc()
+            self._running = False
 
         finally:
-            # 清理資源
+            # 清理資源（確保執行）
+            print("\n⏳ 正在關閉系統...")
+            self._cleanup(cap)
+
+    def _cleanup(self, cap):
+        """清理所有資源（優雅關閉）"""
+        print("   → 釋放攝像頭...")
+        try:
             cap.release()
+        except:
+            pass
+
+        print("   → 關閉串流伺服器...")
+        try:
+            if self.server:
+                self.server.shutdown()
+        except:
+            pass
+
+        try:
+            if self.server_right:
+                self.server_right.shutdown()
+        except:
+            pass
+
+        print("   → 關閉雲台...")
+        try:
             if self.pt_controller:
                 self.pt_controller.close()
+        except:
+            pass
 
-            # 顯示統計
-            print()
-            print("=" * 60)
-            print("系統統計")
-            print("=" * 60)
-            print(f"總幀數: {self.stats['total_frames']}")
-            print(f"總檢測: {self.stats['detections']}")
-            if hasattr(self.detector, 'saved_sample_count'):
-                print(f"已儲存樣本: {self.detector.saved_sample_count}")
-            elapsed = time.time() - self.stats['start_time']
+        print("   → 關閉追蹤器...")
+        try:
+            if self.tracker:
+                if hasattr(self.tracker, 'stop'):
+                    self.tracker.stop()
+        except:
+            pass
+
+        print("   → 關閉檢測器...")
+        try:
+            if self.detector:
+                if hasattr(self.detector, 'cleanup'):
+                    self.detector.cleanup()
+        except:
+            pass
+
+        # 顯示統計
+        print()
+        print("=" * 60)
+        print("📊 系統統計")
+        print("=" * 60)
+        print(f"總幀數: {self.stats['total_frames']}")
+        print(f"總檢測: {self.stats['detections']}")
+        if hasattr(self.detector, 'saved_sample_count'):
+            print(f"已儲存樣本: {self.detector.saved_sample_count}")
+        elapsed = time.time() - self.stats['start_time']
+        if elapsed > 0:
             print(f"運行時間: {elapsed:.1f} 秒")
             print(f"平均 FPS: {self.stats['total_frames'] / elapsed:.1f}")
-            print()
+        print("=" * 60)
+        print("✅ 系統已關閉")
+        print()
 
 
 def detect_dual_camera(camera_id: int = 0) -> bool:

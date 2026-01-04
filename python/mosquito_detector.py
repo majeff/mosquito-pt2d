@@ -641,10 +641,23 @@ def _filter_margin_detections(self, detections: List[Dict], frame_shape: Tuple[i
         img = np.expand_dims(img, axis=0)
 
         # NPU 推理
-        outputs = self.rknn.inference(inputs=[img])
+        try:
+            outputs = self.rknn.inference(inputs=[img])
+        except Exception as e:
+            logger.error(f"RKNN 推理失敗: {e}")
+            return [], frame
 
         if outputs is None or len(outputs) == 0:
             logger.warning("RKNN 推理返回空結果")
+            return [], frame
+
+        # 檢查輸出是否有效
+        try:
+            if len(outputs[0].shape) == 0 or outputs[0].size == 0:
+                logger.warning("RKNN 推理輸出為空張量")
+                return [], frame
+        except Exception as e:
+            logger.warning(f"檢查 RKNN 輸出失敗: {e}")
             return [], frame
 
         # 後處理（假設 YOLO 輸出格式）
@@ -791,6 +804,37 @@ def _filter_margin_detections(self, detections: List[Dict], frame_shape: Tuple[i
     def reset(self):
         """重置偵測器狀態（AI模型不需要重置）"""
         logger.info("AI偵測器無需重置")
+
+    def cleanup(self):
+        """優雅關閉偵測器，釋放硬體加速資源"""
+        logger.info("正在清理偵測器資源...")
+        try:
+            if self.backend == 'rknn' and hasattr(self, 'rknn'):
+                logger.info("正在釋放 RKNN 模型...")
+                if hasattr(self.rknn, 'release'):
+                    self.rknn.release()
+                logger.info("✓ RKNN 資源已釋放")
+        except Exception as e:
+            logger.error(f"RKNN 清理失敗: {e}")
+
+        try:
+            if self.backend == 'hobot_dnn' and hasattr(self, 'hobot_models'):
+                logger.info("正在釋放 BPU 模型...")
+                # hobot_dnn 的模型在垃圾回收時自動釋放
+                logger.info("✓ BPU 資源已釋放")
+        except Exception as e:
+            logger.error(f"BPU 清理失敗: {e}")
+
+        try:
+            if self.backend == 'onnx' and hasattr(self, 'model'):
+                logger.info("正在釋放 ONNX 模型...")
+                if hasattr(self.model, 'close'):
+                    self.model.close()
+                logger.info("✓ ONNX 資源已釋放")
+        except Exception as e:
+            logger.error(f"ONNX 清理失敗: {e}")
+
+        logger.info("✓ 偵測器已清理完成")
 
 
 def test_mosquito_detector():
