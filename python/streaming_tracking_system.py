@@ -327,19 +327,22 @@ class StreamingTrackingSystem:
         y_pos = 30
         line_height = 35
 
-        # 標題
-        cv2.putText(frame, "AI Mosquito Tracking", (10, y_pos),
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        y_pos += line_height
-
         # 檢測數量
         cv2.putText(frame, f"Detections: {len(detections)}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         y_pos += line_height
 
         # 追蹤狀態
-        tracking_color = (0, 255, 0) if self.stats['tracking_active'] else (128, 128, 128)
-        tracking_text = "TRACKING" if self.stats['tracking_active'] else "STANDBY"
+        if not self.has_pt:
+            tracking_text = "NONE"
+            tracking_color = (128, 128, 128)
+        elif self.stats['tracking_active']:
+            tracking_text = "TRACKING"
+            tracking_color = (0, 255, 0)
+        else:
+            tracking_text = "STANDBY"
+            tracking_color = (128, 128, 128)
+        
         cv2.putText(frame, f"Status: {tracking_text}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, tracking_color, 2)
         y_pos += line_height

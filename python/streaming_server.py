@@ -209,21 +209,6 @@ class StreamingServer:
                         <img src="/video" alt="即時影像串流" onerror="this.src='/static/offline.jpg'">
                     </div>
 
-                    <div class="stats">
-                        <div class="stat-item">
-                            <div class="stat-label">總幀數</div>
-                            <div class="stat-value" id="frames">0</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">連線數</div>
-                            <div class="stat-value" id="clients">0</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">運行時間</div>
-                            <div class="stat-value" id="uptime">00:00:00</div>
-                        </div>
-                    </div>
-
                     <div class="info">
                         <h3>📱 手機觀看方式</h3>
                         <p><strong>方式 1：區域網路直連（推薦）</strong></p>
