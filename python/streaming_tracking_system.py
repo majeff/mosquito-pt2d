@@ -197,12 +197,9 @@ class StreamingTrackingSystem:
         print(f"   - 記憶體: 單一檢測器實例")
         print(f"   - CPU: 最優化利用")
         print()
-        print("按鍵操作:")
-        print("   'q' - 退出系統")
-        print("   't' - 切換追蹤模式")
-        print("   's' - 儲存截圖")
-        print("   'l' - 切換雷射" + (" (已啟用)" if self.has_laser else " (未啟用)"))
-        print("   'h' - 雲台歸位")
+        print("🎮 控制方式:")
+        print("   Ctrl+C - 退出系統")
+        print("   (通過瀏覽器訪問 HTTP 串流查看影像)")
         print()
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
@@ -388,36 +385,25 @@ class StreamingTrackingSystem:
                     self.server.update_frame(result[0])
                     if self.server_right:
                         self.server_right.update_frame(result[1])
-                    display = np.hstack([
-                        cv2.resize(result[0], (960, 540)),
-                        cv2.resize(result[1], (960, 540))
-                    ])
+                    # 不需要本地顯示（headless mode）
                 else:
                     # 單一串流
                     self.server.update_frame(result)
-                    display = result
 
-                # 本地預覽
-                cv2.imshow('蚊子追蹤系統', display)
+                # 定期輸出狀態（每 100 幀）
+                if self.stats['total_frames'] % 100 == 0:
+                    elapsed = time.time() - self.stats['start_time']
+                    fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
+                    print(f"[狀態] 幀數: {self.stats['total_frames']} | "
+                          f"FPS: {fps:.1f} | "
+                          f"檢測: {self.stats['detections']} | "
+                          f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'}")
 
-                # 鍵盤控制
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    print("\n退出中...")
-                    break
-                elif key == ord('t'):
-                    if self.tracker:
-                        print(f"追蹤模式: {'啟用' if not self.stats['tracking_active'] else '停用'}")
-                elif key == ord('s'):
-                    filename = f"capture_{int(time.time())}.jpg"
-                    cv2.imwrite(filename, display)
-                    print(f"已儲存: {filename}")
-                elif key == ord('h'):
-                    if self.pt_controller:
-                        self.pt_controller.home()
-                        print("雲台歸位中...")
-                    else:
-                        print("雲台未連接")
+                # 簡單延時控制幀率
+                time.sleep(0.03)  # ~30 FPS
+
+                # 檢查是否需要退出（可通過 Ctrl+C）
+                # 註：無 cv2.waitKey()，使用 Ctrl+C 退出
 
         except KeyboardInterrupt:
             print("\n\n用戶中斷 (Ctrl+C)")
@@ -425,7 +411,6 @@ class StreamingTrackingSystem:
         finally:
             # 清理資源
             cap.release()
-            cv2.destroyAllWindows()
             if self.pt_controller:
                 self.pt_controller.close()
 
