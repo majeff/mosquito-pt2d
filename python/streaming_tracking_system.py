@@ -634,9 +634,9 @@ def main():
     parser.add_argument('--no-save-samples', action='store_true',
                        help='停用中等信心度樣本儲存')
 
-    # RTSP 推流參數（預設啟用）
-    parser.add_argument('--no-rtsp', action='store_false', dest='rtsp',
-                       help='停用 RTSP 推流（RTSP 預設啟用）')
+    # RTSP 推流參數（預設停用）
+    parser.add_argument('--rtsp', action='store_true',
+                       help='啟用 RTSP 推流（預設停用）')
     parser.add_argument('--rtsp-url', type=str, default='rtsp://0.0.0.0:8554/mosquito',
                        help='RTSP 推流地址 (預設: rtsp://0.0.0.0:8554/mosquito)')
     parser.add_argument('--rtsp-bitrate', type=int, default=2000,
@@ -667,12 +667,12 @@ def main():
     logger.info(f"   - 串流模式: {args.mode}")
     logger.info(f"   - HTTP 端口: {args.port_http}")
     logger.info(f"   - 樣本儲存: {'停用' if args.no_save_samples else '啟用'}")
-    logger.info(f"   - RTSP 推流: {'✓ 啟用 (預設)' if args.rtsp else '✗ 停用'}")
+    logger.info(f"   - RTSP 推流: {'✓ 啟用' if args.rtsp else '✗ 停用 (預設)'}")
     if args.rtsp:
         logger.info(f"     → 推流地址: {args.rtsp_url}")
         logger.info(f"     → 碼率: {args.rtsp_bitrate} kbps")
     else:
-        logger.info(f"     ℹ️  提示: 使用預設 HTTP-MJPEG 串流（若需 RTSP 請移除 --no-rtsp 參數）")
+        logger.info(f"     ℹ️  提示: 使用預設 HTTP-MJPEG 串流（若需 RTSP 請加上 --rtsp 參數）")
 
     # 創建並運行系統
     system = StreamingTrackingSystem(
