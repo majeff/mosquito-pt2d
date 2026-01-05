@@ -126,7 +126,8 @@ class StreamingServer:
             <!DOCTYPE html>
             <html>
             <head>
-                <title>蚊子追蹤系統 - 即時監控</title>
+                <title>🦟 蚊子追蹤系統 - 即時監控</title>
+                <link rel="icon" type="image/svg+xml" href="/favicon.ico">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
                     body {{
@@ -280,6 +281,17 @@ class StreamingServer:
                 'clients': self.stats['clients'],
                 'start_time': self.stats['start_time']
             })
+
+        @self.app.route('/favicon.ico')
+        def favicon():
+            """提供網站圖標"""
+            from flask import send_from_directory
+            import os
+            static_folder = os.path.join(os.path.dirname(__file__), 'static')
+            if os.path.exists(os.path.join(static_folder, 'favicon.svg')):
+                return send_from_directory(static_folder, 'favicon.svg', mimetype='image/svg+xml')
+            # 如果找不到 SVG，返回空響應避免 404 錯誤
+            return '', 204
 
     def _generate_frames(self):
         """生成 MJPEG 幀"""
