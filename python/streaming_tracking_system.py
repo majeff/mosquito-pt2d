@@ -412,6 +412,16 @@ class StreamingTrackingSystem:
                    (frame.shape[1] - 200, 30),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
+        # 時間（右下角）
+        current_time = time.strftime("%H:%M:%S")
+        time_font_size = 0.35
+        time_thickness = 1
+        time_size = cv2.getTextSize(current_time, cv2.FONT_HERSHEY_SIMPLEX, time_font_size, time_thickness)[0]
+        time_x = frame.shape[1] - time_size[0] - 10
+        time_y = frame.shape[0] - 10
+        cv2.putText(frame, current_time, (time_x, time_y),
+                   cv2.FONT_HERSHEY_SIMPLEX, time_font_size, (200, 200, 200), time_thickness)
+
     def run(self):
         """運行主循環"""
         # 設置信號處理器，確保 Ctrl+C 能立即被捕捉
