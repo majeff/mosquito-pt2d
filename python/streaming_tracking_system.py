@@ -36,6 +36,7 @@ from depth_estimator import DepthEstimator
 from config import (DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ,
                    DEFAULT_DEVICE_IP, DEFAULT_EXTERNAL_URL,
                    DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL)
+import sys
 import cv2
 import numpy as np
 import sys
@@ -428,6 +429,8 @@ class StreamingTrackingSystem:
         def signal_handler(signum, frame):
             logger.info("\n\n🛑 用戶中斷 (Ctrl+C)")
             self._running = False
+            # 強制退出（如果正在執行阻塞操作）
+            sys.exit(0)
 
         signal.signal(signal.SIGINT, signal_handler)
 
