@@ -104,7 +104,8 @@ class StreamingTrackingSystem:
             'detections': 0,
             'tracking_active': False,
             'samples_saved': 0,
-            'start_time': time.time()
+            'start_time': time.time(),
+            'last_illumination_info': {}
         }
 
         # 1. 初始化 AI 檢測器（只創建一次！）
@@ -305,6 +306,9 @@ class StreamingTrackingSystem:
         else:
             self.stats['tracking_active'] = False
 
+        # 儲存光照度資訊
+        self.stats['last_illumination_info'] = illumination_info
+
         # 繪製 AI 標註（包含深度資訊）
         result_left = self._draw_detections_with_depth(result_left, detections)
 
@@ -422,6 +426,10 @@ class StreamingTrackingSystem:
                    cv2.FONT_HERSHEY_SIMPLEX, time_font_size, (200, 200, 200), time_thickness)
 
         # 光照度（右下角向上）
+        # Debug: 輸出光照度狀態
+        if illumination_info['illumination'] < 50:  # 只在光線較暗時輸出
+            logger.debug(f"Illumination: {illumination_info['illumination']}, Status: {illumination_info['status']}")
+
         illumination_color = (0, 255, 0)  # 綠色：正常
         if illumination_info['status'] == 'paused':
             illumination_color = (0, 0, 255)  # 紅色：暫停
@@ -487,11 +495,22 @@ class StreamingTrackingSystem:
                 if self.stats['total_frames'] % 100 == 0:
                     elapsed = time.time() - self.stats['start_time']
                     fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
-                    avg_detections = self.stats['detections'] / self.stats['total_frames'] if self.stats['total_frames'] > 0 else 0
-                    logger.info(f"[狀態] 幀數: {self.stats['total_frames']} | "
-                          f"FPS: {fps:.1f} | "
-                          f"總檢測: {self.stats['detections']} (平均 {avg_detections:.1f}/幀) | "
-                          f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'}")
+
+                    # 獲取光照度資訊
+                    illum_info = self.stats.get('last_illumination_info', {})
+                    lux = illum_info.get('illumination', 0)
+                    lux_status = illum_info.get('status', 'unknown')
+                    lux_msg = illum_info.get('message', '')
+                    ai_paused = illum_info.get('paused', False)
+
+                    # 獲取弱信心存檔數
+                    saved_samples = getattr(self.detector, 'saved_sample_count', 0)
+
+                    logger.info(f"[狀態] FPS: {fps:.1f} | "
+                          f"總檢測: {self.stats['detections']}/{saved_samples} | "
+                          f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'} | "
+                          f"辨識: {'停用' if ai_paused else '啟用'} | "
+                          f"Lux: {lux} ({lux_status}) | {lux_msg}")
 
                 # 簡單延時控制幀率
                 time.sleep(0.03)  # ~30 FPS

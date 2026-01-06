@@ -419,7 +419,7 @@ class MosquitoDetector:
             # 光照度已恢復，重新啟用 AI 辨識
             self.illumination_paused = False
             status = 'resumed'
-            message = f'Light OK ({illumination}/255)'
+            message = f'Light Resumed ({illumination}/255) AI Active'
         elif illumination < self.illumination_warning_threshold:
             # 光照度稍低，但未達暫停閾值
             status = 'warning'
