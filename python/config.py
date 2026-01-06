@@ -17,6 +17,8 @@
 統一管理系統中的關鍵參數，方便調整和維護
 """
 
+import socket
+
 # ============================================
 # AI 檢測參數
 # ============================================
@@ -132,9 +134,24 @@ COLAB_NOTEBOOK_DEST_DIR = r"G:\我的雲端硬碟\Colab Notebooks"
 # 網路配置
 # ============================================
 
-# Orange Pi 5 IP 地址（用於生成訪問說明）
-# 設為 None 時會顯示 [Your_IP] 提示
-DEFAULT_DEVICE_IP = None  # 例如: "192.168.1.100"
+# 自動獲取本機 IP 地址（用於生成訪問說明）
+def _get_local_ip():
+    """自動偵測本機 IP 地址"""
+    try:
+        # 連接到外部伺服器以獲取本機實際 IP（不會真正發送數據）
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        # 備用方案：嘗試獲取主機名稱對應的 IP
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
+
+DEFAULT_DEVICE_IP = _get_local_ip()  # 自動檢測本機 IP
 
 # 外部訪問 URL（透過 Nginx Reverse Proxy）
 # 設為 None 時不顯示外部 URL
