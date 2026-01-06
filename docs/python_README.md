@@ -373,10 +373,9 @@ LASER_PULSE_DURATION = 0.2  # 脈衝時長（秒）
 
 # 光照度智能監測
 ENABLE_ILLUMINATION_MONITORING = True      # 啟用光照監測
-ILLUMINATION_WARNING_THRESHOLD = 30        # 警告光照值（0-255）
-ILLUMINATION_PAUSE_THRESHOLD = 15          # 暫停 AI 檢測光照值
-ILLUMINATION_RESUME_THRESHOLD = 25         # 恢復 AI 檢測光照值
-ILLUMINATION_CHECK_INTERVAL = 1.0          # 光照檢測間隔（秒）
+ILLUMINATION_WARNING_THRESHOLD = 60        # 警告光照值（0-255）
+ILLUMINATION_PAUSE_THRESHOLD = 40          # 暫停/恢復 AI 檢測光照值
+ILLUMINATION_CHECK_INTERVAL = 5.0          # 光照檢測間隔（秒）
 ```
 
 ### AI 模型優化設定
@@ -440,19 +439,17 @@ sudo python3 -c "import OPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.setup(5
 ```python
 # 光照度監測配置
 ENABLE_ILLUMINATION_MONITORING = True      # 是否啟用光照監測
-ILLUMINATION_WARNING_THRESHOLD = 30        # 警告光照值（0-255 灰階值）
-ILLUMINATION_PAUSE_THRESHOLD = 15          # 暫停 AI 檢測的光照閾值
-ILLUMINATION_RESUME_THRESHOLD = 25         # 恢復 AI 檢測的光照閾值
-ILLUMINATION_CHECK_INTERVAL = 1.0          # 光照狀態檢查間隔（秒）
+ILLUMINATION_WARNING_THRESHOLD = 60        # 警告光照值（0-255 灰階值）
+ILLUMINATION_PAUSE_THRESHOLD = 40          # 暫停/恢復 AI 檢測的光照閾值
+ILLUMINATION_CHECK_INTERVAL = 5.0          # 光照狀態檢查間隔（秒）
 ```
 
 **光照度監測工作原理：**
 
 1. **光照估算**: 將每幀影像轉換為灰階，計算平均像素值（0-255）
 2. **狀態判斷**:
-   - `亮度 >= ILLUMINATION_RESUME_THRESHOLD`: 恢復 AI 檢測（綠色/黃色）
-   - `亮度 >= ILLUMINATION_WARNING_THRESHOLD`: 正常運行（綠色）
-   - `亮度 < ILLUMINATION_WARNING_THRESHOLD && > PAUSE`: 警告狀態（橙色）
+   - `亮度 >= 60`: 正常運行（綠色）
+   - `40 <= 亮度 < 60`: 警告狀態（橙色）
    - `亮度 <= ILLUMINATION_PAUSE_THRESHOLD`: 暫停 AI 檢測（紅色）
 3. **自動暫停**: 光照過低時，AI 檢測自動暫停，減少計算浪費和誤報
 

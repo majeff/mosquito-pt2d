@@ -12,8 +12,8 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
 ### v2.5.0 (2025-01-06) 💡 Illumination Monitoring Upgrade
 - New: Intelligent illumination monitoring with auto-pause AI detection
 - New: Real-time light level estimation and display (Lux value)
-- New: Configurable illumination thresholds (Warning/Pause/Resume)
-- UI Enhancement: Illumination status indicator in bottom-right corner (Green/Orange/Red/Yellow)
+- New: Configurable illumination thresholds (Warning/Pause)
+- UI Enhancement: Illumination status indicator in bottom-right corner (Green/Orange/Red)
 - Optimization: Reduces false positives and computational waste in low-light conditions
 
 ---

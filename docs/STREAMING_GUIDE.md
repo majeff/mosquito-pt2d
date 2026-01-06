@@ -197,13 +197,13 @@ while True:
 **光照度監測說明：**
 - 🟢 **綠色（正常）**: 光照充足，AI 檢測正常運行
 - 🟠 **橙色（警告）**: 光照開始降低，接近暫停閾值
+- � **綠色（正常）**: 光照充足，AI 檢測正常運行
+- 🟠 **橙色（警告）**: 光線較暗，可能影響檢測精度，但 AI 仍在運行
 - 🔴 **紅色（暫停）**: 光照過低，AI 檢測已自動暫停以節省資源
-- 🟡 **黃色（已恢復）**: 光照已改善，AI 檢測已恢復運行
 
 AI 會根據 `config.py` 中的閾值自動調整：
-- `ILLUMINATION_WARNING_THRESHOLD = 30`：警告光照值
-- `ILLUMINATION_PAUSE_THRESHOLD = 15`：暫停檢測光照值
-- `ILLUMINATION_RESUME_THRESHOLD = 25`：恢復檢測光照值
+- `ILLUMINATION_WARNING_THRESHOLD = 60`：警告光照值
+- `ILLUMINATION_PAUSE_THRESHOLD = 40`：暫停/恢復檢測光照值
 
 #### 3. 手機觀看
 

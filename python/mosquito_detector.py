@@ -165,6 +165,7 @@ class MosquitoDetector:
         self.last_illumination_check = 0.0
         self.current_illumination = 0
         self.illumination_paused = False
+        self.last_illumination_status = 'ok'  # 保存上次的完整狀態
 
         if self.enable_illumination_monitoring:
             logger.info(f"光照度監控已啟用")
@@ -388,9 +389,10 @@ class MosquitoDetector:
 
         # 檢查是否需要更新光照度（避免每幀都計算）
         if current_time - self.last_illumination_check < self.illumination_check_interval:
+            # 使用保存的完整狀態（包含 warning）
             return {
                 'illumination': self.current_illumination,
-                'status': 'ok' if not self.illumination_paused else 'paused',
+                'status': self.last_illumination_status,
                 'paused': self.illumination_paused,
                 'message': ''
             }
@@ -414,9 +416,13 @@ class MosquitoDetector:
             status = 'warning'
             message = f'Low Light ({illumination}/255) May Affect Accuracy'
         else:
+            # 光照度正常
             self.illumination_paused = False
             status = 'ok'
             message = f'Light OK ({illumination}/255)'
+
+        # 保存當前狀態供下次間隔期間使用
+        self.last_illumination_status = status
 
         return {
             'illumination': illumination,
