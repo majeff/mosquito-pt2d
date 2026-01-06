@@ -407,11 +407,6 @@ class StreamingTrackingSystem:
         cv2.putText(frame, f"FPS: {fps:.1f}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
-        # 串流資訊（右上角）
-        cv2.putText(frame, f"Clients: {self.server.stats['clients']}",
-                   (frame.shape[1] - 200, 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
         # 系統資訊（右下角）
         line_height = 20
         info_y = frame.shape[0] - 80
