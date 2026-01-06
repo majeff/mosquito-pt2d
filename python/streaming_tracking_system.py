@@ -35,7 +35,8 @@ from pt2d_controller import PT2DController
 from depth_estimator import DepthEstimator
 from config import (DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ,
                    DEFAULT_DEVICE_IP, DEFAULT_EXTERNAL_URL,
-                   DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL)
+                   DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL,
+                   DEFAULT_SAVE_UNCERTAIN_SAMPLES, DEFAULT_UNCERTAIN_CONF_RANGE)
 import sys
 import cv2
 import numpy as np
@@ -64,8 +65,8 @@ class StreamingTrackingSystem:
                  http_port: int = 5000,
                  dual_camera: bool = True,
                  stream_mode: str = "single",
-                 save_samples: bool = True,
-                 sample_conf_range: tuple = (0.35, 0.65),
+                 save_samples: bool = DEFAULT_SAVE_UNCERTAIN_SAMPLES,
+                 sample_conf_range: tuple = DEFAULT_UNCERTAIN_CONF_RANGE,
                  enable_depth: bool = True,
                  enable_rtsp: bool = False,
                  rtsp_url: str = None,

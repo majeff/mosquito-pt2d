@@ -91,10 +91,10 @@ DEFAULT_LASER_COOLDOWN = 0.5
 # ============================================
 
 # 是否自動儲存中等信心度樣本
-DEFAULT_SAVE_UNCERTAIN_SAMPLES = False
+DEFAULT_SAVE_UNCERTAIN_SAMPLES = True
 
 # 中等信心度範圍（用於樣本收集）
-DEFAULT_UNCERTAIN_CONF_RANGE = (0.35, 0.65)
+DEFAULT_UNCERTAIN_CONF_RANGE = (0.4, 0.7)
 
 # 樣本儲存目錄
 DEFAULT_SAVE_DIR = "uncertain_samples"

@@ -901,13 +901,14 @@ class MosquitoDetector:
             class_name = detection['class_name']
             cx, cy = detection['center']
 
-            # 根據信心度選擇顏色
-            if confidence > 0.7:
-                box_color = (0, 255, 0)  # 綠色：高信心度
-            elif confidence > 0.5:
-                box_color = (0, 255, 255)  # 黃色：中等信心度
+            # 根據信心度選擇顏色（基於 DEFAULT_UNCERTAIN_CONF_RANGE）
+            conf_min, conf_max = self.uncertain_conf_range
+            if confidence > conf_max:
+                box_color = (0, 255, 0)  # 綠色：高信心度（> conf_max）
+            elif confidence >= conf_min:
+                box_color = (0, 255, 255)  # 黃色：中等信心度（conf_min 到 conf_max）
             else:
-                box_color = (0, 165, 255)  # 橙色：低信心度
+                box_color = (0, 165, 255)  # 橙色：低信心度（< conf_min）
 
             # 繪製邊界框
             cv2.rectangle(result, (x, y), (x + w, y + h), box_color, thickness)
