@@ -137,10 +137,10 @@ class TemperatureMonitor:
                 if PSUTIL_AVAILABLE:
                     temps = psutil.sensors_temperatures()
                     if temps:
-                    # 取第一個可用的溫度感測器
-                    for name, entries in temps.items():
-                        if entries:
-                            return entries[0].current
+                        # 取第一個可用的溫度感測器
+                        for name, entries in temps.items():
+                            if entries:
+                                return entries[0].current
                 return None
 
         except Exception as e:
