@@ -309,7 +309,7 @@ class StreamingTrackingSystem:
         result_left = self._draw_detections_with_depth(result_left, detections)
 
         # 添加系統資訊
-        self._draw_system_info(result_left, detections)
+        self._draw_system_info(result_left, detections, illumination_info)
 
         # 根據串流模式組合畫面
         if self.stream_mode == "side_by_side" and right_frame is not None:
@@ -376,7 +376,7 @@ class StreamingTrackingSystem:
 
         return frame
 
-    def _draw_system_info(self, frame: np.ndarray, detections: list):
+    def _draw_system_info(self, frame: np.ndarray, detections: list, illumination_info: dict):
         """在畫面上繪製系統資訊"""
         y_pos = 30
         line_height = 35
