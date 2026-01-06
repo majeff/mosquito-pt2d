@@ -41,7 +41,6 @@ from config import (
     ENABLE_ILLUMINATION_MONITORING,
     ILLUMINATION_WARNING_THRESHOLD,
     ILLUMINATION_PAUSE_THRESHOLD,
-    ILLUMINATION_RESUME_THRESHOLD,
     ILLUMINATION_CHECK_INTERVAL,
 )
 
@@ -162,7 +161,6 @@ class MosquitoDetector:
         self.enable_illumination_monitoring = ENABLE_ILLUMINATION_MONITORING
         self.illumination_warning_threshold = ILLUMINATION_WARNING_THRESHOLD
         self.illumination_pause_threshold = ILLUMINATION_PAUSE_THRESHOLD
-        self.illumination_resume_threshold = ILLUMINATION_RESUME_THRESHOLD
         self.illumination_check_interval = ILLUMINATION_CHECK_INTERVAL
         self.last_illumination_check = 0.0
         self.current_illumination = 0
@@ -171,8 +169,7 @@ class MosquitoDetector:
         if self.enable_illumination_monitoring:
             logger.info(f"光照度監控已啟用")
             logger.info(f"  - 警告閾值: {self.illumination_warning_threshold}")
-            logger.info(f"  - 暫停閾值: {self.illumination_pause_threshold}")
-            logger.info(f"  - 恢復閾值: {self.illumination_resume_threshold}")
+            logger.info(f"  - 暫停/恢復閾值: {self.illumination_pause_threshold}")
 
         # 自動選擇模型
         actual_model_path = self._auto_select_model(model_path, fallback_to_pretrained)
@@ -411,20 +408,13 @@ class MosquitoDetector:
             self.illumination_paused = True
             status = 'paused'
             message = f'Too Dark ({illumination}/255) AI Paused'
-        elif illumination < self.illumination_resume_threshold and self.illumination_paused:
-            # 仍未達到恢復閾值，保持暫停
-            status = 'paused'
-            message = f'Too Dark ({illumination}/255) AI Paused'
-        elif illumination >= self.illumination_resume_threshold and self.illumination_paused:
-            # 光照度已恢復，重新啟用 AI 辨識
-            self.illumination_paused = False
-            status = 'resumed'
-            message = f'Light Resumed ({illumination}/255) AI Active'
         elif illumination < self.illumination_warning_threshold:
             # 光照度稍低，但未達暫停閾值
+            self.illumination_paused = False
             status = 'warning'
             message = f'Low Light ({illumination}/255) May Affect Accuracy'
         else:
+            self.illumination_paused = False
             status = 'ok'
             message = f'Light OK ({illumination}/255)'
 
