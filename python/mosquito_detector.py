@@ -410,23 +410,23 @@ class MosquitoDetector:
             # 光線太暗，暫停 AI 辨識
             self.illumination_paused = True
             status = 'paused'
-            message = f'光線太暗 ({illumination}/255)，已暫停 AI 辨識'
+            message = f'Too Dark ({illumination}/255) AI Paused'
         elif illumination < self.illumination_resume_threshold and self.illumination_paused:
             # 仍未達到恢復閾值，保持暫停
             status = 'paused'
-            message = f'光線仍不足 ({illumination}/255)，保持暫停'
+            message = f'Too Dark ({illumination}/255) AI Paused'
         elif illumination >= self.illumination_resume_threshold and self.illumination_paused:
             # 光照度已恢復，重新啟用 AI 辨識
             self.illumination_paused = False
             status = 'resumed'
-            message = f'光照度已恢復 ({illumination}/255)，重新啟用 AI 辨識'
+            message = f'Light OK ({illumination}/255)'
         elif illumination < self.illumination_warning_threshold:
             # 光照度稍低，但未達暫停閾值
             status = 'warning'
-            message = f'光線較暗 ({illumination}/255)，可能影響檢測準確度'
+            message = f'Low Light ({illumination}/255) May Affect Accuracy'
         else:
             status = 'ok'
-            message = f'光照度正常 ({illumination}/255)'
+            message = f'Light OK ({illumination}/255)'
 
         return {
             'illumination': illumination,

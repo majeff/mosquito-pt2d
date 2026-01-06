@@ -437,15 +437,6 @@ class StreamingTrackingSystem:
         cv2.putText(frame, illumination_text, (illumination_x, illumination_y),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, illumination_color, 1)
 
-        # 顯示光照度警告訊息（如有）
-        if illumination_info['message']:
-            message = illumination_info['message']
-            msg_size = cv2.getTextSize(message, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
-            msg_x = frame.shape[1] - msg_size[0] - 10
-            msg_y = frame.shape[0] - 60
-            cv2.putText(frame, message, (msg_x, msg_y),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, illumination_color, 1)
-
     def run(self):
         """運行主循環"""
         # 設置信號處理器，確保 Ctrl+C 能立即被捕捉
