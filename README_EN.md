@@ -1,6 +1,6 @@
 # Arduino 2D Pan-Tilt Control System + AI Mosquito Auto-Tracking
 
-![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20RDK%20X5%20%2F%20Orange%20Pi%205-red.svg)
@@ -8,6 +8,15 @@
 An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and **AI deep learning (RDK X5 / Orange Pi 5 + YOLOv8)** technology for intelligent mosquito detection, tracking, and laser marking with real-time monitoring.
 
 ## 📜 Version History
+
+### v2.5.0 (2025-01-06) 💡 Illumination Monitoring Upgrade
+- New: Intelligent illumination monitoring with auto-pause AI detection
+- New: Real-time light level estimation and display (Lux value)
+- New: Configurable illumination thresholds (Warning/Pause/Resume)
+- UI Enhancement: Illumination status indicator in bottom-right corner (Green/Orange/Red/Yellow)
+- Optimization: Reduces false positives and computational waste in low-light conditions
+
+---
 
 ### v2.4.0 (2025-12-27) 📱 Real-time Monitoring Upgrade
 - New: Video streaming system (HTTP-MJPEG) for real-time mobile viewing
@@ -115,8 +124,14 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
   - Dual camera support (side-by-side display/single view/independent streams)
   - Web interface with real-time statistics (FPS, detections, connections)
   - Multi-client simultaneous viewing support
-- 📊 **Visual display**: Real-time display of AI detection results, bounding boxes, confidence scores
-- 🔧 **Adjustable parameters**: AI model path, confidence threshold, input resolution, tracking gain
+- � **Intelligent Illumination Monitoring** (v2.5.0 new):
+  - Real-time frame brightness estimation (Lux value)
+  - Auto-pause AI detection when light levels are too low, reducing false positives and computation waste
+  - Configurable illumination thresholds: Warning (30), Pause (15), Resume (25)
+  - UI bottom-right corner displays illumination status: Green (normal), Orange (warning), Red (paused), Yellow (resumed)
+  - Adjustable detection interval (default 1 second)
+- 📊 **Visual display**: Real-time display of AI detection results, bounding boxes, confidence scores, illumination level
+- 🔧 **Adjustable parameters**: AI model path, confidence threshold, input resolution, tracking gain, illumination thresholds
 
 ## 🏗️ System Architecture
 

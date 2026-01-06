@@ -1,6 +1,6 @@
 # Arduino 2D 雲台控制系統 + AI 蚊子自動追蹤
 
-![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20RDK%20X5%20%2F%20Orange%20Pi%205-red.svg)
@@ -14,7 +14,7 @@
 
 | 項目 | 版本 | 備註 |
 |-----|------|------|
-| **整體專案版本** | **v2.4.0** | 2025-12-28 |
+| **整體專案版本** | **v2.5.0** | 2025-01-06 |
 | 固件版本 (含通訊協議) | v2.4.0 | Arduino 固件與 UART 串口通訊協議 |
 | Python 環境 | 3.8+ | 支持 YOLOv8 推理 |
 | AI 模型 | YOLOv8 | BIN (RDK X5 BPU) / RKNN (Orange Pi 5 NPU) / ONNX / PyTorch |
@@ -23,6 +23,15 @@
 ---
 
 ## 📜 版本歷史
+
+### v2.5.0（2025-01-06）💡 光照度智能監測升級
+- 新增：光照度智能監測，光照不足時自動暫停 AI 檢測
+- 新增：實時光照強度估算與顯示（Lux 數值）
+- 新增：可配置光照度閾值（警告/暫停/恢復）
+- UI 增強：底部右方顯示光照狀態指示（綠色/橙色/紅色/黃色）
+- 優化：減少低光條件下的誤報和計算浪費
+
+---
 
 ### v2.4.0（2025-12-27）📱 即時觀測升級
 - 新增：影像串流系統（HTTP-MJPEG），手機即時觀看
@@ -115,6 +124,11 @@
     - 供後續人工檢驗與模型再訓練使用
     - 磁碟使用率監控（超過 20% 自動暫停）
     - 智能檔名包含時間戳與信心度資訊
+- 🔧 **模型改進工具**：
+  - `python/label_samples.py`：互動式樣本標註 + 搬遷到 Google Drive
+  - `mosquito_training_colab.ipynb`：Google Colab 訓練 Notebook（GPU 加速）
+  - `python/deploy_model.py`：一鍵部署 + 自動導出 ONNX/RKNN
+  - 工作流程：收集樣本 → 標註 → Colab 訓練 → 部署
 - 🎯 **智能追蹤**:
   - AI 偵測到蚊子 → 自動切換至追蹤模式
   - 實時計算偏移並控制雲台對準
@@ -125,8 +139,14 @@
   - 支援雙目攝像頭（並排顯示/單一視角/獨立串流）
   - Web 介面顯示即時統計（FPS、檢測數、連線數）
   - 多客戶端同時觀看支援
-- 📊 **視覺化顯示**: 實時顯示 AI 偵測結果、邊界框、信心度
-- 🔧 **參數可調**: AI 模型路徑、信心度閾值、輸入解析度、追蹤增益
+- � **光照度智能監測** (v2.5.0 新增):
+  - 實時估算畫面光照強度（Lux 值）
+  - 光照過低時自動暫停 AI 檢測，減少誤報和計算浪費
+  - 可配置光照閾值：警告（30）、暫停（15）、恢復（25）
+  - UI 底部右方顯示光照狀態：綠色（正常）、橙色（警告）、紅色（暫停）、黃色（已恢復）
+  - 自動檢測間隔可調（預設 1 秒）
+- 📊 **視覺化顯示**: 實時顯示 AI 偵測結果、邊界框、信心度、光照強度
+- 🔧 **參數可調**: AI 模型路徑、信心度閾值、輸入解析度、追蹤增益、光照閾值
 
 ## 🏗️ 系統架構
 

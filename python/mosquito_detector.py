@@ -38,6 +38,11 @@ from config import (
     DEFAULT_DETECTION_MARGIN,
     DEFAULT_MAX_SAMPLES,
     DEFAULT_SAVE_INTERVAL,
+    ENABLE_ILLUMINATION_MONITORING,
+    ILLUMINATION_WARNING_THRESHOLD,
+    ILLUMINATION_PAUSE_THRESHOLD,
+    ILLUMINATION_RESUME_THRESHOLD,
+    ILLUMINATION_CHECK_INTERVAL,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -152,6 +157,22 @@ class MosquitoDetector:
             logger.info(f"儲存時間間隔: {save_interval} 秒")
             logger.info(f"自動標註: {'啟用' if save_annotations else '停用'}")
             logger.info(f"儲存模式: {'完整畫面' if save_full_frame else '裁剪區域'}")
+
+        # 光照度監控配置
+        self.enable_illumination_monitoring = ENABLE_ILLUMINATION_MONITORING
+        self.illumination_warning_threshold = ILLUMINATION_WARNING_THRESHOLD
+        self.illumination_pause_threshold = ILLUMINATION_PAUSE_THRESHOLD
+        self.illumination_resume_threshold = ILLUMINATION_RESUME_THRESHOLD
+        self.illumination_check_interval = ILLUMINATION_CHECK_INTERVAL
+        self.last_illumination_check = 0.0
+        self.current_illumination = 0
+        self.illumination_paused = False
+
+        if self.enable_illumination_monitoring:
+            logger.info(f"光照度監控已啟用")
+            logger.info(f"  - 警告閾值: {self.illumination_warning_threshold}")
+            logger.info(f"  - 暫停閾值: {self.illumination_pause_threshold}")
+            logger.info(f"  - 恢復閾值: {self.illumination_resume_threshold}")
 
         # 自動選擇模型
         actual_model_path = self._auto_select_model(model_path, fallback_to_pretrained)
@@ -327,6 +348,93 @@ class MosquitoDetector:
         self.last_save_time = current_time
         return False
 
+    def estimate_illumination(self, frame: np.ndarray) -> int:
+        """
+        估計影像光照度（亮度值 0-255）
+
+        Args:
+            frame: 輸入影像（BGR 格式）
+
+        Returns:
+            估計的亮度值（0-255 範圍）
+        """
+        # 轉換為灰度圖
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # 計算平均亮度值
+        brightness = int(np.mean(gray))
+
+        # 更新當前亮度值
+        self.current_illumination = brightness
+
+        return brightness
+
+    def check_illumination_status(self, frame: np.ndarray) -> Dict[str, any]:
+        """
+        檢查光照度狀態，並根據閾值決定是否暫停 AI 辨識
+
+        Args:
+            frame: 輸入影像
+
+        Returns:
+            包含光照度資訊和狀態的字典
+        """
+        if not self.enable_illumination_monitoring:
+            return {
+                'illumination': 0,
+                'status': 'disabled',
+                'paused': False,
+                'message': ''
+            }
+
+        current_time = time.time()
+
+        # 檢查是否需要更新光照度（避免每幀都計算）
+        if current_time - self.last_illumination_check < self.illumination_check_interval:
+            return {
+                'illumination': self.current_illumination,
+                'status': 'ok' if not self.illumination_paused else 'paused',
+                'paused': self.illumination_paused,
+                'message': ''
+            }
+
+        # 估計光照度
+        illumination = self.estimate_illumination(frame)
+        self.last_illumination_check = current_time
+
+        # 判斷光照度狀態
+        status = 'ok'
+        message = ''
+
+        if illumination < self.illumination_pause_threshold:
+            # 光線太暗，暫停 AI 辨識
+            self.illumination_paused = True
+            status = 'paused'
+            message = f'光線太暗 ({illumination}/255)，已暫停 AI 辨識'
+        elif illumination < self.illumination_resume_threshold and self.illumination_paused:
+            # 仍未達到恢復閾值，保持暫停
+            status = 'paused'
+            message = f'光線仍不足 ({illumination}/255)，保持暫停'
+        elif illumination >= self.illumination_resume_threshold and self.illumination_paused:
+            # 光照度已恢復，重新啟用 AI 辨識
+            self.illumination_paused = False
+            status = 'resumed'
+            message = f'光照度已恢復 ({illumination}/255)，重新啟用 AI 辨識'
+        elif illumination < self.illumination_warning_threshold:
+            # 光照度稍低，但未達暫停閾值
+            status = 'warning'
+            message = f'光線較暗 ({illumination}/255)，可能影響檢測準確度'
+        else:
+            status = 'ok'
+            message = f'光照度正常 ({illumination}/255)'
+
+        return {
+            'illumination': illumination,
+            'status': status,
+            'paused': self.illumination_paused,
+            'message': message
+        }
+
     def _save_uncertain_sample(self, frame: np.ndarray, detection: Dict):
         """
         儲存信心度中等的樣本圖片，並可選生成 YOLO 格式標註文件
@@ -423,7 +531,7 @@ class MosquitoDetector:
             logger.error(f"生成標註文件失敗: {e}")
 
 
-    def detect(self, frame: np.ndarray, is_dual_left: bool = False) -> Tuple[List[Dict], np.ndarray]:
+    def detect(self, frame: np.ndarray, is_dual_left: bool = False) -> Tuple[List[Dict], np.ndarray, Dict]:
         """
         使用 AI 模型偵測蚊子（自動選擇 RKNN/ONNX/PyTorch）
 
@@ -432,9 +540,16 @@ class MosquitoDetector:
             is_dual_left: 是否為雙目左眼畫面（只過濾上下邊緣）
 
         Returns:
-            (偵測結果列表，包含bbox和confidence，處理後的影像)
+            (偵測結果列表，包含bbox和confidence，處理後的影像，光照度資訊)
         """
         try:
+            # 檢查光照度狀態
+            illumination_info = self.check_illumination_status(frame)
+
+            # 如果光照度過低，暫停 AI 辨識
+            if illumination_info['paused']:
+                return [], frame, illumination_info
+
             if self.detection_mode == 'tiling':
                 detections, result_frame = self._detect_tiled(frame)
             else:
@@ -456,20 +571,23 @@ class MosquitoDetector:
                     if self.uncertain_conf_range[0] <= conf <= self.uncertain_conf_range[1]:
                         self._save_uncertain_sample(frame, detection)
 
-            return detections, result_frame
+            return detections, result_frame, illumination_info
 
         except KeyboardInterrupt:
             # 讓 KeyboardInterrupt 正常傳播，觸發優雅關閉
             raise
         except RuntimeError as e:
             logger.error(f"AI 推理失敗 (Runtime): {e}")
-            return [], frame
+            illumination_info = self.check_illumination_status(frame)
+            return [], frame, illumination_info
         except MemoryError as e:
             logger.error(f"記憶體不足無法執行推理: {e}")
-            return [], frame
+            illumination_info = self.check_illumination_status(frame)
+            return [], frame, illumination_info
         except Exception as e:
             logger.error(f"AI 偵測發生未預期錯誤: {e}")
-            return [], frame
+            illumination_info = self.check_illumination_status(frame)
+            return [], frame, illumination_info
 
     def _filter_margin_detections(self, detections: List[Dict], frame_shape: Tuple[int, int], is_dual_left: bool = False) -> List[Dict]:
         """

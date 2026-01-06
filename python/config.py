@@ -181,3 +181,25 @@ TEMPERATURE_CHECK_INTERVAL = 60.0
 # Orange Pi 5 / RK3588: /sys/class/thermal/thermal_zone0/temp
 # Raspberry Pi: /sys/class/thermal/thermal_zone0/temp
 TEMPERATURE_SENSOR_PATH = "/sys/class/thermal/thermal_zone0/temp"
+
+# ============================================
+# 光照度監控參數
+# ============================================
+
+# 是否啟用光照度監控
+ENABLE_ILLUMINATION_MONITORING = True
+
+# 光照度警告閾值（亮度值 0-255 範圍）
+# 低於此值時在螢幕提示光照不足
+ILLUMINATION_WARNING_THRESHOLD = 30
+
+# 光照度暫停閾值（亮度值 0-255 範圍）
+# 低於此值時暫停 AI 辨識（光線太暗無法準確檢測）
+ILLUMINATION_PAUSE_THRESHOLD = 15
+
+# 光照度恢復閾值（亮度值 0-255 範圍）
+# 光照度恢復至此值以上時重新啟用 AI 辨識
+ILLUMINATION_RESUME_THRESHOLD = 25
+
+# 光照度檢查間隔（秒）- 每 N 秒檢查一次亮度
+ILLUMINATION_CHECK_INTERVAL = 1.0

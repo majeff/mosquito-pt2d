@@ -278,7 +278,7 @@ class StreamingTrackingSystem:
 
         # ⚡ AI 檢測（每幀只執行一次！）
         # 雙目模式：告知檢測器這是左眼畫面，只過濾上下邊緣
-        detections, result_left = self.detector.detect(left_frame, is_dual_left=self.dual_camera)
+        detections, result_left, illumination_info = self.detector.detect(left_frame, is_dual_left=self.dual_camera)
 
         # 記錄檢測數量
         if detections:
@@ -412,7 +412,11 @@ class StreamingTrackingSystem:
                    (frame.shape[1] - 200, 30),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-        # 時間（右下角）
+        # 系統資訊（右下角）
+        line_height = 20
+        info_y = frame.shape[0] - 80
+
+        # 時間（右下角最下方）
         current_time = time.strftime("%H:%M:%S")
         time_font_size = 0.35
         time_thickness = 1
@@ -421,6 +425,31 @@ class StreamingTrackingSystem:
         time_y = frame.shape[0] - 10
         cv2.putText(frame, current_time, (time_x, time_y),
                    cv2.FONT_HERSHEY_SIMPLEX, time_font_size, (200, 200, 200), time_thickness)
+
+        # 光照度（右下角向上）
+        illumination_color = (0, 255, 0)  # 綠色：正常
+        if illumination_info['status'] == 'paused':
+            illumination_color = (0, 0, 255)  # 紅色：暫停
+        elif illumination_info['status'] == 'warning':
+            illumination_color = (0, 165, 255)  # 橙色：警告
+        elif illumination_info['status'] == 'resumed':
+            illumination_color = (0, 255, 255)  # 黃色：已恢復
+
+        illumination_text = f"Lux: {illumination_info['illumination']}"
+        illumination_size = cv2.getTextSize(illumination_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
+        illumination_x = frame.shape[1] - illumination_size[0] - 10
+        illumination_y = frame.shape[0] - 30
+        cv2.putText(frame, illumination_text, (illumination_x, illumination_y),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, illumination_color, 2)
+
+        # 顯示光照度警告訊息（如有）
+        if illumination_info['message']:
+            message = illumination_info['message']
+            msg_size = cv2.getTextSize(message, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
+            msg_x = frame.shape[1] - msg_size[0] - 10
+            msg_y = frame.shape[0] - 60
+            cv2.putText(frame, message, (msg_x, msg_y),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, illumination_color, 1)
 
     def run(self):
         """運行主循環"""
