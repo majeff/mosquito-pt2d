@@ -87,7 +87,6 @@ class StreamingServer:
         # 統計資訊
         self.stats = {
             'total_frames': 0,
-            'clients': 0,
             'rtsp_enabled': False,
             'start_time': time.time()
         }
@@ -250,7 +249,6 @@ class StreamingServer:
                             .then(response => response.json())
                             .then(data => {{{{
                                 document.getElementById('frames').textContent = data.total_frames;
-                                document.getElementById('clients').textContent = data.clients;
 
                                 // 計算運行時間
                                 const uptime = Math.floor(Date.now() / 1000 - data.start_time);
@@ -282,7 +280,6 @@ class StreamingServer:
             """返回統計資訊"""
             return jsonify({
                 'total_frames': self.stats['total_frames'],
-                'clients': self.stats['clients'],
                 'start_time': self.stats['start_time']
             })
 
@@ -297,8 +294,7 @@ class StreamingServer:
 
     def _generate_frames(self):
         """生成 MJPEG 幀"""
-        self.stats['clients'] += 1
-        logger.info(f"新客戶端連線，當前連線數: {self.stats['clients']}")
+        logger.info(f"新客戶端連線")
 
         try:
             while True:
@@ -324,8 +320,7 @@ class StreamingServer:
                 time.sleep(1.0 / self.fps)
 
         finally:
-            self.stats['clients'] -= 1
-            logger.info(f"客戶端斷線，當前連線數: {self.stats['clients']}")
+            logger.info(f"客戶端斷線")
 
     def update_frame(self, frame: np.ndarray):
         """更新當前影像幀（同時推送到 HTTP 和 RTSP）"""
@@ -520,15 +515,12 @@ def test_streaming():
             cv2.putText(frame, f"Frame: {frame_count}", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-            cv2.putText(frame, f"Clients: {server.stats['clients']}", (10, 70),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-
             # 更新串流影像
             server.update_frame(frame)
 
             # 每 100 幀輸出一次狀態
             if frame_count % 100 == 0:
-                logger.info(f"幀數: {frame_count}, 連線數: {server.stats['clients']}")
+                logger.info(f"幀數: {frame_count}")
 
             # 短暫休眠以控制幀率
             time.sleep(1.0 / server.fps)
@@ -601,10 +593,8 @@ def test_rtsp_streaming():
             # 添加資訊
             cv2.putText(frame, f"Frame: {frame_count}", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(frame, f"HTTP Clients: {server.stats['clients']}", (10, 70),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             cv2.putText(frame, f"RTSP: {'ON' if server.stats['rtsp_enabled'] else 'OFF'}",
-                       (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                       (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
                        (0, 255, 0) if server.stats['rtsp_enabled'] else (0, 0, 255), 2)
 
             # 更新串流（同時推送到 HTTP 和 RTSP）
@@ -613,7 +603,7 @@ def test_rtsp_streaming():
             # 每 100 幀輸出一次狀態
             if frame_count % 100 == 0:
                 rtsp_status = "ON" if server.stats['rtsp_enabled'] else "OFF"
-                logger.info(f"幀數: {frame_count}, HTTP 連線: {server.stats['clients']}, RTSP: {rtsp_status}")
+                logger.info(f"幀數: {frame_count}, RTSP: {rtsp_status}")
 
             # 短暫休眠以控制幀率
             time.sleep(1.0 / server.fps)
