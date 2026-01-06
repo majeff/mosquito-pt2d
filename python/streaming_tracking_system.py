@@ -431,11 +431,11 @@ class StreamingTrackingSystem:
             illumination_color = (0, 255, 255)  # 黃色：已恢復
 
         illumination_text = f"Lux: {illumination_info['illumination']}"
-        illumination_size = cv2.getTextSize(illumination_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
+        illumination_size = cv2.getTextSize(illumination_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)[0]
         illumination_x = frame.shape[1] - illumination_size[0] - 10
         illumination_y = frame.shape[0] - 30
         cv2.putText(frame, illumination_text, (illumination_x, illumination_y),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, illumination_color, 2)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.35, illumination_color, 1)
 
         # 顯示光照度警告訊息（如有）
         if illumination_info['message']:
