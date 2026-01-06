@@ -36,7 +36,7 @@ def test_uncertain_sample_saving():
     # 配置參數
     camera_id = 0  # 攝像頭 ID
     save_dir = "uncertain_samples"
-    uncertain_range = (0.35, 0.65)  # 信心度範圍
+    uncertain_range = (0.4, 0.7)  # 信心度範圍
     max_samples = DEFAULT_MAX_SAMPLES  # 最大存儲照片數量
     save_interval = DEFAULT_SAVE_INTERVAL  # 儲存時間間隔（秒）
 

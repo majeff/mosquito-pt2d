@@ -22,7 +22,7 @@
 
 **觸發條件**（見 `python/mosquito_tracker.py`）：
 ```python
-# 信心度在 0.35-0.65 之間的檢測會被自動保存
+# 信心度在 0.4-0.7 之間的檢測會被自動保存
 MEDIUM_CONFIDENCE_MIN = 0.35
 MEDIUM_CONFIDENCE_MAX = 0.65
 ```

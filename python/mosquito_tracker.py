@@ -25,6 +25,7 @@ import threading
 from typing import Optional, Tuple
 
 from stereo_camera import StereoCamera
+from config import TRACKER_POSITION_UPDATE_INTERVAL
 from mosquito_detector import MosquitoDetector
 from pt2d_controller import PT2DController
 from temperature_monitor import TemperatureMonitor
@@ -101,7 +102,7 @@ class MosquitoTracker:
         self.cached_pan = 135
         self.cached_tilt = 90
         self.last_position_update = 0
-        self.position_update_interval = 0.5  # 每0.5秒更新一次位置
+        self.position_update_interval = TRACKER_POSITION_UPDATE_INTERVAL  # 位置更新間隔
 
         # 蜂鳴器狀態
         self.beep_cooldown = DEFAULT_BEEP_COOLDOWN

@@ -17,6 +17,7 @@ Arduino PT2D 控制器 Python 介面
 透過串口與 Arduino 通訊，控制 2D 雲台
 """
 
+from config import ARDUINO_BAUDRATE, ARDUINO_TIMEOUT
 import serial
 import json
 import time
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 class PT2DController:
     """Arduino 2D 雲台控制器類"""
 
-    def __init__(self, port: str, baudrate: int = 115200, timeout: float = 1.0):
+    def __init__(self, port: str, baudrate: int = ARDUINO_BAUDRATE, timeout: float = ARDUINO_TIMEOUT):
         """
         初始化控制器
 

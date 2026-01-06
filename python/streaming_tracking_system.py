@@ -36,7 +36,9 @@ from depth_estimator import DepthEstimator
 from config import (DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ,
                    DEFAULT_DEVICE_IP, DEFAULT_EXTERNAL_URL,
                    DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL,
-                   DEFAULT_SAVE_UNCERTAIN_SAMPLES, DEFAULT_UNCERTAIN_CONF_RANGE)
+                   DEFAULT_SAVE_UNCERTAIN_SAMPLES, DEFAULT_UNCERTAIN_CONF_RANGE,
+                   CAMERA_DUAL_WIDTH, CAMERA_DUAL_HEIGHT, CAMERA_DUAL_FPS,
+                   CAMERA_DUAL_WIDTH_THRESHOLD, FRAME_DELAY)
 import sys
 import cv2
 import numpy as np
@@ -461,9 +463,9 @@ class StreamingTrackingSystem:
         cap = cv2.VideoCapture(self.camera_id)
 
         if self.dual_camera:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-            cap.set(cv2.CAP_PROP_FPS, 60)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_DUAL_WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_DUAL_HEIGHT)
+            cap.set(cv2.CAP_PROP_FPS, CAMERA_DUAL_FPS)
 
         if not cap.isOpened():
             logger.error("✗ 無法開啟攝像頭")
@@ -514,7 +516,7 @@ class StreamingTrackingSystem:
                           f"Lux: {lux} ({lux_status}) | {lux_msg}")
 
                 # 簡單延時控制幀率
-                time.sleep(0.03)  # ~30 FPS
+                time.sleep(FRAME_DELAY)  # 幀延時
 
         except Exception as e:
             logger.error(f"\n❌ 發生錯誤: {e}")
@@ -613,8 +615,8 @@ def detect_dual_camera(camera_id: int = 0) -> bool:
 
     width = frame.shape[1]
 
-    # 判斷邏輯：雙目攝像頭寬度通常 >= 2560 (兩個 1280x720 或更高)
-    is_dual = width >= 2560
+    # 判斷邏輯：雙目攝像頭寬度通常 >= CAMERA_DUAL_WIDTH_THRESHOLD
+    is_dual = width >= CAMERA_DUAL_WIDTH_THRESHOLD
 
     logger.info(f"📷 攝像頭解析度: {width}x{frame.shape[0]}")
     logger.info(f"📷 檢測結果: {'雙目' if is_dual else '單目'} 攝像頭")

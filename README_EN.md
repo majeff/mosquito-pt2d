@@ -105,7 +105,7 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
   - CPU/BPU/NPU inference support (hardware acceleration optimized)
   - Multiple model formats: BIN (RDK X5 BPU), RKNN (Orange Pi 5 NPU), ONNX (CPU), PyTorch
   - **Automatic uncertain sample saving** (v2.3.1 new):
-    - Automatically collects detection samples with medium confidence (0.35-0.65)
+    - Automatically collects detection samples with medium confidence (0.4-0.7)
     - For subsequent manual review and model retraining
     - Max 1000 photos with 3-second interval to avoid duplicate saves
     - Smart filenames with timestamp and confidence information

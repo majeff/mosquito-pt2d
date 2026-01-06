@@ -21,6 +21,7 @@ import cv2
 import numpy as np
 from typing import Tuple, Optional, Dict
 import logging
+from config import DEPTH_FOCAL_LENGTH, DEPTH_BASELINE, DEPTH_IMAGE_WIDTH, DEPTH_SENSOR_WIDTH
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,10 +31,10 @@ class DepthEstimator:
     """雙目深度估計器"""
 
     def __init__(self,
-                 focal_length: float = 3.0,          # 鏡頭焦距 (mm)
-                 baseline: float = 120.0,             # 雙目基線距離 (mm)
-                 image_width: int = 1920,             # 單眼影像寬度 (pixels)
-                 sensor_width: float = 5.0,           # 感光元件寬度 (mm)
+                 focal_length: float = DEPTH_FOCAL_LENGTH,          # 鏡頭焦距 (mm)
+                 baseline: float = DEPTH_BASELINE,             # 雙目基線距離 (mm)
+                 image_width: int = DEPTH_IMAGE_WIDTH,             # 單眼影像寬度 (pixels)
+                 sensor_width: float = DEPTH_SENSOR_WIDTH,           # 感光元件寬度 (mm)
                  min_disparity: int = 0,              # 最小視差
                  num_disparities: int = 64,           # 視差搜索範圍（必須是16的倍數）
                  block_size: int = 15):               # SAD窗口大小（奇數）

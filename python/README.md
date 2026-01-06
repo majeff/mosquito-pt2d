@@ -67,7 +67,7 @@ from mosquito_detector import MosquitoDetector
 detector = MosquitoDetector(
     model_path="models/mosquito",
     save_uncertain_samples=True,          # 啟用儲存功能
-    uncertain_conf_range=(0.35, 0.65),   # 信心度範圍
+    uncertain_conf_range=(0.4, 0.7),   # 信心度範圍
     save_dir="uncertain_samples",         # 儲存目錄
     max_samples=1000,                     # 最多存 1000 張照片
     save_interval=3.0,                    # 每 3 秒最多存一次
@@ -80,7 +80,7 @@ detections, result = detector.detect(frame)
 ```
 
 **功能說明**：
-- 自動儲存信心度在 0.35-0.65 範圍內的檢測結果
+- 自動儲存信心度在 0.4-0.7 範圍內的檢測結果
 - **自動生成 YOLO 格式標註文件**（.txt），可直接用於再訓練
 - 最多儲存 1000 張照片，超過自動停止
 - 避免頻繁存同一位置的照片（3 秒內只存一次）

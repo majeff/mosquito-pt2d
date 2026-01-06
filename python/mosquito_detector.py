@@ -79,7 +79,7 @@ class MosquitoDetector:
                  detection_margin: float = DEFAULT_DETECTION_MARGIN,
                  fallback_to_pretrained: bool = True,
                  save_uncertain_samples: bool = False,
-                 uncertain_conf_range: Tuple[float, float] = (0.35, 0.65),
+                 uncertain_conf_range: Tuple[float, float] = (0.4, 0.7),
                  save_dir: str = "uncertain_samples",
                  max_samples: int = DEFAULT_MAX_SAMPLES,
                  save_interval: float = DEFAULT_SAVE_INTERVAL,
@@ -103,7 +103,7 @@ class MosquitoDetector:
             detection_margin: 檢測邊界邊距（0.0-0.5），排除邊緣區域，預設 0.1
             fallback_to_pretrained: 如果找不到自定義模型，是否使用預訓練模型
             save_uncertain_samples: 是否儲存信心度中等的樣本圖片以便後續檢驗與再訓練
-            uncertain_conf_range: 中等信心度範圍 (min, max)，預設 (0.35, 0.65)
+            uncertain_conf_range: 中等信心度範圍 (min, max)，預設 (0.4, 0.7)
             save_dir: 儲存中等信心度樣本的目錄
             max_samples: 最大存儲照片數量，預設 1000 張
             save_interval: 儲存時間間隔（秒），避免頻繁存同一位置的照片，預設 3.0 秒
