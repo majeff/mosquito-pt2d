@@ -21,8 +21,9 @@ Serial 通訊格式測試腳本
 
 import sys
 import time
-from pt2d_controller import PT2DController
+import traceback
 import json
+from pt2d_controller import PT2DController
 
 # 測試配置
 TEST_PORT = 'COM3'  # Windows
@@ -228,7 +229,6 @@ def run_all_tests():
         print("\n\n測試被用戶中斷")
     except Exception as e:
         print(f"\n❌ 測試過程中發生錯誤: {e}")
-        import traceback
         traceback.print_exc()
 
 def main():

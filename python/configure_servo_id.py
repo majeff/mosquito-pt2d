@@ -32,6 +32,7 @@
 
 import sys
 import time
+import traceback
 import serial
 import json
 
@@ -124,7 +125,6 @@ def send_servo_id_config(port: str, servo_id: int) -> bool:
         return False
     except Exception as e:
         print(f"\n❌ 發生錯誤: {e}")
-        import traceback
         traceback.print_exc()
         return False
 

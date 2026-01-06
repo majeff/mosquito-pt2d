@@ -39,11 +39,11 @@ from config import (DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ,
 import sys
 import cv2
 import numpy as np
-import sys
 import time
 import argparse
 import signal
 import logging
+import traceback
 from pathlib import Path
 
 # 配置 logging
@@ -262,7 +262,6 @@ class StreamingTrackingSystem:
                     logger.warning("⚠️  RTSP 推流啟動返回 False")
             except Exception as e:
                 logger.error(f"❌ RTSP 初始化失敗: {e}")
-                import traceback
                 traceback.print_exc()
             finally:
                 self.rtsp_initialized = True
@@ -484,7 +483,7 @@ class StreamingTrackingSystem:
 
         except Exception as e:
             logger.error(f"\n❌ 發生錯誤: {e}")
-            import traceback
+
             traceback.print_exc()
             self._running = False
 

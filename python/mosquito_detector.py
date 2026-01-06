@@ -24,6 +24,10 @@ import numpy as np
 from typing import Optional, List, Tuple, Dict
 import logging
 import os
+import time
+import datetime
+import hashlib
+import traceback
 from pathlib import Path
 from config import (
     DEFAULT_IMGSZ,
@@ -306,8 +310,6 @@ class MosquitoDetector:
             True: 畫面重複
             False: 畫面不重複
         """
-        import hashlib
-        import time
 
         # 檢查時間間隔，距離上次儲存是否超過 save_interval
         current_time = time.time()
@@ -342,8 +344,6 @@ class MosquitoDetector:
             return
 
         try:
-            import datetime
-
             confidence = detection['confidence']
             x, y, w, h = detection['bbox']
             class_id = detection.get('class_id', 0)
@@ -868,7 +868,6 @@ def test_mosquito_detector():
         )
 
         frame_count = 0
-        import time
         fps_start = time.time()
         fps_counter = 0
 
@@ -895,8 +894,8 @@ def test_mosquito_detector():
             else:
                 fps = 0
 
-            # 顯示偵測數量和FPS
-            cv2.putText(result, f"Detections: {len(detections)} | FPS: {fps:.1f}",
+            # 顯示偵測數量和FPS（偵測數/低信心偵測數）
+            cv2.putText(result, f"Detections: {len(detections)}/{detector.save_counter} | FPS: {fps:.1f}",
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             mode_text = 'TILING' if detector.detection_mode == 'tiling' else 'WHOLE'
             cv2.putText(result, f"Backend: {detector.backend.upper()} | ImgSz: {detector.imgsz} | Mode: {mode_text}",
@@ -930,7 +929,6 @@ def test_mosquito_detector():
 
     except Exception as e:
         logger.error(f"錯誤: {e}")
-        import traceback
         traceback.print_exc()
     finally:
         cap.release()

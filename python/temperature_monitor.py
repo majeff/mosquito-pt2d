@@ -22,6 +22,13 @@ import time
 import logging
 import platform
 from typing import Optional
+
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+
 from config import (
     ENABLE_TEMPERATURE_MONITORING,
     TEMPERATURE_WARNING_THRESHOLD,
@@ -90,12 +97,15 @@ class TemperatureMonitor:
             return os.path.exists(self.sensor_path)
         elif system == "Windows":
             # Windows 需要額外套件 (如 psutil, wmi)
-            try:
-                import psutil
-                # 嘗試讀取溫度
-                temps = psutil.sensors_temperatures()
-                return len(temps) > 0
-            except (ImportError, AttributeError):
+            if PSUTIL_AVAILABLE:
+                try:
+                    # 嘗試讀取溫度
+                    temps = psutil.sensors_temperatures()
+                    return len(temps) > 0
+                except AttributeError:
+                    logger.warning("Windows 溫度監控需要安裝 psutil 套件")
+                    return False
+            else:
                 logger.warning("Windows 溫度監控需要安裝 psutil 套件")
                 return False
         else:
@@ -124,9 +134,9 @@ class TemperatureMonitor:
 
             elif system == "Windows":
                 # 使用 psutil 讀取溫度
-                import psutil
-                temps = psutil.sensors_temperatures()
-                if temps:
+                if PSUTIL_AVAILABLE:
+                    temps = psutil.sensors_temperatures()
+                    if temps:
                     # 取第一個可用的溫度感測器
                     for name, entries in temps.items():
                         if entries:

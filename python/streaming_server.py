@@ -19,7 +19,11 @@
 
 import cv2
 import numpy as np
-from flask import Flask, Response, render_template_string, jsonify
+import os
+import sys
+import subprocess
+import shutil
+from flask import Flask, Response, render_template_string, jsonify, send_from_directory
 import threading
 import time
 import logging
@@ -285,8 +289,6 @@ class StreamingServer:
         @self.app.route('/favicon.ico')
         def favicon():
             """提供網站圖標"""
-            from flask import send_from_directory
-            import os
             static_folder = os.path.join(os.path.dirname(__file__), 'static')
             if os.path.exists(os.path.join(static_folder, 'favicon.svg')):
                 return send_from_directory(static_folder, 'favicon.svg', mimetype='image/svg+xml')
@@ -361,9 +363,6 @@ class StreamingServer:
             logger.error("RTSP URL 未設定，無法啟動推流")
             return False
 
-        import subprocess
-        import shutil
-
         # 檢查 FFmpeg 是否安裝
         if not shutil.which('ffmpeg'):
             logger.error("❌ FFmpeg 未安裝！")
@@ -408,7 +407,6 @@ class StreamingServer:
             )
 
             # 給 FFmpeg 一點時間初始化
-            import time
             time.sleep(1)
 
             # 檢查進程是否還在運行
@@ -487,7 +485,6 @@ class StreamingServer:
 
 def test_streaming():
     """測試串流伺服器（HTTP-MJPEG，無本機顯示）"""
-    import cv2
 
     logger.info("=" * 60)
     logger.info("影像串流伺服器測試（遠端模式）")
@@ -545,7 +542,6 @@ def test_streaming():
 
 def test_rtsp_streaming():
     """測試 RTSP 串流（需先啟動 MediaMTX，無本機顯示）"""
-    import cv2
 
     logger.info("=" * 60)
     logger.info("RTSP 串流測試（遠端模式）")
@@ -631,8 +627,6 @@ def test_rtsp_streaming():
 
 
 if __name__ == "__main__":
-    import sys
-
     if len(sys.argv) > 1 and sys.argv[1] == "rtsp":
         test_rtsp_streaming()
     else:

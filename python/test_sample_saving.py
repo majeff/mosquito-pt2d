@@ -20,6 +20,7 @@
 
 import cv2
 import sys
+import traceback
 from pathlib import Path
 from mosquito_detector import MosquitoDetector
 from config import DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL
@@ -160,7 +161,6 @@ def test_uncertain_sample_saving():
         print("\n\n用戶中斷（Ctrl+C）")
     except Exception as e:
         print(f"\n錯誤: {e}")
-        import traceback
         traceback.print_exc()
     finally:
         cap.release()
