@@ -38,7 +38,7 @@ from config import (DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ,
                    DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL,
                    DEFAULT_SAVE_UNCERTAIN_SAMPLES, DEFAULT_UNCERTAIN_CONF_RANGE,
                    CAMERA_DUAL_WIDTH, CAMERA_DUAL_HEIGHT, CAMERA_DUAL_FPS,
-                   CAMERA_DUAL_WIDTH_THRESHOLD, FRAME_DELAY)
+                   FRAME_DELAY)
 import sys
 import cv2
 import numpy as np
@@ -101,6 +101,11 @@ class StreamingTrackingSystem:
         self.enable_depth = enable_depth and dual_camera  # 深度估計需要雙目攝像頭
         self._running = True  # 運行標誌，用於優雅退出
 
+        # 攝像頭解析度配置（預設值，會在 main() 中被覆蓋）
+        self.camera_width = CAMERA_DUAL_WIDTH if dual_camera else 1920
+        self.camera_height = CAMERA_DUAL_HEIGHT if dual_camera else 1080
+        self.camera_fps = CAMERA_DUAL_FPS if dual_camera else 60
+
         # 統計資訊
         self.stats = {
             'total_frames': 0,
@@ -162,13 +167,9 @@ class StreamingTrackingSystem:
         # 4. 初始化深度估計器（如果啟用）
         logger.info("[4/6] 初始化深度估計器...")
         if self.enable_depth:
-            self.depth_estimator = DepthEstimator(
-                focal_length=3.0,        # 鏡頭焦距 3.0mm
-                baseline=120.0,          # 雙目基線 12cm
-                image_width=1920,        # 單眼解析度
-                sensor_width=5.0         # 感光元件寬度
-            )
-            logger.info(f"      ✓ 深度估計已啟用（測距範圍: 0.5-5m）")
+            # 深度估計器將在 run() 中根據實際解析度初始化
+            self.depth_estimator = None
+            logger.info(f"      ⏳ 深度估計器將在首幀時初始化（根據實際解析度）")
         else:
             self.depth_estimator = None
             logger.info(f"      ⚠ 深度估計未啟用（需要雙目攝像頭）")
@@ -276,6 +277,18 @@ class StreamingTrackingSystem:
             mid = width // 2
             left_frame = frame[:, :mid]
             right_frame = frame[:, mid:]
+
+            # 首次運行時初始化深度估計器（使用實際解析度）
+            if self.enable_depth and self.depth_estimator is None:
+                single_width = left_frame.shape[1]
+                logger.info(f"🔧 初始化深度估計器（單眼解析度: {single_width}×{left_frame.shape[0]}）")
+                self.depth_estimator = DepthEstimator(
+                    focal_length=3.0,        # 鏡頭焦距 3.0mm
+                    baseline=120.0,          # 雙目基線 12cm
+                    image_width=single_width,  # 使用實際單眼解析度
+                    sensor_width=5.0         # 感光元件寬度
+                )
+                logger.info(f"      ✓ 深度估計已啟用（測距範圍: 0.5-5m）")
         else:
             left_frame = frame
             right_frame = None
@@ -462,16 +475,17 @@ class StreamingTrackingSystem:
         # 開啟攝像頭
         cap = cv2.VideoCapture(self.camera_id)
 
-        if self.dual_camera:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_DUAL_WIDTH)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_DUAL_HEIGHT)
-            cap.set(cv2.CAP_PROP_FPS, CAMERA_DUAL_FPS)
+        # 設置攝像頭解析度（使用檢測到的最佳配置）
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.camera_width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.camera_height)
+        cap.set(cv2.CAP_PROP_FPS, self.camera_fps)
 
         if not cap.isOpened():
             logger.error("✗ 無法開啟攝像頭")
             return
 
         logger.info(f"✓ 攝像頭已開啟 (ID: {self.camera_id})")
+        logger.info(f"✓ 解析度: {self.camera_width}×{self.camera_height}@{self.camera_fps}fps")
 
         try:
             while self._running:  # 使用執行標誌控制迴圈
@@ -589,9 +603,96 @@ class StreamingTrackingSystem:
         logger.info("✅ 系統已關閉")
 
 
+def detect_best_camera_config(camera_id: int = 0) -> dict:
+    """
+    自動檢測攝像頭並選擇最佳配置
+
+    嘗試常見解析度（從高到低），選擇相機支援的最高解析度：
+    - 3840×1080 @ 60fps (雙目 Full HD)
+    - 1920×1080 @ 60fps (單目 Full HD)
+    - 1280×720 @ 60fps (HD)
+    - 640×480 @ 30fps (VGA, fallback)
+
+    Args:
+        camera_id: 攝像頭 ID
+
+    Returns:
+        dict: {
+            'width': int,
+            'height': int,
+            'fps': int,
+            'is_dual': bool,
+            'resolution_name': str
+        }
+    """
+    # 常見解析度配置（從高到低優先級）
+    resolutions = [
+        {'width': 3840, 'height': 1080, 'fps': 60, 'name': '雙目 Full HD (3840×1080@60fps)', 'is_dual': True},
+        {'width': 1920, 'height': 1080, 'fps': 60, 'name': '單目 Full HD (1920×1080@60fps)', 'is_dual': False},
+        {'width': 1280, 'height': 720, 'fps': 60, 'name': 'HD (1280×720@60fps)', 'is_dual': False},
+        {'width': 1280, 'height': 720, 'fps': 30, 'name': 'HD (1280×720@30fps)', 'is_dual': False},
+        {'width': 640, 'height': 480, 'fps': 30, 'name': 'VGA (640×480@30fps)', 'is_dual': False},
+    ]
+
+    logger.info(f"🔍 正在檢測攝像頭 {camera_id} 的最佳配置...")
+
+    best_config = None
+
+    for config in resolutions:
+        cap = cv2.VideoCapture(camera_id)
+        if not cap.isOpened():
+            continue
+
+        # 嘗試設置解析度
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, config['width'])
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config['height'])
+        cap.set(cv2.CAP_PROP_FPS, config['fps'])
+
+        # 讀取一幀驗證
+        ret, frame = cap.read()
+        cap.release()
+
+        if ret and frame is not None:
+            actual_width = frame.shape[1]
+            actual_height = frame.shape[0]
+
+            # 檢查是否成功設置為目標解析度（容許小幅偏差）
+            width_match = abs(actual_width - config['width']) <= 10
+            height_match = abs(actual_height - config['height']) <= 10
+
+            if width_match and height_match:
+                best_config = {
+                    'width': actual_width,
+                    'height': actual_height,
+                    'fps': config['fps'],
+                    'is_dual': config['is_dual'],
+                    'resolution_name': config['name']
+                }
+                logger.info(f"✅ 找到支援的解析度: {config['name']}")
+                logger.info(f"   實際解析度: {actual_width}×{actual_height}")
+                break
+            else:
+                logger.debug(f"⚠️  {config['name']} 不支援 (實際: {actual_width}×{actual_height})")
+
+    # 如果沒有找到任何支援的解析度，使用預設值
+    if best_config is None:
+        logger.warning(f"⚠️  無法檢測到支援的解析度，使用預設配置")
+        best_config = {
+            'width': 640,
+            'height': 480,
+            'fps': 30,
+            'is_dual': False,
+            'resolution_name': 'VGA (640×480@30fps) - 預設'
+        }
+
+    return best_config
+
+
 def detect_dual_camera(camera_id: int = 0) -> bool:
     """
-    自動檢測是否為雙目攝像頭
+    自動檢測是否為雙目攝像頭（舊版相容函數）
+
+    建議使用 detect_best_camera_config() 來獲取完整配置
 
     Args:
         camera_id: 攝像頭 ID
@@ -600,28 +701,8 @@ def detect_dual_camera(camera_id: int = 0) -> bool:
         True: 雙目攝像頭（寬度 >= 2560）
         False: 單目攝像頭
     """
-    cap = cv2.VideoCapture(camera_id)
-    if not cap.isOpened():
-        logger.warning(f"⚠ 無法開啟攝像頭 {camera_id}，假設為單目")
-        return False
-
-    # 讀取一幀來獲取實際解析度
-    ret, frame = cap.read()
-    cap.release()
-
-    if not ret or frame is None:
-        logger.warning(f"⚠ 無法讀取攝像頭畫面，假設為單目")
-        return False
-
-    width = frame.shape[1]
-
-    # 判斷邏輯：雙目攝像頭寬度通常 >= CAMERA_DUAL_WIDTH_THRESHOLD
-    is_dual = width >= CAMERA_DUAL_WIDTH_THRESHOLD
-
-    logger.info(f"📷 攝像頭解析度: {width}x{frame.shape[0]}")
-    logger.info(f"📷 檢測結果: {'雙目' if is_dual else '單目'} 攝像頭")
-
-    return is_dual
+    config = detect_best_camera_config(camera_id)
+    return config['is_dual']
 
 
 def main():
@@ -698,21 +779,36 @@ def main():
     logger.info("=" * 60)
 
     # 自動檢測或使用指定的攝像頭模式
+    camera_config = None
     if args.dual:
         dual_camera = True
+        camera_width = CAMERA_DUAL_WIDTH
+        camera_height = CAMERA_DUAL_HEIGHT
+        camera_fps = CAMERA_DUAL_FPS
         logger.info("📷 攝像頭模式: 雙目（手動指定）")
+        logger.info(f"   使用配置: {camera_width}×{camera_height}@{camera_fps}fps")
     elif args.single:
         dual_camera = False
+        camera_width = 1920
+        camera_height = 1080
+        camera_fps = 60
         logger.info("📷 攝像頭模式: 單目（手動指定）")
+        logger.info(f"   使用配置: {camera_width}×{camera_height}@{camera_fps}fps")
     else:
-        logger.info("📷 自動檢測攝像頭模式...")
-        dual_camera = detect_dual_camera(args.camera)
+        logger.info("📷 自動檢測攝像頭最佳配置...")
+        camera_config = detect_best_camera_config(args.camera)
+        dual_camera = camera_config['is_dual']
+        camera_width = camera_config['width']
+        camera_height = camera_config['height']
+        camera_fps = camera_config['fps']
+        logger.info(f"   最佳配置: {camera_config['resolution_name']}")
 
     # 顯示配置
     logger.info("⚙️  系統配置:")
     logger.info(f"   - Arduino 串口: {args.port}")
     logger.info(f"   - 攝像頭 ID: {args.camera}")
     logger.info(f"   - 攝像頭模式: {'雙目' if dual_camera else '單目'}")
+    logger.info(f"   - 攝像頭解析度: {camera_width}×{camera_height}@{camera_fps}fps")
     logger.info(f"   - 串流模式: {args.mode}")
     logger.info(f"   - HTTP 端口: {args.port_http}")
     logger.info(f"   - 樣本儲存: {'停用' if args.no_save_samples else '啟用'}")
@@ -736,6 +832,11 @@ def main():
         rtsp_url=args.rtsp_url if args.rtsp else None,
         rtsp_bitrate=args.rtsp_bitrate
     )
+
+    # 將檢測到的解析度配置應用到系統
+    system.camera_width = camera_width
+    system.camera_height = camera_height
+    system.camera_fps = camera_fps
 
     system.run()
 

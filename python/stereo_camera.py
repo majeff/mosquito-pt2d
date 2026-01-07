@@ -94,16 +94,16 @@ class StereoCamera:
     """雙目/單目 USB 攝像頭類"""
 
     def __init__(self, left_id: int = 0, right_id: Optional[int] = None,
-                 width: int = 640, height: int = 480, fps: int = 30):
+                 width: int = 1920, height: int = 1080, fps: int = 60):
         """
         初始化攝像頭（支援單目/雙目模式）
 
         Args:
             left_id: 左攝像頭設備 ID（單目模式時為主攝像頭 ID）
             right_id: 右攝像頭設備 ID（設為 None 時啟用單目模式）
-            width: 影像寬度
-            height: 影像高度
-            fps: 幀率
+            width: 影像寬度（預設 1920，適合單目；雙目使用 3840）
+            height: 影像高度（預設 1080）
+            fps: 幀率（預設 60）
         """
         self.left_id = left_id
         self.right_id = right_id

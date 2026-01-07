@@ -298,8 +298,13 @@ python3 streaming_tracking_system.py --help
 - `--no-save-samples`: Disable sample saving
 
 **Auto Camera Detection:**
-- System automatically detects camera resolution
-- Width ≥ 2560 recognized as dual camera
+- System automatically detects and selects best resolution configuration
+- Supported resolutions (by priority):
+  - 3840×1080@60fps (Dual Full HD) ⭐ Best
+  - 1920×1080@60fps (Mono Full HD)
+  - 1280×720@60fps (HD)
+  - 640×480@30fps (VGA, fallback)
+- Auto-identifies mono/dual camera mode
 - Mono mode automatically disables depth estimation
 
 **Control:**
@@ -358,6 +363,15 @@ DEFAULT_PAN_GAIN = 0.15                  # Pan gain (control sensitivity)
 DEFAULT_TILT_GAIN = 0.15                 # Tilt gain (control sensitivity)
 DEFAULT_NO_DETECTION_TIMEOUT = 3.0       # No detection timeout (seconds)
 DEFAULT_TARGET_LOCK_DISTANCE = 100       # Target lock distance (pixels)
+
+# ============================================
+# Camera Parameters (Auto-Detection)
+# ============================================
+# ⚠️ System auto-detects and selects best configuration at startup
+# These constants are only used when manually specifying --dual
+CAMERA_DUAL_WIDTH = 3840                 # Dual camera width
+CAMERA_DUAL_HEIGHT = 1080                # Dual camera height
+CAMERA_DUAL_FPS = 60                     # Dual camera FPS
 
 # ============================================
 # Hardware Parameters

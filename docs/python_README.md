@@ -665,11 +665,11 @@ python convert_to_rknn.py
 from depth_estimator import DepthEstimator
 from stereo_camera import StereoCamera
 
-# 初始化
+# 初始化（image_width 應傳入實際單眼解析度）
 estimator = DepthEstimator(
     focal_length=3.0,     # 焦距 3.0mm
     baseline=120.0,       # 雙目基線 12cm
-    image_width=1920      # 單眼解析度
+    image_width=1920      # 單眼解析度（根據實際攝像頭配置）
 )
 camera = StereoCamera(left_id=0, right_id=1)
 

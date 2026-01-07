@@ -221,13 +221,13 @@ ILLUMINATION_CHECK_INTERVAL = 5.0
 # 攝像頭參數
 # ============================================
 
-# 雙目攝像頭設定
+# ⚠️ 注意：以下常數僅作為向後兼容的預設值
+# 系統啟動時會自動檢測並選擇最佳配置，不需要手動修改這些值
+
+# 雙目攝像頭預設設定（手動指定 --dual 時使用）
 CAMERA_DUAL_WIDTH = 3840          # 雙目攝像頭寬度
 CAMERA_DUAL_HEIGHT = 1080         # 雙目攝像頭高度
 CAMERA_DUAL_FPS = 60              # 雙目攝像頭 FPS
-
-# 雙目檢測閾值（寬度 >= 此值判定為雙目）
-CAMERA_DUAL_WIDTH_THRESHOLD = 2560
 
 # 幀延時（秒）- 控制主循環 FPS
 FRAME_DELAY = 0.03  # 約 30 FPS
@@ -247,8 +247,8 @@ ARDUINO_TIMEOUT = 1.0      # 超時時間（秒）
 # 雙目立體匹配參數
 DEPTH_FOCAL_LENGTH = 3.0      # 鏡頭焦距（mm）
 DEPTH_BASELINE = 120.0        # 雙目基線（mm）
-DEPTH_IMAGE_WIDTH = 1920      # 單眼解析度寬度
 DEPTH_SENSOR_WIDTH = 5.0      # 感光元件寬度（mm）
+# 注意：單眼解析度寬度現在由系統自動檢測，不再需要硬編碼
 
 # ============================================
 # 追蹤參數
