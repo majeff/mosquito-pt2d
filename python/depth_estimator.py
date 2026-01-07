@@ -75,7 +75,8 @@ class DepthEstimator:
         logger.info(f"深度估計器初始化完成")
         logger.info(f"焦距: {focal_length}mm ({self.focal_length_px:.1f}px)")
         logger.info(f"基線: {baseline}mm")
-        logger.info(f"有效測距範圍: {self._calc_min_depth():.2f}m - {self._calc_max_depth():.2f}m")
+        logger.info(f"理論測距範圍: {self._calc_min_depth():.2f}m - {self._calc_max_depth():.2f}m")
+        logger.info(f"⚠️  實際測距受場景特徵影響（均勻區域可能無法測距）")
 
     def _calc_min_depth(self) -> float:
         """計算最小可測深度 (m)"""
@@ -196,8 +197,14 @@ class DepthEstimator:
         valid_disparities = window_disparity[window_disparity > 0]
 
         if len(valid_disparities) == 0:
-            logger.warning(f"點 ({x}, {y}) 處無有效視差")
+            # 降低日誌等級，這是常見情況（均勻區域、遮擋等）
+            logger.debug(f"點 ({x}, {y}) 處無有效視差 (可能原因: 均勻區域/遮擋/光照不足)")
             return None
+
+        # 檢查有效視差的比例
+        valid_ratio = len(valid_disparities) / window_disparity.size
+        if valid_ratio < 0.3:  # 少於30%的有效視差
+            logger.debug(f"點 ({x}, {y}) 視差質量較低 ({valid_ratio:.1%} 有效)")
 
         # 使用中位數（比平均值更魯棒）
         median_disparity = np.median(valid_disparities)

@@ -1154,6 +1154,22 @@ Complete Nginx configuration examples are included in the documentation. For mor
 
 **A**: Adjust angle range in `include/config.h`, or use the host-side swing test to verify mechanical limits and correct manually.
 
+### Q5: Depth estimation shows "no valid disparity" warning
+
+**A**: This is normal behavior caused by:
+- **Uniform regions**: Areas lacking texture features (white walls, sky, etc.)
+- **Occlusion issues**: Objects visible in one camera but occluded in the other
+- **Insufficient lighting**: Poor lighting causing excessive differences between left/right images
+- **Low contrast**: Target has insufficient contrast with background
+
+**Improvements**:
+- Ensure target has sufficient texture and contrast
+- Improve lighting conditions
+- System automatically skips unmeasurable areas
+- Log level set to DEBUG, does not affect normal operation
+
+**Note**: Depth estimation is an auxiliary feature; AI detection does not depend on depth information.
+
 ---
 
 ## 📚 Complete Documentation Index
