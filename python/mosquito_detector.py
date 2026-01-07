@@ -792,6 +792,8 @@ class MosquitoDetector:
         """
         解析 YOLO 輸出（ONNX/RKNN 通用）
 
+        ⚠️ 注意：自動處理未歸一化的輸出（應用 sigmoid）
+
         Args:
             output: 模型輸出張量
             original_shape: 原始影像尺寸 (height, width)
@@ -814,8 +816,19 @@ class MosquitoDetector:
 
         output = output[0]  # 移除 batch 維度
 
+        # 檢查是否需要 sigmoid（調試用）
+        if len(output) > 0:
+            max_objectness = np.max(output[:, 4])
+            if max_objectness > 10.0:  # 明顯未歸一化
+                logger.debug(f"檢測到未歸一化輸出 (max objectness: {max_objectness:.2f})，將應用 sigmoid")
+
         for detection in output:
             objectness = detection[4]
+
+            # ⚠️ 重要：確保 objectness 在 [0, 1] 範圍內
+            # 有些模型輸出未經 sigmoid，需要手動處理
+            if objectness > 1.0:
+                objectness = 1.0 / (1.0 + np.exp(-objectness))  # sigmoid
 
             if objectness < self.confidence_threshold:
                 continue
@@ -834,10 +847,17 @@ class MosquitoDetector:
             w = int(width)
             h = int(height)
 
-            # 類別概率
+            # 類別概率（同樣需要確保在 [0, 1] 範圍）
             class_scores = detection[5:]
+            # 對類別分數應用 sigmoid（如果需要）
+            if np.max(class_scores) > 1.0:
+                class_scores = 1.0 / (1.0 + np.exp(-class_scores))
+
             class_id = int(np.argmax(class_scores))
             confidence = float(objectness * class_scores[class_id])
+
+            # 最終確保 confidence 在合理範圍內
+            confidence = min(1.0, max(0.0, confidence))
 
             if confidence >= self.confidence_threshold:
                 detections.append({
