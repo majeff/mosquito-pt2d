@@ -116,7 +116,7 @@ class StreamingTrackingSystem:
             'start_time': time.time(),
             'last_illumination_info': {}
         }
-        
+
         # 唯一目標追蹤（簡單去重機制）
         self.active_tracks = {}           # {track_id: {'last_seen': time, 'center': (x,y), 'lost_frames': int}}
         self.next_track_id = 1
@@ -403,34 +403,34 @@ class StreamingTrackingSystem:
                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
 
         return frame
-    
+
     def _update_unique_targets(self, detections: list):
         """更新唯一目標追蹤（簡單去重機制）"""
         current_time = time.time()
-        
+
         # 標記所有追蹤為「可能消失」
         for track_id in self.active_tracks:
             self.active_tracks[track_id]['lost_frames'] += 1
-        
+
         # 為每個檢測分配或匹配追蹤ID
         for detection in detections:
             center = detection.get('center', (0, 0))
             matched_track_id = None
             min_distance = self.track_distance_threshold
-            
+
             # 尋找最近的現有追蹤
             for track_id, track_info in self.active_tracks.items():
                 if track_info['lost_frames'] > self.track_lost_frames_max:
                     continue  # 已消失的追蹤不匹配
-                    
+
                 track_center = track_info['center']
-                distance = np.sqrt((center[0] - track_center[0])**2 + 
+                distance = np.sqrt((center[0] - track_center[0])**2 +
                                  (center[1] - track_center[1])**2)
-                
+
                 if distance < min_distance:
                     min_distance = distance
                     matched_track_id = track_id
-            
+
             # 更新或創建追蹤
             if matched_track_id is not None:
                 # 匹配到現有追蹤
@@ -449,7 +449,7 @@ class StreamingTrackingSystem:
                 }
                 self.stats['unique_targets'] += 1
                 detection['track_id'] = new_track_id
-        
+
         # 清理長時間未見的追蹤
         tracks_to_remove = [
             track_id for track_id, track_info in self.active_tracks.items()
