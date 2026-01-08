@@ -109,7 +109,6 @@ class StreamingTrackingSystem:
         # 統計資訊
         self.stats = {
             'total_frames': 0,
-            'detections': 0,              # 總檢測次數（所有幀累計）
             'unique_targets': 0,          # 唯一目標數（去重後）
             'tracking_active': False,
             'samples_saved': 0,
@@ -304,9 +303,8 @@ class StreamingTrackingSystem:
         # 雙目模式：告知檢測器這是左眼畫面，只過濾上下邊緣
         detections, result_left, illumination_info = self.detector.detect(left_frame, is_dual_left=self.dual_camera)
 
-        # 記錄檢測數量與追蹤唯一目標
+        # 追蹤唯一目標
         if detections:
-            self.stats['detections'] += len(detections)
             self._update_unique_targets(detections)
 
             # 🎯 深度估計（如果啟用且有右眼影像）
@@ -463,8 +461,8 @@ class StreamingTrackingSystem:
         y_pos = 30
         line_height = 35
 
-        # 檢測數量
-        cv2.putText(frame, f"Detections: {len(detections)}", (10, y_pos),
+        # 唯一目標數
+        cv2.putText(frame, f"Unique Targets: {self.stats['unique_targets']}", (10, y_pos),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         y_pos += line_height
 
@@ -586,7 +584,7 @@ class StreamingTrackingSystem:
                     saved_samples = getattr(self.detector, 'saved_sample_count', 0)
 
                     logger.info(f"[狀態] FPS: {fps:.1f} | "
-                          f"檢測: {self.stats['detections']} (唯一: {self.stats['unique_targets']}) | "
+                          f"唯一目標: {self.stats['unique_targets']} | "
                           f"存檔: {saved_samples} | "
                           f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'} | "
                           f"辨識: {'停用' if ai_paused else '啟用'} | "
@@ -655,7 +653,7 @@ class StreamingTrackingSystem:
         logger.info("📊 系統統計")
         logger.info("=" * 60)
         logger.info(f"總幀數: {self.stats['total_frames']}")
-        logger.info(f"總檢測: {self.stats['detections']} | 唯一目標: {self.stats['unique_targets']}")
+        logger.info(f"唯一目標: {self.stats['unique_targets']}")
         if hasattr(self.detector, 'saved_sample_count'):
             logger.info(f"已儲存樣本: {self.detector.saved_sample_count}")
         elapsed = time.time() - self.stats['start_time']
