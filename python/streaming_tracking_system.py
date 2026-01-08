@@ -122,6 +122,10 @@ class StreamingTrackingSystem:
         self.track_distance_threshold = 100  # 像素距離閾值（<100認為是同一目標）
         self.track_lost_frames_max = 30     # 超過30幀未見視為消失
 
+        # 單目過濾器追蹤數據（用於時間連續性和運動合理性檢查）
+        self.detection_history = {}       # {track_id: {'frames': int, 'positions': deque, 'static_frames': int}}
+        from collections import deque
+
         # 1. 初始化 AI 檢測器（只創建一次！）
         logger.info("[1/5] 初始化 AI 檢測器...")
         self.detector = MosquitoDetector(
@@ -338,6 +342,9 @@ class StreamingTrackingSystem:
 
                 # 更新為過濾後的檢測結果
                 detections = valid_detections
+            else:
+                # 單目模式或無深度估計：使用像素級過濾
+                detections = self._apply_monocular_filters(detections)
 
         # 追蹤控制（如果啟用）
         if self.tracker and detections:
@@ -477,6 +484,95 @@ class StreamingTrackingSystem:
         ]
         for track_id in tracks_to_remove:
             del self.active_tracks[track_id]
+            # 清理單目過濾器歷史數據
+            if track_id in self.detection_history:
+                del self.detection_history[track_id]
+
+    def _apply_monocular_filters(self, detections: list) -> list:
+        """
+        單目模式過濾器（無深度資訊時使用）
+        包含：檢測框大小、寬高比、時間連續性、運動合理性
+        """
+        from config import (ENABLE_BBOX_SIZE_FILTER, MIN_BBOX_SIZE_PX, MAX_BBOX_SIZE_PX,
+                           ENABLE_ASPECT_RATIO_FILTER, MIN_ASPECT_RATIO, MAX_ASPECT_RATIO,
+                           ENABLE_TEMPORAL_FILTER, MIN_CONSECUTIVE_FRAMES,
+                           ENABLE_MOTION_FILTER, MAX_MOVEMENT_PX_PER_FRAME,
+                           MAX_STATIC_FRAMES, STATIC_THRESHOLD_PX)
+        from collections import deque
+
+        valid_detections = []
+
+        for detection in detections:
+            bbox = detection.get('bbox')
+            if not bbox:
+                continue
+
+            x1, y1, x2, y2 = bbox
+            width = x2 - x1
+            height = y2 - y1
+            center = detection.get('center', ((x1+x2)//2, (y1+y2)//2))
+            track_id = detection.get('track_id')
+
+            # 1. 檢測框大小過濾
+            if ENABLE_BBOX_SIZE_FILTER:
+                size = max(width, height)
+                if size < MIN_BBOX_SIZE_PX or size > MAX_BBOX_SIZE_PX:
+                    logger.debug(f"框大小過濾: {size}px 不在 {MIN_BBOX_SIZE_PX}-{MAX_BBOX_SIZE_PX}px 範圍")
+                    continue
+
+            # 2. 寬高比過濾
+            if ENABLE_ASPECT_RATIO_FILTER:
+                aspect_ratio = width / max(height, 1)
+                if aspect_ratio < MIN_ASPECT_RATIO or aspect_ratio > MAX_ASPECT_RATIO:
+                    logger.debug(f"寬高比過濾: {aspect_ratio:.2f} 不在 {MIN_ASPECT_RATIO}-{MAX_ASPECT_RATIO} 範圍")
+                    continue
+
+            # 3. 時間連續性過濾
+            if ENABLE_TEMPORAL_FILTER and track_id is not None:
+                if track_id not in self.detection_history:
+                    self.detection_history[track_id] = {
+                        'frames': 1,
+                        'positions': deque(maxlen=10),
+                        'static_frames': 0
+                    }
+                    self.detection_history[track_id]['positions'].append(center)
+                else:
+                    self.detection_history[track_id]['frames'] += 1
+                    self.detection_history[track_id]['positions'].append(center)
+
+                # 檢查是否達到最少幀數
+                if self.detection_history[track_id]['frames'] < MIN_CONSECUTIVE_FRAMES:
+                    logger.debug(f"時間連續性過濾: track_{track_id} 僅出現 {self.detection_history[track_id]['frames']} 幀")
+                    continue
+
+            # 4. 運動合理性過濾
+            if ENABLE_MOTION_FILTER and track_id is not None and track_id in self.detection_history:
+                history = self.detection_history[track_id]
+                positions = history['positions']
+
+                if len(positions) >= 2:
+                    prev_pos = positions[-2]
+                    curr_pos = center
+                    movement = np.sqrt((curr_pos[0] - prev_pos[0])**2 + (curr_pos[1] - prev_pos[1])**2)
+
+                    # 移動過快過濾
+                    if movement > MAX_MOVEMENT_PX_PER_FRAME:
+                        logger.debug(f"運動過快過濾: track_{track_id} 移動 {movement:.1f}px > {MAX_MOVEMENT_PX_PER_FRAME}px")
+                        continue
+
+                    # 靜止過久過濾
+                    if movement < STATIC_THRESHOLD_PX:
+                        history['static_frames'] += 1
+                        if history['static_frames'] > MAX_STATIC_FRAMES:
+                            logger.debug(f"靜止過久過濾: track_{track_id} 靜止 {history['static_frames']} 幀")
+                            continue
+                    else:
+                        history['static_frames'] = 0
+
+            # 通過所有過濾器
+            valid_detections.append(detection)
+
+        return valid_detections
 
     def _draw_system_info(self, frame: np.ndarray, detections: list, illumination_info: dict):
         """在畫面上繪製系統資訊"""

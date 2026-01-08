@@ -57,6 +57,30 @@ MIN_MOSQUITO_SIZE_MM = 3    # 最小尺寸（毫米）
 MAX_MOSQUITO_SIZE_MM = 15   # 最大尺寸（毫米），設置稍大以容錯
 
 # ============================================
+# 單目過濾器參數（無深度資訊時使用）
+# ============================================
+
+# 檢測框像素大小過濾
+ENABLE_BBOX_SIZE_FILTER = True       # 是否啟用檢測框大小過濾
+MIN_BBOX_SIZE_PX = 10                # 最小檢測框邊長（像素）
+MAX_BBOX_SIZE_PX = 200               # 最大檢測框邊長（像素）
+
+# 寬高比過濾
+ENABLE_ASPECT_RATIO_FILTER = True    # 是否啟用寬高比過濾
+MIN_ASPECT_RATIO = 0.3               # 最小寬高比（寬/高）
+MAX_ASPECT_RATIO = 3.0               # 最大寬高比（寬/高）
+
+# 時間連續性過濾
+ENABLE_TEMPORAL_FILTER = True        # 是否啟用時間連續性過濾
+MIN_CONSECUTIVE_FRAMES = 3           # 最少連續出現幀數（才算有效目標）
+
+# 運動合理性過濾
+ENABLE_MOTION_FILTER = True          # 是否啟用運動合理性過濾
+MAX_MOVEMENT_PX_PER_FRAME = 150      # 最大每幀移動距離（像素）
+MAX_STATIC_FRAMES = 60               # 最大靜止幀數（超過視為靜物）
+STATIC_THRESHOLD_PX = 5              # 靜止判定閾值（像素）
+
+# ============================================
 # 追蹤參數
 # ============================================
 
