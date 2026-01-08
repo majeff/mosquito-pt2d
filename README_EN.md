@@ -122,14 +122,14 @@ An Arduino-based 2D Pan-Tilt control system integrated with dual USB cameras and
   - HTTP-MJPEG streaming server for real-time mobile browser viewing
   - Complete AI annotations included in stream (detection boxes, confidence, tracking status)
   - Dual camera support (side-by-side display/single view/independent streams)
-  - Web interface with real-time statistics (FPS, detections, connections)
+  - Web interface with real-time statistics (FPS, unique targets, connections)
   - Multi-client simultaneous viewing support
 - � **Intelligent Illumination Monitoring** (v2.5.0 new):
-  - Real-time frame brightness estimation (Lux value)
+  - Real-time frame brightness estimation (0-255 brightness value)
   - Auto-pause AI detection when light levels are too low, reducing false positives and computation waste
-  - Configurable illumination thresholds: Warning (30), Pause (15), Resume (25)
-  - UI bottom-right corner displays illumination status: Green (normal), Orange (warning), Red (paused), Yellow (resumed)
-  - Adjustable detection interval (default 1 second)
+  - Configurable illumination thresholds: Warning (60), Pause (40)
+  - UI bottom-right corner displays illumination status: Green (normal), Orange (warning), Red (paused)
+  - Adjustable detection interval (default 5 seconds)
 - 📊 **Visual display**: Real-time display of AI detection results, bounding boxes, confidence scores, illumination level
 - 🔧 **Adjustable parameters**: AI model path, confidence threshold, input resolution, tracking gain, illumination thresholds
 
@@ -318,12 +318,12 @@ python3 streaming_tracking_system.py --help
 3. View real-time AI annotated video
 
 **Web Interface Shows:**
-- Real-time video (with AI detection boxes, confidence)
-- FPS, detection count, tracking status
+- Real-time video (with AI detection boxes, confidence, tracking IDs)
+- FPS, unique target count, tracking status
 - Connected client count
 
 **System Status Output:**
-- Statistics printed every 100 frames (frame count, FPS, detections, tracking status)
+- Statistics printed every 100 frames (frame count, FPS, unique targets, tracking status)
 - Terminal displays system running status
 
 ---

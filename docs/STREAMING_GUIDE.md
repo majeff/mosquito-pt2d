@@ -175,8 +175,8 @@ while True:
     detections, result_left = detector.detect(left_frame)
     result_left = detector.draw_detections(result_left, detections)
 
-    # 添加檢測資訊
-    cv2.putText(result_left, f"Detections: {len(detections)}",
+    # 添加唯一目標資訊
+    cv2.putText(result_left, f"Unique Targets: {unique_target_count}",
                 (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     # 模式 1: 並排顯示（推薦）
@@ -188,22 +188,20 @@ while True:
 ```
 
 **串流內容說明：**
-- ✅ 左側畫面：完整 AI 標註（檢測框、信心度、類別、中心點）
+- ✅ 左側畫面：完整 AI 標註（檢測框、信心度、類別、追蹤 ID）
 - ✅ 右側畫面：原始影像
-- ✅ 頂部顯示：檢測數量、連線數、運行時間
+- ✅ 頂部顯示：唯一目標數、連線數、運行時間
 - ✅ 底部右方：光照強度（Lux 值）與狀態指示
 - ✅ 即時更新：每幀都包含最新的 AI 檢測結果
 
 **光照度監測說明：**
-- 🟢 **綠色（正常）**: 光照充足，AI 檢測正常運行
-- 🟠 **橙色（警告）**: 光照開始降低，接近暫停閾值
-- � **綠色（正常）**: 光照充足，AI 檢測正常運行
-- 🟠 **橙色（警告）**: 光線較暗，可能影響檢測精度，但 AI 仍在運行
-- 🔴 **紅色（暫停）**: 光照過低，AI 檢測已自動暫停以節省資源
+- 🟢 **綠色（正常）**: 光照充足（≥ 60/255），AI 檢測正常運行
+- 🟠 **橙色（警告）**: 光線較暗（40-59/255），可能影響檢測精度，但 AI 仍在運行
+- 🔴 **紅色（暫停）**: 光照過低（< 40/255），AI 檢測已自動暫停以節省資源
 
 AI 會根據 `config.py` 中的閾值自動調整：
-- `ILLUMINATION_WARNING_THRESHOLD = 60`：警告光照值
-- `ILLUMINATION_PAUSE_THRESHOLD = 40`：暫停/恢復檢測光照值
+- `ILLUMINATION_WARNING_THRESHOLD = 60`：低於此值顯示警告
+- `ILLUMINATION_PAUSE_THRESHOLD = 40`：低於此值暫停 AI，高於此值恢復 AI
 
 #### 3. 手機觀看
 
