@@ -109,12 +109,19 @@ class StreamingTrackingSystem:
         # 統計資訊
         self.stats = {
             'total_frames': 0,
-            'detections': 0,
+            'detections': 0,              # 總檢測次數（所有幀累計）
+            'unique_targets': 0,          # 唯一目標數（去重後）
             'tracking_active': False,
             'samples_saved': 0,
             'start_time': time.time(),
             'last_illumination_info': {}
         }
+        
+        # 唯一目標追蹤（簡單去重機制）
+        self.active_tracks = {}           # {track_id: {'last_seen': time, 'center': (x,y), 'lost_frames': int}}
+        self.next_track_id = 1
+        self.track_distance_threshold = 100  # 像素距離閾值（<100認為是同一目標）
+        self.track_lost_frames_max = 30     # 超過30幀未見視為消失
 
         # 1. 初始化 AI 檢測器（只創建一次！）
         logger.info("[1/5] 初始化 AI 檢測器...")
@@ -297,9 +304,10 @@ class StreamingTrackingSystem:
         # 雙目模式：告知檢測器這是左眼畫面，只過濾上下邊緣
         detections, result_left, illumination_info = self.detector.detect(left_frame, is_dual_left=self.dual_camera)
 
-        # 記錄檢測數量
+        # 記錄檢測數量與追蹤唯一目標
         if detections:
             self.stats['detections'] += len(detections)
+            self._update_unique_targets(detections)
 
             # 🎯 深度估計（如果啟用且有右眼影像）
             if self.depth_estimator and right_frame is not None:
@@ -395,6 +403,60 @@ class StreamingTrackingSystem:
                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
 
         return frame
+    
+    def _update_unique_targets(self, detections: list):
+        """更新唯一目標追蹤（簡單去重機制）"""
+        current_time = time.time()
+        
+        # 標記所有追蹤為「可能消失」
+        for track_id in self.active_tracks:
+            self.active_tracks[track_id]['lost_frames'] += 1
+        
+        # 為每個檢測分配或匹配追蹤ID
+        for detection in detections:
+            center = detection.get('center', (0, 0))
+            matched_track_id = None
+            min_distance = self.track_distance_threshold
+            
+            # 尋找最近的現有追蹤
+            for track_id, track_info in self.active_tracks.items():
+                if track_info['lost_frames'] > self.track_lost_frames_max:
+                    continue  # 已消失的追蹤不匹配
+                    
+                track_center = track_info['center']
+                distance = np.sqrt((center[0] - track_center[0])**2 + 
+                                 (center[1] - track_center[1])**2)
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    matched_track_id = track_id
+            
+            # 更新或創建追蹤
+            if matched_track_id is not None:
+                # 匹配到現有追蹤
+                self.active_tracks[matched_track_id]['center'] = center
+                self.active_tracks[matched_track_id]['last_seen'] = current_time
+                self.active_tracks[matched_track_id]['lost_frames'] = 0
+                detection['track_id'] = matched_track_id
+            else:
+                # 新目標
+                new_track_id = self.next_track_id
+                self.next_track_id += 1
+                self.active_tracks[new_track_id] = {
+                    'center': center,
+                    'last_seen': current_time,
+                    'lost_frames': 0
+                }
+                self.stats['unique_targets'] += 1
+                detection['track_id'] = new_track_id
+        
+        # 清理長時間未見的追蹤
+        tracks_to_remove = [
+            track_id for track_id, track_info in self.active_tracks.items()
+            if track_info['lost_frames'] > self.track_lost_frames_max
+        ]
+        for track_id in tracks_to_remove:
+            del self.active_tracks[track_id]
 
     def _draw_system_info(self, frame: np.ndarray, detections: list, illumination_info: dict):
         """在畫面上繪製系統資訊"""
@@ -524,7 +586,8 @@ class StreamingTrackingSystem:
                     saved_samples = getattr(self.detector, 'saved_sample_count', 0)
 
                     logger.info(f"[狀態] FPS: {fps:.1f} | "
-                          f"總檢測: {self.stats['detections']}/{saved_samples} | "
+                          f"檢測: {self.stats['detections']} (唯一: {self.stats['unique_targets']}) | "
+                          f"存檔: {saved_samples} | "
                           f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'} | "
                           f"辨識: {'停用' if ai_paused else '啟用'} | "
                           f"Lux: {lux} ({lux_status}) | {lux_msg}")
@@ -592,7 +655,7 @@ class StreamingTrackingSystem:
         logger.info("📊 系統統計")
         logger.info("=" * 60)
         logger.info(f"總幀數: {self.stats['total_frames']}")
-        logger.info(f"總檢測: {self.stats['detections']}")
+        logger.info(f"總檢測: {self.stats['detections']} | 唯一目標: {self.stats['unique_targets']}")
         if hasattr(self.detector, 'saved_sample_count'):
             logger.info(f"已儲存樣本: {self.detector.saved_sample_count}")
         elapsed = time.time() - self.stats['start_time']
