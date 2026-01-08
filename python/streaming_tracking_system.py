@@ -356,6 +356,10 @@ class StreamingTrackingSystem:
         # 儲存光照度資訊
         self.stats['last_illumination_info'] = illumination_info
 
+        # 輸出檢測物件詳細資訊
+        if detections:
+            self._log_detection_details(detections)
+
         # 繪製 AI 標註（包含深度資訊）
         result_left = self._draw_detections_with_depth(result_left, detections)
 
@@ -574,6 +578,57 @@ class StreamingTrackingSystem:
 
         return valid_detections
 
+    def _log_detection_details(self, detections: list):
+        """輸出檢測物件的詳細資訊"""
+        from config import (MIN_MOSQUITO_SIZE_MM, MAX_MOSQUITO_SIZE_MM,
+                           MIN_BBOX_SIZE_PX, MAX_BBOX_SIZE_PX,
+                           MIN_ASPECT_RATIO, MAX_ASPECT_RATIO)
+
+        for detection in detections:
+            track_id = detection.get('track_id', 'N/A')
+            confidence = detection.get('confidence', 0)
+            bbox = detection.get('bbox')
+
+            if not bbox:
+                continue
+
+            x1, y1, x2, y2 = bbox
+            width = x2 - x1
+            height = y2 - y1
+            bbox_size = max(width, height)
+            aspect_ratio = width / max(height, 1)
+
+            # 物理尺寸與距離資訊
+            distance_cm = detection.get('distance_cm', 0)
+            obj_size_mm = detection.get('object_size_mm', 0)
+
+            # 運動資訊
+            speed_info = ""
+            if track_id != 'N/A' and track_id in self.detection_history:
+                history = self.detection_history[track_id]
+                positions = history['positions']
+                if len(positions) >= 2:
+                    prev_pos = positions[-2]
+                    curr_pos = positions[-1]
+                    movement = np.sqrt((curr_pos[0] - prev_pos[0])**2 + (curr_pos[1] - prev_pos[1])**2)
+                    speed_info = f"| 速度: {movement:.1f}px/幀"
+
+                static_frames = history.get('static_frames', 0)
+                if static_frames > 0:
+                    speed_info += f" (靜止{static_frames}幀)"
+
+            # 過濾器資訊
+            filter_info = []
+            filter_info.append(f"框: {bbox_size}px/{MIN_BBOX_SIZE_PX}-{MAX_BBOX_SIZE_PX}px")
+            filter_info.append(f"寬高比: {aspect_ratio:.2f}/{MIN_ASPECT_RATIO}-{MAX_ASPECT_RATIO}")
+
+            if distance_cm > 0 and obj_size_mm > 0:
+                filter_info.append(f"距離: {distance_cm:.1f}cm")
+                filter_info.append(f"尺寸: {obj_size_mm:.1f}mm/{MIN_MOSQUITO_SIZE_MM}-{MAX_MOSQUITO_SIZE_MM}mm")
+
+            # 輸出詳細日誌
+            logger.info(f"[檢測] ID:{track_id} | 信心: {confidence:.3f} | {' | '.join(filter_info)} {speed_info}")
+
     def _draw_system_info(self, frame: np.ndarray, detections: list, illumination_info: dict):
         """在畫面上繪製系統資訊"""
         y_pos = 30
@@ -686,8 +741,8 @@ class StreamingTrackingSystem:
                     # 單一串流
                     self.server.update_frame(result)
 
-                # 定期輸出狀態（每 100 幀）
-                if self.stats['total_frames'] % 100 == 0:
+                # 定期輸出狀態（每 500 幀）
+                if self.stats['total_frames'] % 500 == 0:
                     elapsed = time.time() - self.stats['start_time']
                     fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
 
