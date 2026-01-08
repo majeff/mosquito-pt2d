@@ -577,7 +577,6 @@ class StreamingTrackingSystem:
                     illum_info = self.stats.get('last_illumination_info', {})
                     lux = illum_info.get('illumination', 0)
                     lux_status = illum_info.get('status', 'unknown')
-                    lux_msg = illum_info.get('message', '')
                     ai_paused = illum_info.get('paused', False)
 
                     # 獲取弱信心存檔數
@@ -588,7 +587,7 @@ class StreamingTrackingSystem:
                           f"存檔: {saved_samples} | "
                           f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'} | "
                           f"辨識: {'停用' if ai_paused else '啟用'} | "
-                          f"Lux: {lux} ({lux_status}) | {lux_msg}")
+                          f"Lux: {lux} ({lux_status})")
 
                 # 簡單延時控制幀率
                 time.sleep(FRAME_DELAY)  # 幀延時
