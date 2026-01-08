@@ -307,6 +307,12 @@ class StreamingTrackingSystem:
         # 雙目模式：告知檢測器這是左眼畫面，只過濾上下邊緣
         detections, result_left, illumination_info = self.detector.detect(left_frame, is_dual_left=self.dual_camera)
 
+        # 過濾異常信心度值（排除 confidence == 1.0 的異常檢測）
+        if detections:
+            detections = [d for d in detections if d.get('confidence', 0) < 1.0]
+            if len([d for d in detections if d.get('confidence', 0) >= 1.0]) > 0:
+                logger.debug(f"已過濾 {len([d for d in detections if d.get('confidence', 0) >= 1.0])} 個信心度=1.0的異常檢測")
+
         # 追蹤唯一目標
         if detections:
             self._update_unique_targets(detections)
