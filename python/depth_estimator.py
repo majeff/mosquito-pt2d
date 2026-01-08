@@ -248,10 +248,25 @@ class DepthEstimator:
         if depth is None:
             return None
 
+        # 計算物件實際尺寸（寬度和高度）
+        # 公式：實際尺寸 = (像素尺寸 × 深度) / 焦距
+        bbox_width_px = x2 - x1
+        bbox_height_px = y2 - y1
+
+        # 計算實際寬度和高度（毫米）
+        real_width_mm = (bbox_width_px * depth * 10000) / self.focal_length_px  # m -> mm
+        real_height_mm = (bbox_height_px * depth * 10000) / self.focal_length_px
+
+        # 使用較大的邊作為物件尺寸（蚊子可能是橫向或縱向）
+        object_size_mm = max(real_width_mm, real_height_mm)
+
         return {
             'depth': depth,
             'center': (center_x, center_y),
-            'distance_cm': depth * 100  # 轉換為公分
+            'distance_cm': depth * 100,  # 轉換為公分
+            'real_width_mm': real_width_mm,
+            'real_height_mm': real_height_mm,
+            'object_size_mm': object_size_mm
         }
 
     def create_depth_colormap(self, disparity_map: np.ndarray) -> np.ndarray:

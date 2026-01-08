@@ -307,19 +307,37 @@ class StreamingTrackingSystem:
         if detections:
             self._update_unique_targets(detections)
 
-            # 🎯 深度估計（如果啟用且有右眼影像）
+            # 🎯 深度估計與尺寸過濾（如果啟用且有右眼影像）
             if self.depth_estimator and right_frame is not None:
+                valid_detections = []
                 for detection in detections:
                     bbox = detection.get('bbox')
                     if bbox:
                         x1, y1, x2, y2 = bbox
-                        # 估計深度
+                        # 估計深度與實際尺寸
                         depth_info = self.depth_estimator.estimate_depth_for_detection(
                             left_frame, right_frame, (x1, y1, x2, y2)
                         )
                         if depth_info:
                             detection['depth'] = depth_info['depth']
                             detection['distance_cm'] = depth_info['distance_cm']
+                            detection['object_size_mm'] = depth_info.get('object_size_mm', 0)
+
+                            # 尺寸過濾：只保留合理尺寸的檢測
+                            from config import MIN_MOSQUITO_SIZE_MM, MAX_MOSQUITO_SIZE_MM
+                            obj_size = depth_info.get('object_size_mm', 0)
+                            if MIN_MOSQUITO_SIZE_MM <= obj_size <= MAX_MOSQUITO_SIZE_MM:
+                                valid_detections.append(detection)
+                            else:
+                                logger.debug(f"尺寸過濾: {obj_size:.1f}mm 不在 {MIN_MOSQUITO_SIZE_MM}-{MAX_MOSQUITO_SIZE_MM}mm 範圍")
+                        else:
+                            # 無法估計深度時保留（避免過度過濾）
+                            valid_detections.append(detection)
+                    else:
+                        valid_detections.append(detection)
+
+                # 更新為過濾後的檢測結果
+                detections = valid_detections
 
         # 追蹤控制（如果啟用）
         if self.tracker and detections:
@@ -382,10 +400,14 @@ class StreamingTrackingSystem:
 
                 if bbox and distance_cm:
                     x1, y1, x2, y2 = bbox
+                    obj_size = detection.get('object_size_mm', 0)
 
-                    # 在檢測框下方顯示距離資訊
-                    distance_text = f"{distance_cm:.1f}cm"
-                    text_size = cv2.getTextSize(distance_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                    # 在檢測框下方顯示距離與尺寸資訊
+                    if obj_size > 0:
+                        distance_text = f"{distance_cm:.1f}cm | {obj_size:.1f}mm"
+                    else:
+                        distance_text = f"{distance_cm:.1f}cm"
+                    text_size = cv2.getTextSize(distance_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
                     text_x = x1
                     text_y = y2 + 25
 
@@ -395,7 +417,7 @@ class StreamingTrackingSystem:
                                 (text_x + text_size[0] + 5, text_y + 5),
                                 (0, 0, 0), -1)
 
-                    # 繪製距離文字（橙色）
+                    # 繪製距離與尺寸文字（橙色）
                     cv2.putText(frame, distance_text,
                               (text_x + 2, text_y),
                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
