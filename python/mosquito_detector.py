@@ -38,6 +38,10 @@ from config import (
     DEFAULT_DETECTION_MARGIN,
     DEFAULT_MAX_SAMPLES,
     DEFAULT_SAVE_INTERVAL,
+    DEFAULT_SAVE_HIGH_CONFIDENCE_SAMPLES,
+    SAMPLE_COLLECTION_DIR,
+    MEDIUM_CONFIDENCE_DIR,
+    HIGH_CONFIDENCE_DIR,
     ENABLE_ILLUMINATION_MONITORING,
     ILLUMINATION_WARNING_THRESHOLD,
     ILLUMINATION_PAUSE_THRESHOLD,
@@ -80,7 +84,7 @@ class MosquitoDetector:
                  fallback_to_pretrained: bool = True,
                  save_uncertain_samples: bool = False,
                  uncertain_conf_range: Tuple[float, float] = (0.4, 0.7),
-                 save_dir: str = "uncertain_samples",
+                 save_dir: str = None,
                  max_samples: int = DEFAULT_MAX_SAMPLES,
                  save_interval: float = DEFAULT_SAVE_INTERVAL,
                  save_annotations: bool = True,
@@ -138,7 +142,9 @@ class MosquitoDetector:
         # 儲存功能配置
         self.save_uncertain_samples = save_uncertain_samples
         self.uncertain_conf_range = uncertain_conf_range
-        self.save_dir = Path(save_dir)
+        # 樣本收集根目錄（與 label_samples.py 保持一致）
+        self.collection_root = Path(SAMPLE_COLLECTION_DIR)
+        self.save_dir = self.collection_root  # 兼容舊代碼用語
         self.max_samples = max_samples
         self.save_interval = save_interval
         self.save_annotations = save_annotations
@@ -147,11 +153,21 @@ class MosquitoDetector:
         self.last_save_time = 0.0  # 上次儲存時間戳
         self.last_saved_hash = None  # 上次儲存照片的雜湊值
 
-        # 創建儲存目錄
-        if self.save_uncertain_samples:
-            self.save_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"中等信心度樣本儲存目錄: {self.save_dir}")
-            logger.info(f"信心度範圍: {uncertain_conf_range[0]:.2f} - {uncertain_conf_range[1]:.2f}")
+        # 高信心度樣本保存設定（閾值直接取中信心度上限，避免設定不一致）
+        self.save_high_confidence = DEFAULT_SAVE_HIGH_CONFIDENCE_SAMPLES
+        self.high_conf_threshold = float(self.uncertain_conf_range[1])
+
+        # 創建儲存目錄（與標註流程一致的固定目錄）
+        if self.save_uncertain_samples or self.save_high_confidence:
+            self.collection_root.mkdir(parents=True, exist_ok=True)
+            Path(MEDIUM_CONFIDENCE_DIR).mkdir(parents=True, exist_ok=True)
+            Path(HIGH_CONFIDENCE_DIR).mkdir(parents=True, exist_ok=True)
+            if self.save_uncertain_samples:
+                logger.info(f"中等信心度樣本儲存目錄: {MEDIUM_CONFIDENCE_DIR}")
+                logger.info(f"信心度範圍: {uncertain_conf_range[0]:.2f} - {uncertain_conf_range[1]:.2f}")
+            if self.save_high_confidence:
+                logger.info(f"高信心度樣本儲存目錄: {HIGH_CONFIDENCE_DIR}")
+                logger.info(f"高信心度閾值: > {self.high_conf_threshold:.2f}")
             logger.info(f"最大存儲數量: {max_samples} 張")
             logger.info(f"儲存時間間隔: {save_interval} 秒")
             logger.info(f"自動標註: {'啟用' if save_annotations else '停用'}")
@@ -306,8 +322,8 @@ class MosquitoDetector:
             False: 已達到最大數量限制，應暫停儲存
         """
         try:
-            # 計算已儲存的樣本數（.jpg 檔案數）
-            sample_count = len(list(self.save_dir.glob("*.jpg")))
+            # 計算已儲存的樣本數（sample_collection 下所有 .jpg）
+            sample_count = len(list(self.collection_root.rglob("*.jpg")))
 
             if sample_count >= self.max_samples:
                 logger.warning(f"⚠ 已儲存樣本數已達上限 ({sample_count}/{self.max_samples})，暫停儲存")
@@ -433,12 +449,19 @@ class MosquitoDetector:
 
     def _save_uncertain_sample(self, frame: np.ndarray, detection: Dict):
         """
-        儲存信心度中等的樣本圖片，並可選生成 YOLO 格式標註文件
+        儲存樣本圖片（中等或高信心度，依設定判斷）並可選生成 YOLO 格式標註文件
 
         Args:
             frame: 原始影像
             detection: 檢測結果（含 bbox, confidence 等資訊）
         """
+        # 依設定判斷是否需要保存（中等或高信心度）
+        confidence = detection.get('confidence', 0.0)
+        is_medium = self.save_uncertain_samples and (self.uncertain_conf_range[0] <= confidence <= self.uncertain_conf_range[1])
+        is_high = self.save_high_confidence and (confidence > self.high_conf_threshold)
+
+        if not (is_medium or is_high):
+            return
         # 檢查樣本數是否達到上限
         if not self._check_sample_count():
             return
@@ -448,7 +471,6 @@ class MosquitoDetector:
             return
 
         try:
-            confidence = detection['confidence']
             x, y, w, h = detection['bbox']
             class_id = detection.get('class_id', 0)
 
@@ -474,19 +496,23 @@ class MosquitoDetector:
                 x2 = min(img_w, x + w + margin)
                 image_to_save = frame[y1:y2, x1:x2].copy()
 
+            # 目錄：固定至 config 定義的分類目錄
+            dest_dir = Path(MEDIUM_CONFIDENCE_DIR) if is_medium else Path(HIGH_CONFIDENCE_DIR)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
             # 儲存圖片
-            image_path = self.save_dir / f"{base_filename}.jpg"
+            image_path = dest_dir / f"{base_filename}.jpg"
             cv2.imwrite(str(image_path), image_to_save)
 
             # 生成並儲存 YOLO 格式標註文件
             if self.save_annotations:
-                annotation_path = self.save_dir / f"{base_filename}.txt"
+                annotation_path = dest_dir / f"{base_filename}.txt"
                 self._save_yolo_annotation(annotation_path, frame.shape, detection)
 
             self.save_counter += 1
 
             if self.save_counter % 10 == 0:
-                logger.info(f"已儲存 {self.save_counter} 張中等信心度樣本{'（含標註）' if self.save_annotations else ''}")
+                logger.info(f"已儲存 {self.save_counter} 張樣本{'（含標註）' if self.save_annotations else ''}")
 
         except Exception as e:
             logger.error(f"儲存樣本失敗: {e}")
@@ -560,12 +586,10 @@ class MosquitoDetector:
             if self.detection_margin > 0 and detections:
                 detections = self._filter_margin_detections(detections, frame.shape[:2], is_dual_left)
 
-            # 儲存信心度中等的樣本
-            if self.save_uncertain_samples and detections:
+            # 儲存樣本（中/高信心度由 _save_uncertain_sample 判斷）
+            if (self.save_uncertain_samples or self.save_high_confidence) and detections:
                 for detection in detections:
-                    conf = detection['confidence']
-                    if self.uncertain_conf_range[0] <= conf <= self.uncertain_conf_range[1]:
-                        self._save_uncertain_sample(frame, detection)
+                    self._save_uncertain_sample(frame, detection)
 
             return detections, result_frame, illumination_info
 

@@ -67,8 +67,8 @@ from mosquito_detector import MosquitoDetector
 detector = MosquitoDetector(
     model_path="models/mosquito",
     save_uncertain_samples=True,          # 啟用儲存功能
-    uncertain_conf_range=(0.4, 0.7),   # 信心度範圍
-    save_dir="uncertain_samples",         # 儲存目錄
+    uncertain_conf_range=(0.4, 0.7),      # 中等信心度範圍
+    save_dir="sample_collection",        # 儲存根目錄（固定）
     max_samples=1000,                     # 最多存 1000 張照片
     save_interval=3.0,                    # 每 3 秒最多存一次
     save_annotations=True,                # 自動生成 YOLO 標註文件
@@ -100,16 +100,19 @@ class_id x_center y_center width height
 
 ### 4. 模型改進工作流程（新版）
 
-系統會自動收集中等信心度的檢測樣本（0.4-0.7），用於持續改進模型。新版流程：
+系統會自動收集樣本至固定目錄 `sample_collection/`：
+- 中等信心度（0.4-0.7）：`sample_collection/medium_confidence`
+- 高信心度（> 上述範圍高值）：`sample_collection/high_confidence`
+（高信心度的判定直接採用中等範圍的上限，避免設定不一致）
 
 #### 步驟 1：人工標註與搬遷到雲端
 
 ```bash
-# 互動式標註工具；內建統計與搬遷到 Google Drive
+# 互動式標註工具；同時處理中/高信心來源，內建統計與搬遷
 python label_samples.py
 ```
 
-完成一輪標註後，執行選項 `m` 可將 `confirmed/` 內樣本搬遷到 Google Drive 指定資料夾（見 `python/config.py` 的 `RELOCATION_BASE_DIR`）。
+完成一輪標註後，執行選項 `m` 可將 `confirmed/` 內樣本搬遷到 Google Drive 指定資料夾（見 `python/config.py` 的 `RELOCATION_BASE_DIR`）。未標註樣本的來源為 `sample_collection/medium_confidence` 與 `sample_collection/high_confidence`。
 
 #### 步驟 2：Google Colab 訓練
 

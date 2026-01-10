@@ -37,6 +37,7 @@ from config import (DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IMGSZ,
                    DEFAULT_DEVICE_IP, DEFAULT_EXTERNAL_URL,
                    DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL,
                    DEFAULT_SAVE_UNCERTAIN_SAMPLES, DEFAULT_UNCERTAIN_CONF_RANGE,
+                   SAMPLE_COLLECTION_DIR,
                    CAMERA_DUAL_WIDTH, CAMERA_DUAL_HEIGHT, CAMERA_DUAL_FPS,
                    FRAME_DELAY)
 import sys
@@ -134,7 +135,7 @@ class StreamingTrackingSystem:
             imgsz=DEFAULT_IMGSZ,
             save_uncertain_samples=save_samples,
             uncertain_conf_range=sample_conf_range,
-            save_dir="uncertain_samples",
+            save_dir=SAMPLE_COLLECTION_DIR,
             max_samples=DEFAULT_MAX_SAMPLES,
             save_interval=DEFAULT_SAVE_INTERVAL,
             save_annotations=True,

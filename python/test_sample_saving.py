@@ -23,7 +23,7 @@ import sys
 import traceback
 from pathlib import Path
 from mosquito_detector import MosquitoDetector
-from config import DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL
+from config import DEFAULT_MAX_SAMPLES, DEFAULT_SAVE_INTERVAL, SAMPLE_COLLECTION_DIR
 
 def test_uncertain_sample_saving():
     """測試中等信心度樣本儲存功能"""
@@ -35,7 +35,7 @@ def test_uncertain_sample_saving():
 
     # 配置參數
     camera_id = 0  # 攝像頭 ID
-    save_dir = "uncertain_samples"
+    save_dir = SAMPLE_COLLECTION_DIR
     uncertain_range = (0.4, 0.7)  # 信心度範圍
     max_samples = DEFAULT_MAX_SAMPLES  # 最大存儲照片數量
     save_interval = DEFAULT_SAVE_INTERVAL  # 儲存時間間隔（秒）

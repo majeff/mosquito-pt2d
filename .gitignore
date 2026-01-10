@@ -45,4 +45,4 @@ ENV/
 *.tmp
 *.bak
 *.backup
-uncertain_samples/*
+sample_collection/*

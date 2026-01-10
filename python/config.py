@@ -122,14 +122,14 @@ DEFAULT_LASER_COOLDOWN = 0.5
 # 樣本收集參數
 # ============================================
 
+# 是否自動儲存高信心度樣本
+DEFAULT_SAVE_HIGH_CONFIDENCE_SAMPLES = True
+
 # 是否自動儲存中等信心度樣本
 DEFAULT_SAVE_UNCERTAIN_SAMPLES = True
 
 # 中等信心度範圍（用於樣本收集）
 DEFAULT_UNCERTAIN_CONF_RANGE = (0.4, 0.7)
-
-# 樣本儲存目錄
-DEFAULT_SAVE_DIR = "uncertain_samples"
 
 # 最大存儲照片數量（改為數量限制而非磁碟使用率）
 DEFAULT_MAX_SAMPLES = 1000
@@ -147,6 +147,7 @@ DEFAULT_LAST_SAVED_HASH = None
 # 樣本標註目錄結構
 SAMPLE_COLLECTION_DIR = "sample_collection"
 MEDIUM_CONFIDENCE_DIR = "sample_collection/medium_confidence"
+HIGH_CONFIDENCE_DIR = "sample_collection/high_confidence"
 CONFIRMED_MOSQUITO_DIR = "sample_collection/confirmed/mosquito"
 CONFIRMED_NOT_MOSQUITO_DIR = "sample_collection/confirmed/not_mosquito"
 

@@ -29,10 +29,11 @@ import config
 
 def label_samples():
     """
-    互動式標註樣本
+    互動式標註樣本（同時處理中/高信心度來源）
     """
     # 從 config 讀取目錄設定
     medium_dir = config.MEDIUM_CONFIDENCE_DIR
+    high_dir = config.HIGH_CONFIDENCE_DIR
     mosquito_dir = config.CONFIRMED_MOSQUITO_DIR
     not_mosquito_dir = config.CONFIRMED_NOT_MOSQUITO_DIR
 
@@ -40,19 +41,29 @@ def label_samples():
     os.makedirs(mosquito_dir, exist_ok=True)
     os.makedirs(not_mosquito_dir, exist_ok=True)
 
-    # 檢查樣本目錄
-    if not os.path.exists(medium_dir):
-        print(f"❌ 找不到樣本目錄: {medium_dir}")
+    # 彙整來源目錄（存在者）
+    sources = []
+    if os.path.exists(medium_dir):
+        sources.append(medium_dir)
+    if os.path.exists(high_dir):
+        sources.append(high_dir)
+
+    if not sources:
+        print(f"❌ 找不到樣本目錄: {medium_dir} 或 {high_dir}")
         return
 
-    # 獲取所有圖片
-    images = [f for f in os.listdir(medium_dir) if f.endswith('.jpg')]
+    # 獲取所有圖片（來源 + 檔名）
+    images = []  # [(src_dir, filename)]
+    for src in sources:
+        for f in os.listdir(src):
+            if f.endswith('.jpg'):
+                images.append((src, f))
 
     if not images:
         print("⚠️  沒有待標註的樣本")
         return
 
-    print(f"找到 {len(images)} 張待標註樣本\n")
+    print(f"找到 {len(images)} 張待標註樣本（來源: {', '.join(sources)}）\n")
     print("操作說明:")
     print("  y - 確認是蚊子")
     print("  n - 確認不是蚊子")
@@ -65,10 +76,12 @@ def label_samples():
     labeled_count = 0
     deleted_count = 0
 
-    for idx, img_file in enumerate(images, 1):
-        img_path = os.path.join(medium_dir, img_file)
+    for idx, item in enumerate(images, 1):
+        src_dir, img_file = item
+        img_path = os.path.join(src_dir, img_file)
 
-        print(f"\n[{idx}/{len(images)}] {img_file}")
+        rel = os.path.relpath(img_path, start=os.path.commonprefix(sources))
+        print(f"\n[{idx}/{len(images)}] {rel}")
 
         # 顯示圖片
         try:
@@ -97,35 +110,38 @@ def label_samples():
                 deleted_count += 1
                 break
             elif choice == 's':
-                print_statistics(mosquito_dir, not_mosquito_dir, medium_dir)
+                print_statistics(mosquito_dir, not_mosquito_dir, sources)
                 continue  # 顯示統計後繼續當前圖片
             elif choice == 'm':
                 relocate_samples()
                 continue  # 搬遷後繼續當前圖片
             elif choice == 'q':
                 print("\n退出標註")
-                print_statistics(mosquito_dir, not_mosquito_dir, medium_dir)
+                print_statistics(mosquito_dir, not_mosquito_dir, sources)
                 return
             else:
                 print("無效輸入，請輸入 y/n/d/s/m/q")
 
     print("\n✓ 標註完成！")
-    print_statistics(mosquito_dir, not_mosquito_dir, medium_dir)
+    print_statistics(mosquito_dir, not_mosquito_dir, sources)
 
-def print_statistics(mosquito_dir, not_mosquito_dir, medium_dir):
+def print_statistics(mosquito_dir, not_mosquito_dir, sources):
     """
-    顯示統計資訊
+    顯示統計資訊（來源可為多個目錄）
     """
     mosquito_count = len([f for f in os.listdir(mosquito_dir) if f.endswith('.jpg')]) if os.path.exists(mosquito_dir) else 0
     not_mosquito_count = len([f for f in os.listdir(not_mosquito_dir) if f.endswith('.jpg')]) if os.path.exists(not_mosquito_dir) else 0
-    remaining_count = len([f for f in os.listdir(medium_dir) if f.endswith('.jpg')]) if os.path.exists(medium_dir) else 0
+    remaining_count = 0
+    for src in sources:
+        if os.path.exists(src):
+            remaining_count += len([f for f in os.listdir(src) if f.endswith('.jpg')])
 
     print("\n" + "="*50)
     print("📊 樣本統計")
     print("="*50)
     print(f"✓ 蚊子樣本: {mosquito_count} 張")
     print(f"✗ 非蚊子樣本: {not_mosquito_count} 張")
-    print(f"⏳ 待標註樣本: {remaining_count} 張")
+    print(f"⏳ 待標註樣本: {remaining_count} 張（來源: {', '.join(sources)}）")
     print(f"📦 總計: {mosquito_count + not_mosquito_count + remaining_count} 張")
     print("="*50)
 
