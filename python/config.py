@@ -123,7 +123,7 @@ DEFAULT_LASER_COOLDOWN = 0.5
 # ============================================
 
 # 是否自動儲存高信心度樣本
-DEFAULT_SAVE_HIGH_CONFIDENCE_SAMPLES = True
+DEFAULT_SAVE_HIGH_CONFIDENCE_SAMPLES = False
 
 # 是否自動儲存中等信心度樣本
 DEFAULT_SAVE_UNCERTAIN_SAMPLES = True
