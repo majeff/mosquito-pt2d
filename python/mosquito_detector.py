@@ -159,9 +159,9 @@ class MosquitoDetector:
 
         # 創建儲存目錄（與標註流程一致的固定目錄）
         if self.save_uncertain_samples or self.save_high_confidence:
-            self.collection_root.mkdir(parents=True, exist_ok=True)
-            Path(MEDIUM_CONFIDENCE_DIR).mkdir(parents=True, exist_ok=True)
-            Path(HIGH_CONFIDENCE_DIR).mkdir(parents=True, exist_ok=True)
+            self.collection_root.mkdir(parents=True, exist_ok=True, mode=0o755)
+            Path(MEDIUM_CONFIDENCE_DIR).mkdir(parents=True, exist_ok=True, mode=0o755)
+            Path(HIGH_CONFIDENCE_DIR).mkdir(parents=True, exist_ok=True, mode=0o755)
             if self.save_uncertain_samples:
                 logger.info(f"中等信心度樣本儲存目錄: {MEDIUM_CONFIDENCE_DIR}")
                 logger.info(f"信心度範圍: {uncertain_conf_range[0]:.2f} - {uncertain_conf_range[1]:.2f}")
@@ -498,16 +498,26 @@ class MosquitoDetector:
 
             # 目錄：固定至 config 定義的分類目錄
             dest_dir = Path(MEDIUM_CONFIDENCE_DIR) if is_medium else Path(HIGH_CONFIDENCE_DIR)
-            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
 
             # 儲存圖片
             image_path = dest_dir / f"{base_filename}.jpg"
             cv2.imwrite(str(image_path), image_to_save)
+            # 設定檔案權限 644 (rw-r--r--)
+            try:
+                os.chmod(str(image_path), 0o644)
+            except Exception:
+                pass  # Windows 不支援，忽略
 
             # 生成並儲存 YOLO 格式標註文件
             if self.save_annotations:
                 annotation_path = dest_dir / f"{base_filename}.txt"
                 self._save_yolo_annotation(annotation_path, frame.shape, detection)
+                # 設定標註檔權限 644
+                try:
+                    os.chmod(str(annotation_path), 0o644)
+                except Exception:
+                    pass  # Windows 不支援，忽略
 
             self.save_counter += 1
 
