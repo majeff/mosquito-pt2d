@@ -370,6 +370,9 @@ def print_summary(
     print("  在目標平台上運行追蹤系統:")
     if rknn_path and rknn_path.exists():
         print("     - Orange Pi 5: python streaming_tracking_system.py")
+    
+    print("\n" + "="*60)
+
 
 def main():
     """主程式"""
@@ -404,6 +407,9 @@ def main():
         type=Path,
         default=Path('../models').resolve(),
         help="輸出目錄（預設: ../models）"
+    )
+    
+    parser.add_argument(
         '--training-dataset',
         type=Path,
         help="訓練數據集目錄（已棄用，校準圖像現在來自 sample_collection/confirmed/mosquito）"
@@ -472,6 +478,10 @@ def main():
 
     # 5. 顯示摘要
     print_summary(output_dir, None, onnx_path, rknn_path)
+    
+    return True
+
+
 if __name__ == '__main__':
     try:
         success = main()
