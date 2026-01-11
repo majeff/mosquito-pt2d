@@ -222,10 +222,6 @@ class StreamingServer:
 
                     <div class="stats">
                         <div class="stat-item">
-                            <div class="stat-label">總幀數</div>
-                            <div class="stat-value" id="frames">0</div>
-                        </div>
-                        <div class="stat-item">
                             <div class="stat-label">唯一目標</div>
                             <div class="stat-value" id="targets">0</div>
                         </div>
@@ -236,10 +232,6 @@ class StreamingServer:
                         <div class="stat-item">
                             <div class="stat-label">FPS</div>
                             <div class="stat-value" id="fps">0.0</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">運行時間</div>
-                            <div class="stat-value" id="uptime" style="font-size: 18px;">00:00:00</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">光照 (Lux)</div>
@@ -263,82 +255,53 @@ class StreamingServer:
                     </div>
                 </div>
 
+                <script src="/static/jquery.min.js"></script>
                 <script>
-                    console.log("Script loaded");
+                    console.log("jQuery loaded:", typeof $);
 
                     function updateStats() {{
                         console.log("updateStats called");
-                        fetch("/stats")
-                            .then(response => {{
-                                console.log("Response received:", response.status);
-                                if (!response.ok) {{
-                                    throw new Error("Network response was not ok: " + response.status);
-                                }}
-                                return response.json();
-                            }})
-                            .then(data => {{
+                        $.ajax({{
+                            url: "/stats",
+                            method: "GET",
+                            dataType: "json",
+                            success: function(data) {{
                                 console.log("Stats data:", data);
 
-                                const frames = document.getElementById("frames");
-                                const targets = document.getElementById("targets");
-                                const status = document.getElementById("status");
-                                const fps = document.getElementById("fps");
-                                const lux = document.getElementById("lux");
-                                const luxStatus = document.getElementById("lux-status");
-                                const uptime = document.getElementById("uptime");
+                                $("#targets").text(data.unique_targets || 0);
+                                $("#status").text(data.tracking_active ? "啟用" : "停用");
+                                $("#fps").text((data.fps || 0).toFixed(1));
+                                $("#lux").text(data.lux || 0);
+                                $("#lux-status").text(data.lux_status || "未知");
 
-                                if (frames) frames.textContent = data.total_frames || 0;
-                                if (targets) targets.textContent = data.unique_targets || 0;
-                                if (status) status.textContent = data.tracking_active ? "啟用" : "停用";
-                                if (fps) fps.textContent = (data.fps || 0).toFixed(1);
-                                if (lux) lux.textContent = data.lux || 0;
-                                if (luxStatus) luxStatus.textContent = data.lux_status || "未知";
+                                // Set status color
+                                $("#status").css("color", data.tracking_active ? "#4CAF50" : "#888");
 
-                                if (status) {{
-                                    status.style.color = data.tracking_active ? "#4CAF50" : "#888";
+                                // Set lux status color
+                                var luxColor = "#888";
+                                if (data.lux_status === "正常") {{
+                                    luxColor = "#4CAF50";
+                                }} else if (data.lux_status === "偏暗") {{
+                                    luxColor = "#FFA500";
+                                }} else if (data.lux_status === "過暗") {{
+                                    luxColor = "#FF5555";
                                 }}
+                                $("#lux-status").css("color", luxColor);
 
-                                if (luxStatus) {{
-                                    if (data.lux_status === "正常") {{
-                                        luxStatus.style.color = "#4CAF50";
-                                    }} else if (data.lux_status === "偏暗") {{
-                                        luxStatus.style.color = "#FFA500";
-                                    }} else if (data.lux_status === "過暗") {{
-                                        luxStatus.style.color = "#FF5555";
-                                    }} else {{
-                                        luxStatus.style.color = "#888";
-                                    }}
-                                }}
-
-                                if (data.start_time && uptime) {{
-                                    const elapsed = Math.floor(Date.now() / 1000 - data.start_time);
-                                    const hours = Math.floor(elapsed / 3600);
-                                    const minutes = Math.floor((elapsed % 3600) / 60);
-                                    const seconds = elapsed % 60;
-                                    uptime.textContent =
-                                        hours.toString().padStart(2, "0") + ":" +
-                                        minutes.toString().padStart(2, "0") + ":" +
-                                        seconds.toString().padStart(2, "0");
-                                }}
-                            }})
-                            .catch(error => {{
+                                console.log("Stats updated");
+                            }},
+                            error: function(xhr, status, error) {{
                                 console.error("Error fetching stats:", error);
-                            }});
+                            }}
+                        }});
                     }}
 
                     console.log("Starting immediate updates...");
-                    updateStats();
-                    const interval = setInterval(updateStats, 1000);
-
-                    if (document.readyState === "loading") {{
-                        document.addEventListener("DOMContentLoaded", function() {{
-                            console.log("DOMContentLoaded fired");
-                            updateStats();
-                        }});
-                    }} else {{
-                        console.log("Document already loaded");
+                    $(document).ready(function() {{
+                        console.log("Document ready");
                         updateStats();
-                    }}
+                        setInterval(updateStats, 1000);
+                    }});
                 </script>
             </body>
             </html>
