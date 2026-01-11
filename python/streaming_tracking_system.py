@@ -360,7 +360,7 @@ class StreamingTrackingSystem:
                             unique_targets=self.stats.get('unique_targets', 0),
                             tracking_active=self.stats.get('tracking_active', False),
                             fps=fps,
-                            lux=illumination_info.get('lux', 0),
+                            lux=illumination_info.get('illumination', 0),
                             lux_status=illumination_info.get('status', 'Unknown'),
                             samples_saved=self.stats.get('samples_saved', 0)
                         )
@@ -395,10 +395,15 @@ class StreamingTrackingSystem:
             logger.info("🛑 系統已停止")
 
     def _draw_system_info(self, frame: np.ndarray, detections: list, illumination_info: dict) -> np.ndarray:
-        """繪製時間到幀上"""
-        # 繪製當前時間
-        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        cv2.putText(frame, current_time, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        """繪製時間到幀上（右下角）"""
+        # 繪製當前時間（只顯示時分秒）
+        current_time = time.strftime("%H:%M:%S")
+        h, w = frame.shape[:2]
+        # 計算右下角位置（預留邊距）
+        text_size = cv2.getTextSize(current_time, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+        x = w - text_size[0] - 10
+        y = h - 10
+        cv2.putText(frame, current_time, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
         return frame
 
