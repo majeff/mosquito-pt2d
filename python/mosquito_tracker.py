@@ -25,21 +25,10 @@ import threading
 from typing import Optional, Tuple
 
 from stereo_camera import StereoCamera
-from config import TRACKER_POSITION_UPDATE_INTERVAL
+from config_loader import config
 from mosquito_detector import MosquitoDetector
 from pt2d_controller import PT2DController
 from temperature_monitor import TemperatureMonitor
-from config import (
-    DEFAULT_CONFIDENCE_THRESHOLD,
-    DEFAULT_IMGSZ,
-    DEFAULT_NO_DETECTION_TIMEOUT,
-    DEFAULT_TARGET_LOCK_DISTANCE,
-    DEFAULT_BEEP_COOLDOWN,
-    DEFAULT_LASER_COOLDOWN,
-    DEFAULT_PAN_GAIN,
-    DEFAULT_TILT_GAIN,
-    ENABLE_TEMPERATURE_MONITORING
-)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,78 +38,78 @@ class MosquitoTracker:
     """蚊子自動追蹤系統"""
 
     def __init__(self,
-                 arduino_port: str = 'COM3',
-                 camera_left_id: int = 0,
-                 camera_right_id: int = 1,
-                 camera_width: int = 640,
-                 camera_height: int = 480,
+                 arduino_port: str = None,  # 从配置中获取默认值
+                 camera_device_id: int = None,  # 从配置中获取默认值，使用单个双目摄像头设备ID
+                 camera_width: int = None,  # 从配置中获取默认值
+                 camera_height: int = None,  # 从配置中获取默认值
                  streaming_server: Optional[object] = None):
         """
         初始化追蹤系統
 
         Args:
             arduino_port: Arduino 串口號
-            camera_left_id: 左攝像頭 ID
-            camera_right_id: 右攝像頭 ID
+            camera_device_id: 双目攝像頭設備 ID
             camera_width: 攝像頭寬度
             camera_height: 攝像頭高度
         """
-        self.camera_width = camera_width
-        self.camera_height = camera_height
+        # 使用配置值，如果没有传入则使用默认值
+        self.arduino_port = arduino_port if arduino_port is not None else config.arduino_port
+        self.camera_device_id = camera_device_id if camera_device_id is not None else config.left_camera_id  # 使用配置中的left_camera_id作为设备ID
+        self.camera_width = camera_width if camera_width is not None else config.camera_dual_width
+        self.camera_height = camera_height if camera_height is not None else config.camera_dual_height
 
-        # 初始化雙目攝像頭
-        logger.info("初始化雙目攝像頭...")
+        # 初始化雙目攝像頭（使用單一雙目攝像頭模式）
+        logger.info("初始化單一雙目攝像頭...")
         self.camera = StereoCamera(
-            left_id=camera_left_id,
-            right_id=camera_right_id,
-            width=camera_width,
-            height=camera_height
+            camera_id=self.camera_device_id,  # 作為設備ID
+            width=self.camera_width,
+            height=self.camera_height
         )
 
         # 初始化蚊子偵測器（AI 檢測）
         logger.info("初始化 AI 蚊子偵測器...")
         self.detector = MosquitoDetector(
             model_path=None,                           # 自動搜尋模型（.rknn → .onnx → .pt）
-            confidence_threshold=DEFAULT_CONFIDENCE_THRESHOLD,
-            imgsz=DEFAULT_IMGSZ                        # 從 config.py 讀取（可統一修改）
+            confidence_threshold=config.confidence_threshold,  # 使用新配置
+            imgsz=config.imgsz                        # 使用新配置
         )
 
         # 初始化 Arduino 控制器
-        logger.info(f"連接 Arduino ({arduino_port})...")
-        self.controller = PT2DController(arduino_port)
+        logger.info(f"連接 Arduino ({self.arduino_port})...")
+        self.controller = PT2DController(self.arduino_port)
 
         # 追蹤狀態
         self.tracking_active = False
         self.last_detection_time = 0
-        self.no_detection_timeout = DEFAULT_NO_DETECTION_TIMEOUT
+        self.no_detection_timeout = config.no_detection_timeout  # 使用新配置
 
         # 目標鎖定機制（多目標時保持追蹤同一目標）
         self.locked_target_position = None  # 上次追蹤的目標位置 (x, y)
-        self.target_lock_distance = DEFAULT_TARGET_LOCK_DISTANCE
+        self.target_lock_distance = config.target_lock_distance  # 使用新配置
 
         # 位置緩存（減少串口讀取頻率）
         self.cached_pan = 135
         self.cached_tilt = 90
         self.last_position_update = 0
-        self.position_update_interval = TRACKER_POSITION_UPDATE_INTERVAL  # 位置更新間隔
+        self.position_update_interval = config.position_update_interval  # 使用新配置
 
         # 蜂鳴器狀態
-        self.beep_cooldown = DEFAULT_BEEP_COOLDOWN
+        self.beep_cooldown = config.beep_cooldown  # 使用新配置
         self.last_beep_time = 0
 
         # 雷射冷卻時間
-        self.laser_cooldown = DEFAULT_LASER_COOLDOWN
+        self.laser_cooldown = config.laser_cooldown  # 使用新配置
         self.last_laser_time = 0
 
         # PID 控制參數（簡化版）
-        self.pan_gain = DEFAULT_PAN_GAIN   # Pan 增益（控制靈敏度）
-        self.tilt_gain = DEFAULT_TILT_GAIN  # Tilt 增益（控制靈敏度）
+        self.pan_gain = config.pan_gain   # Pan 增益（控制靈敏度）
+        self.tilt_gain = config.tilt_gain  # Tilt 增益（控制靈敏度）
 
         # 串流伺服器（可選）
         self.streaming_server = streaming_server
 
         # 溫度監控器
-        if ENABLE_TEMPERATURE_MONITORING:
+        if config.enable_temperature_monitoring:  # 使用新配置
             logger.info("啟用溫度監控...")
             self.temperature_monitor = TemperatureMonitor()
             if not self.temperature_monitor.is_supported:
@@ -549,20 +538,12 @@ class MosquitoTracker:
 
 def main():
     """主程式入口"""
-    # 配置參數（根據實際情況修改）
-    ARDUINO_PORT = '/dev/ttyUSB0'  # Orange Pi / Linux
-    # ARDUINO_PORT = 'COM3'  # Windows（開發測試用）
-
-    LEFT_CAMERA_ID = 0
-    RIGHT_CAMERA_ID = 1
-
     # 建立並運行追蹤系統
     tracker = MosquitoTracker(
-        arduino_port=ARDUINO_PORT,
-        camera_left_id=LEFT_CAMERA_ID,
-        camera_right_id=RIGHT_CAMERA_ID,
-        camera_width=1920,  # 1080p
-        camera_height=1080
+        arduino_port=config.arduino_port,  # 使用配置
+        camera_device_id=config.left_camera_id,  # 使用配置中的left_camera_id作为设备ID
+        camera_width=config.camera_dual_width,  # 使用配置
+        camera_height=config.camera_dual_height  # 使用配置
     )
 
     tracker.run()

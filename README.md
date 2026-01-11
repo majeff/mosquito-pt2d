@@ -1,6 +1,6 @@
 # Arduino 2D 雲台控制系統 + AI 蚊子自動追蹤
 
-![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.5.2-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%2B%20RDK%20X5%20%2F%20Orange%20Pi%205-red.svg)
@@ -14,7 +14,7 @@
 
 | 項目 | 版本 | 備註 |
 |-----|------|------|
-| **整體專案版本** | **v2.5.0** | 2025-01-06 |
+| **整體專案版本** | **v2.5.2** | 2026-01-11 單一雙目攝像頭優化 |
 | 固件版本 (含通訊協議) | v2.4.0 | Arduino 固件與 UART 串口通訊協議 |
 | Python 環境 | 3.8+ | 支持 YOLOv8 推理 |
 | AI 模型 | YOLOv8 | BIN (RDK X5 BPU) / RKNN (Orange Pi 5 NPU) / ONNX / PyTorch |
@@ -84,6 +84,7 @@
 - [通訊協議](#通訊協議)
 - [專案結構](#專案結構)
 - [開發指南](#開發指南)
+- [配置管理](#配置管理)
 - [Nginx 反向代理配置](#nginx-反向代理配置)
 - [常見問題](#常見問題)
 - [完整文檔索引](#-完整文檔索引)
@@ -338,7 +339,7 @@ python streaming_tracking_system.py --help
 
 系統參數統一在 [python/config.py](python/config.py) 中管理，方便集中修改：
 
-```python
+```
 # ============================================
 # AI 檢測參數
 # ============================================
@@ -397,7 +398,7 @@ DEFAULT_LASER_COOLDOWN = 0.5             # 雷射冷卻時間（秒）
 
 ### 2. 修改 config.h
 
-```cpp
+```
 // 串口配置
 #define SERIAL_BAUDRATE     115200    // 上位機串口波特率
 #define SERVO_BAUDRATE      115200    // 舵機總線波特率（SP-15D/SP-15S: 115200）
@@ -684,7 +685,7 @@ sudo usermod -a -G dialout $USER
 
 ### Python 控制示例
 
-```python
+```
 import serial
 import time
 
@@ -712,7 +713,7 @@ ser.close()
 
 ### 響應格式
 
-```json
+```
 {"status":"ok","message":"OK"}
 {"status":"error","message":"Unknown command"}
 {"pan":90,"tilt":45}
@@ -733,45 +734,37 @@ ser.close()
 
 ```
 mosquito-pt2d/
-├── src/
-│   └── main.cpp                      # 橋接固件主程序
 ├── include/
-│   └── config.h                      # 配置文件（串口、舵機ID、角度範圍）
-├── python/                           # Python AI 追蹤系統
-│   ├── config.py                     # ⭐ 系統配置參數（統一管理）
-│   ├── streaming_tracking_system.py  # ⭐ 完整系統（AI+追蹤+串流）
-│   ├── streaming_server.py           # HTTP-MJPEG 串流伺服器模組
-│   ├── mosquito_tracker.py           # AI 追蹤主程序
-│   ├── mosquito_detector.py          # YOLOv8 蚊子偵測器
-│   ├── pt2d_controller.py            # Arduino 串口控制器
-│   ├── stereo_camera.py              # 雙目攝像頭控制
-│   └── test_*.py                     # 測試腳本（取代 quick_start）
-├── models/                           # AI 模型目錄
-│   ├── mosquito_yolov8.rknn          # RKNN 模型（NPU 加速）
-│   ├── mosquito_yolov8.onnx          # ONNX 模型（CPU 優化）
-│   └── mosquito_yolov8.pt            # PyTorch 模型
-├── docs/                             # 文檔目錄
-│   ├── STREAMING_GUIDE.md            # 影像串流指南
-│   ├── hardware.md                   # 硬體連接說明
-│   ├── protocol.md                   # 通訊協議詳細說明
-│   └── protocol.md                   # 通訊協議詳細說明
-├── platformio.ini                    # PlatformIO 配置
-├── .gitignore                        # Git 忽略文件
-└── README.md                         # 本文件
+│   └── config.h              # Arduino 配置文件
+├── python/
+│   ├── mosquito_detector.py  # AI 蚊子檢測器
+│   ├── mosquito_tracker.py   # 蚊子追蹤邏輯
+│   ├── pt2d_controller.py    # PT2D 雲台控制器
+│   ├── stereo_camera.py      # 雙目攝像頭模組
+│   ├── streaming_tracking_system.py  # 一體化系統
+│   ├── streaming_server.py   # 串流伺服器
+│   ├── config_loader.py      # 配置參數加載模組
+│   ├── mosquito.ini          # 系統配置檔案（實際運行配置）
+│   ├── mosquito_sample.ini   # 配置檔案範本
+│   ├── README.md             # Python 模組說明
+│   └── ... (更多 Python 檔案)
+├── src/
+│   └── main.cpp              # Arduino 主程式
+├── docs/                     # 詳細文檔目錄
+├── models/                   # AI 模型存放目錄
+├── sample_collection/        # 樣本收集目錄
+├── mosquito_training_colab.ipynb  # Colab 訓練 Notebook
+├── platformio.ini            # PlatformIO 設定檔
+├── CONSISTENCY_CHECK.md      # 一致性檢查報告
+├── README.md                 # 本文件（主說明文件）
+├── README_EN.md              # 英文版說明文件
+├── REFERENCE.md              # 參考資料
+└── .gitignore                # Git 忽略規則
 ```
 
 ## 🛠 開發指南
 
 ### 修改配置
-
-**Python 系統配置**：
-
-編輯 [python/config.py](python/config.py) 統一管理所有 Python 模組參數：
-
-- AI 檢測參數（解析度、信心度閾值）
-- 追蹤參數（增益、超時時間）
-- 硬體參數（串口、攝像頭 ID）
-- 控制參數（蜂鳴器、雷射冷卻時間）
 
 **Arduino 固件配置**：
 
@@ -797,7 +790,7 @@ mosquito-pt2d/
 
 ### 調試技巧
 
-```cpp
+```
 // 在 config.h 中啟用調試模式
 #define DEBUG_MODE true
 
@@ -866,7 +859,7 @@ sudo yum install nginx
 
 創建配置檔 `/etc/nginx/sites-available/mosquito-http`：
 
-```nginx
+```
 # HTTP-MJPEG 串流反向代理
 upstream mosquito_backend {
     server 127.0.0.1:5000;  # Flask 串流伺服器
@@ -945,7 +938,7 @@ server {
 
 創建配置檔 `/etc/nginx/nginx.conf`（添加 RTMP 區塊）：
 
-```nginx
+```
 # 在 nginx.conf 最後添加（與 http 區塊同級）
 rtmp {
     server {
@@ -978,7 +971,7 @@ rtmp {
 
 如果需要透過 HTTPS 訪問 RTSP，可使用 WebRTC 或 HTTP-FLV：
 
-```nginx
+```
 # 使用 HTTP-FLV 串流（需安裝 nginx-rtmp-module）
 location /live {
     flv_live on;
@@ -991,7 +984,7 @@ location /live {
 
 ### 啟用配置
 
-```bash
+```
 # 創建符號連結
 sudo ln -s /etc/nginx/sites-available/mosquito-http /etc/nginx/sites-enabled/
 
@@ -1007,7 +1000,7 @@ sudo systemctl enable nginx
 
 ### 防火牆設定
 
-```bash
+```
 # 允許 HTTP/HTTPS
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
@@ -1021,7 +1014,7 @@ sudo ufw allow 1935/tcp
 
 ### SSL/TLS 證書（Let's Encrypt）
 
-```bash
+```
 # 安裝 Certbot
 sudo apt install certbot python3-certbot-nginx
 
@@ -1036,7 +1029,7 @@ sudo certbot renew --dry-run
 
 #### HTTP 串流測試
 
-```bash
+```
 # 內部測試
 curl http://localhost/
 
@@ -1048,7 +1041,7 @@ curl https://mosquito.ma7.in/stats
 
 #### RTSP 串流測試
 
-```bash
+```
 # 使用 ffplay 測試
 ffplay rtsp://mosquito.ma7.in:8554/mosquito
 
@@ -1060,7 +1053,7 @@ vlc rtsp://mosquito.ma7.in:8554/mosquito
 
 更新 [python/config.py](python/config.py)：
 
-```python
+```
 # 網路配置
 DEFAULT_DEVICE_IP = "192.168.1.100"              # 內網 IP
 DEFAULT_EXTERNAL_URL = "https://mosquito.ma7.in"  # 外部訪問 URL
@@ -1069,7 +1062,7 @@ DEFAULT_RTSP_URL = "rtsp://0.0.0.0:8554/mosquito" # RTSP 推流地址
 
 ### 效能優化建議
 
-```nginx
+```
 # 添加到 http 區塊
 http {
     # 緩存設定
@@ -1098,7 +1091,7 @@ http {
 
 ### 監控與日誌
 
-```bash
+```
 # 查看訪問日誌
 sudo tail -f /var/log/nginx/access.log
 
@@ -1137,124 +1130,67 @@ location /nginx_status {
 
 ---
 
-## 🐛 常見問題
+## ⚙️ 配置管理
 
-### Q1: 伺服馬達抖動或不穩定
+從版本 v2.5.1 開始，系統採用了新的配置管理系統，將所有配置參數從程式碼中分離到 INI 格式的配置檔案中。
 
-**A**: 檢查電源是否充足，建議使用外接電源並添加濾波電容。
+### 配置檔案結構
 
-### Q2: 串口無法通訊
+- **python/mosquito_sample.ini**：包含所有配置參數及其詳細說明的範本檔案
+- **python/mosquito.ini**：實際運行時的配置檔案（此檔案已加入 `.gitignore`，不會被提交到版本控制）
 
-**A**: 確認波特率設置為 115200，檢查 TX/RX 連接是否正確。
+### 設定步驟
 
-### Q3: 上傳程序失敗
+1. 初始設置時，複製範本配置檔案：
+   ```bash
+   cd python
+   cp mosquito_sample.ini mosquito.ini
+   ```
 
-**A**: 斷開 TX/RX 連接後再上傳，上傳完成後重新連接。
+2. 根據實際環境修改 `mosquito.ini` 中的參數：
+   ```ini
+   [HARDWARE]
+   # Arduino 串口設定
+   # Linux/Orange Pi: /dev/ttyUSB0, /dev/ttyACM0 等
+   # Windows: COM3, COM4 等
+   arduino_port = /dev/ttyUSB0
+   
+   [CAMERA]
+   # 雙目攝像頭預設設定
+   # 寬度，範圍: 640-7680 (8K)，建議值: 3840 (4K)
+   camera_dual_width = 3840
+   # 高度，範圍: 480-4320 (8K)，建議值: 1080 (雙目模式通常為 2×540)
+   camera_dual_height = 1080
+   ```
 
-### Q4: 角度範圍不正確
+3. 系統會自動從 `mosquito.ini` 加載配置參數
 
-**A**: 請在 `include/config.h` 中調整角度範圍，或使用上位機的擺動測試以確認機構極限並手動校正。
+### 配置區塊說明
 
-### Q5: 深度估計顯示"無有效視差"警告
+- **AI_DETECTION**：AI 檢測相關參數（影像大小、信心度閾值、IoU 閾值等）
+  - `imgsz`: 輸入影像解析度（像素），建議值 640
+  - `confidence_threshold`: 信心度閾值（0.0-1.0），建議值 0.4
+  - `detection_mode`: 檢測模式，可選 'tiling' 或 'whole'
 
-**A**: 這是正常現象，原因包括：
-- **均勻區域**：白牆、天空等缺乏紋理特徵的區域
-- **遮擋問題**：物體在一個鏡頭中可見但另一個被遮擋
-- **光照不足**：光線太暗導致左右圖像差異過大
-- **低對比度**：目標與背景對比度不足
+- **SINGLE_CAMERA_FILTER**：單目相機過濾器參數
+  - `enable_bbox_size_filter`: 是否啟用邊界框大小過濾
+  - `min_bbox_size_px`: 最小邊界框尺寸（像素），建議值 10
 
-**改善方法**：
-- 確保目標有足夠的紋理和對比度
-- 改善照明條件
-- 系統會自動跳過無法測距的區域
-- 日誌等級已設為 DEBUG，不影響正常使用
+- **TRACKING**：追蹤系統參數
+  - `pan_gain`: 水平軸增益，建議值 0.15
+  - `tilt_gain`: 垂直軸增益，建議值 0.15
+  - `no_detection_timeout`: 無檢測超時時間（秒），建議值 3.0
 
-**注意**：深度估計是輔助功能，AI 檢測不依賴深度信息。
+- **HARDWARE**：硬體相關參數
+  - `arduino_port`: Arduino 串口位置
+  - `left_camera_id`: 單一雙目攝像頭設備 ID（系統會自動將影像分割為左右兩部分）
 
----
+- **TEMPERATURE_MONITORING**：溫度監控參數
+  - `enable_temperature_monitoring`: 是否啟用溫度監控
+  - `temperature_pause_threshold`: 暫停 AI 辨識的溫度閾值（攝氏度），建議值 80.0
 
-## 📚 完整文檔索引
+- **ILLUMINATION_MONITORING**：光照度監控參數
+  - `enable_illumination_monitoring`: 是否啟用光照度監控
+  - `illumination_pause_threshold`: 暫停 AI 辨識的光照度閾值，建議值 40
 
-### 📖 核心文檔
-
-| 文檔 | 說明 |
-|------|------|
-| [README.md](README.md) | 專案主文檔（本文件） |
-| [CONSISTENCY_CHECK.md](CONSISTENCY_CHECK.md) | 文件與程式一致性檢查報告 |
-| [docs/SERIAL_CHECK_SUMMARY.md](docs/SERIAL_CHECK_SUMMARY.md) | 串口通訊格式檢查與對照摘要 |
-| [LICENSE](LICENSE) | Apache 2.0 授權條款 |
-| [NOTICE](NOTICE) | 版權與第三方相依標註 |
-### 🔧 硬體與配置文檔
-
-| 文檔 | 說明 |
-|------|------|
-| [docs/hardware.md](docs/hardware.md) | 硬體連接詳細說明（含 Orange Pi 5 / RDK X5 配置與接線圖） |
-| [docs/protocol.md](docs/protocol.md) | 串口通訊協議技術規格 |
-| [include/config.h](include/config.h) | 固件參數與引腳設定 |
-
-### 🤖 AI 與 Python 文檔
-
-| 文檔 | 說明 |
-|------|------|
-| [python/README.md](python/README.md) | AI 檢測與追蹤整合指南 |
-| [docs/STREAMING_GUIDE.md](docs/STREAMING_GUIDE.md) | ⭐ 影像串流指南（手機觀看） |
-| [docs/MOSQUITO_MODELS.md](docs/MOSQUITO_MODELS.md) | ⭐ 蚊子檢測模型持續改進指南（包含 RDK X5/Orange Pi 5 部署） |
-| [docs/hardware.md](docs/hardware.md) | 硬體連接詳細說明（包含 RDK X5 配置） |
-| [docs/python_README.md](docs/python_README.md) | Python 模塊導航文檔 |
-| [python/README.md](python/README.md) | Python 程式目錄說明 |
-
-### 🧪 測試與驗證文檔
-
-| 文檔 | 說明 |
-|------|------|
-| [docs/SERIAL_CHECK_SUMMARY.md](docs/SERIAL_CHECK_SUMMARY.md) | 串口通訊格式檢查總結 |
-| [python/test_serial_protocol.py](python/test_serial_protocol.py) | 串口協議測試腳本 |
-| [python/test_tracking_logic.py](python/test_tracking_logic.py) | 追蹤邏輯驗證腳本 |
-| [python/test_multi_target_tracking.py](python/test_multi_target_tracking.py) | 多目標追蹤測試腳本 |
-
-### 📁 代碼文件
-
-| 檔案 | 說明 |
-|------|------|
-| [include/config.h](include/config.h) | Arduino 固件配置參數 |
-| [src/main.cpp](src/main.cpp) | Arduino 橋接固件主程式 |
-| [python/config.py](python/config.py) | ⭐ Python 系統配置參數（統一管理） |
-| [python/streaming_tracking_system.py](python/streaming_tracking_system.py) | ⭐ 完整整合系統（推薦使用） |
-| [python/streaming_server.py](python/streaming_server.py) | HTTP-MJPEG 串流伺服器模組 |
-| [python/mosquito_tracker.py](python/mosquito_tracker.py) | 主追蹤系統 |
-| [python/mosquito_detector.py](python/mosquito_detector.py) | AI 檢測器模組 |
-| [python/pt2d_controller.py](python/pt2d_controller.py) | Arduino 控制器介面 |
-| [python/stereo_camera.py](python/stereo_camera.py) | 雙目相機模組 |
-
-**提示**: 所有文檔均以 Markdown 格式編寫，可直接在 GitHub 或任何 Markdown 編輯器中閱讀。
-
----
-
-## 📄 授權
-
-本專案採用 Apache 2.0 授權 - 詳見 [LICENSE](LICENSE) 與 [NOTICE](NOTICE) 文件
-
-## 👥 貢獻
-
-歡迎提交 Issue 和 Pull Request！
-
-## 📧 聯繫方式
-
-如有問題或建議，請通過以下方式聯繫：
-
-- Email: jeff@ma7.in
-- GitHub Issues: [提交問題](https://github.com/majeff/mosquito-pt2d/issues)
-
----
-
-## 📊 使用統計追蹤
-
-本專案使用 Google Analytics 進行匿名使用者數據追蹤，以了解文檔訪問情況和改進內容質量。追蹤完全匿名，不會收集個人信息。
-
-## 🙏 致謝
-
-感謝所有為本專案做出貢獻的開發者！
-
----
-
-**Built with ❤️ for Arduino Community**
+這種配置管理方式使得系統更容易維護和調整，同時保護了環境特定的敏感配置不會被意外提交到版本控制系統中。

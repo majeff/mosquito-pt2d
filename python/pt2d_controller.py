@@ -17,7 +17,7 @@ Arduino PT2D 控制器 Python 介面
 透過串口與 Arduino 通訊，控制 2D 雲台
 """
 
-from config import ARDUINO_BAUDRATE, ARDUINO_TIMEOUT
+from config_loader import config
 import serial
 import json
 import time
@@ -31,17 +31,18 @@ logger = logging.getLogger(__name__)
 class PT2DController:
     """Arduino 2D 雲台控制器類"""
 
-    def __init__(self, port: str, baudrate: int = ARDUINO_BAUDRATE, timeout: float = ARDUINO_TIMEOUT):
+    def __init__(self, port: str, baudrate: int = None, timeout: float = None):
         """
         初始化控制器
 
         Args:
             port: 串口號 (Windows: 'COM3', Linux: '/dev/ttyUSB0')
-            baudrate: 波特率，默認 115200
-            timeout: 超時時間，默認 1.0 秒
+            baudrate: 波特率，默認為 config_loader 中的設定
+            timeout: 超時時間，默認為 config_loader 中的設定
         """
         self.port = port
-        self.baudrate = baudrate
+        self.baudrate = baudrate if baudrate is not None else config.arduino_baudrate
+        self.timeout = timeout if timeout is not None else config.arduino_timeout
         self.ser = None
         self.is_connected = False
         self.servo_enabled = False  # 初始為禁用，只有在成功初始化後才啟用
@@ -53,7 +54,11 @@ class PT2DController:
         self.tilt_max = 165
 
         try:
-            self.ser = serial.Serial(port, baudrate, timeout=timeout)
+            self.ser = serial.Serial(
+                port=port,
+                baudrate=self.baudrate,
+                timeout=self.timeout
+            )
             time.sleep(2)  # 等待 Arduino 初始化
             logger.info(f"已連接至 {port}，波特率 {baudrate}")
 

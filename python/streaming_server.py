@@ -30,7 +30,9 @@ import logging
 from typing import Optional
 from pathlib import Path
 try:
-    from config import DEFAULT_DEVICE_IP, DEFAULT_EXTERNAL_URL
+    from config_loader import config  # 使用新的配置加載模組
+    DEFAULT_DEVICE_IP = config.device_ip
+    DEFAULT_EXTERNAL_URL = config.external_url
 except ImportError:
     DEFAULT_DEVICE_IP = None
     DEFAULT_EXTERNAL_URL = None

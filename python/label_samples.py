@@ -25,7 +25,7 @@ import shutil
 from PIL import Image
 from pathlib import Path
 from datetime import datetime
-import config
+from config_loader import config
 
 def label_samples():
     """

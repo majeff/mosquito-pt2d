@@ -45,4 +45,8 @@ ENV/
 *.tmp
 *.bak
 *.backup
+
+# Ignore config files
+mosquito.ini
+
 sample_collection/*

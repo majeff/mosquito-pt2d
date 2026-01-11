@@ -29,14 +29,10 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 
-from config import (
-    ENABLE_TEMPERATURE_MONITORING,
-    TEMPERATURE_WARNING_THRESHOLD,
-    TEMPERATURE_PAUSE_THRESHOLD,
-    TEMPERATURE_RESUME_THRESHOLD,
-    TEMPERATURE_CHECK_INTERVAL,
-    TEMPERATURE_SENSOR_PATH
-)
+from pathlib import Path
+import time
+import logging
+from config_loader import config  # 使用新的配置加载模块
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -61,11 +57,12 @@ class TemperatureMonitor:
             check_interval: 檢查間隔（秒）
             sensor_path: 溫度感測器路徑
         """
-        self.warning_threshold = warning_threshold
-        self.pause_threshold = pause_threshold
-        self.resume_threshold = resume_threshold
-        self.check_interval = check_interval
-        self.sensor_path = sensor_path
+        # 從配置加載溫度監控參數
+        self.warning_threshold = config.temperature_warning_threshold
+        self.pause_threshold = config.temperature_pause_threshold
+        self.resume_threshold = config.temperature_resume_threshold
+        self.check_interval = config.temperature_check_interval
+        self.sensor_path = Path(config.temperature_sensor_path)
 
         self.is_paused = False
         self.last_temperature = 0.0

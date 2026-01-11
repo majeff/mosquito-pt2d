@@ -17,11 +17,11 @@
 基於立體視覺原理計算蚊子的深度（距離）
 """
 
-import cv2
+from typing import List, Dict, Tuple, Optional
 import numpy as np
-from typing import Tuple, Optional, Dict
+import cv2
 import logging
-from config import DEPTH_FOCAL_LENGTH, DEPTH_BASELINE, DEPTH_SENSOR_WIDTH
+from config_loader import config  # 使用新的配置加载模块
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,10 +31,10 @@ class DepthEstimator:
     """雙目深度估計器"""
 
     def __init__(self,
-                 focal_length: float = DEPTH_FOCAL_LENGTH,          # 鏡頭焦距 (mm)
-                 baseline: float = DEPTH_BASELINE,             # 雙目基線距離 (mm)
+                 focal_length: float = config['DEPTH_FOCAL_LENGTH'],          # 鏡頭焦距 (mm)
+                 baseline: float = config['DEPTH_BASELINE'],             # 雙目基線距離 (mm)
                  image_width: int = 1920,                      # 單眼影像寬度 (pixels)，應傳入實際解析度
-                 sensor_width: float = DEPTH_SENSOR_WIDTH,           # 感光元件寬度 (mm)
+                 sensor_width: float = config['DEPTH_SENSOR_WIDTH'],           # 感光元件寬度 (mm)
                  min_disparity: int = 0,              # 最小視差
                  num_disparities: int = 64,           # 視差搜索範圍（必須是16的倍數）
                  block_size: int = 15):               # SAD窗口大小（奇數）

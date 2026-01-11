@@ -38,9 +38,9 @@ from datetime import datetime
 import argparse
 
 try:
-    import config  # 專案內 python/config.py
+     from config_loader import config  # 使用新的配置加载模块
 except Exception as e:
-    print(f"[ERROR] 無法載入 config.py: {e}")
+    print(f"[ERROR] 無法載入 config_loader.py: {e}")
     sys.exit(1)
 
 

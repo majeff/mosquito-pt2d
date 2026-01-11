@@ -29,24 +29,25 @@ import datetime
 import hashlib
 import traceback
 from pathlib import Path
-from config import (
-    DEFAULT_IMGSZ,
-    DEFAULT_CONFIDENCE_THRESHOLD,
-    DEFAULT_IOU_THRESHOLD,
-    DEFAULT_DETECTION_MODE,
-    DEFAULT_TILE_OVERLAP,
-    DEFAULT_DETECTION_MARGIN,
-    DEFAULT_MAX_SAMPLES,
-    DEFAULT_SAVE_INTERVAL,
-    DEFAULT_SAVE_HIGH_CONFIDENCE_SAMPLES,
-    SAMPLE_COLLECTION_DIR,
-    MEDIUM_CONFIDENCE_DIR,
-    HIGH_CONFIDENCE_DIR,
-    ENABLE_ILLUMINATION_MONITORING,
-    ILLUMINATION_WARNING_THRESHOLD,
-    ILLUMINATION_PAUSE_THRESHOLD,
-    ILLUMINATION_CHECK_INTERVAL,
-)
+from config_loader import config
+
+# 从新配置中获取默认值
+DEFAULT_IMGSZ = config.imgsz
+DEFAULT_CONFIDENCE_THRESHOLD = config.confidence_threshold
+DEFAULT_IOU_THRESHOLD = config.iou_threshold
+DEFAULT_DETECTION_MODE = config.detection_mode
+DEFAULT_TILE_OVERLAP = config.tile_overlap
+DEFAULT_DETECTION_MARGIN = config.detection_margin
+DEFAULT_MAX_SAMPLES = config.max_samples
+DEFAULT_SAVE_INTERVAL = config.save_interval
+DEFAULT_SAVE_HIGH_CONFIDENCE_SAMPLES = config.save_high_confidence_samples
+SAMPLE_COLLECTION_DIR = config.sample_collection_dir
+MEDIUM_CONFIDENCE_DIR = config.medium_confidence_dir
+HIGH_CONFIDENCE_DIR = config.high_confidence_dir
+ENABLE_ILLUMINATION_MONITORING = config.enable_illumination_monitoring
+ILLUMINATION_WARNING_THRESHOLD = config.illumination_warning_threshold
+ILLUMINATION_PAUSE_THRESHOLD = config.illumination_pause_threshold
+ILLUMINATION_CHECK_INTERVAL = config.illumination_check_interval
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -143,18 +144,18 @@ class MosquitoDetector:
         self.save_uncertain_samples = save_uncertain_samples
         self.uncertain_conf_range = uncertain_conf_range
         # 樣本收集根目錄（與 label_samples.py 保持一致）
-        self.collection_root = Path(SAMPLE_COLLECTION_DIR)
+        self.collection_root = Path(config.sample_collection_dir)
         self.save_dir = self.collection_root  # 兼容舊代碼用語
-        self.max_samples = max_samples
-        self.save_interval = save_interval
-        self.save_annotations = save_annotations
-        self.save_full_frame = save_full_frame
+        self.max_samples = config.max_samples
+        self.save_interval = config.save_interval
+        self.save_annotations = config.save_annotations
+        self.save_full_frame = config.save_full_frame
         self.save_counter = 0
         self.last_save_time = 0.0  # 上次儲存時間戳
         self.last_saved_hash = None  # 上次儲存照片的雜湊值
 
         # 高信心度樣本保存設定（閾值直接取中信心度上限，避免設定不一致）
-        self.save_high_confidence = DEFAULT_SAVE_HIGH_CONFIDENCE_SAMPLES
+        self.save_high_confidence = config.save_high_confidence_samples
         self.high_conf_threshold = float(self.uncertain_conf_range[1])
 
         # 創建儲存目錄（與標註流程一致的固定目錄）
@@ -174,10 +175,10 @@ class MosquitoDetector:
             logger.info(f"儲存模式: {'完整畫面' if save_full_frame else '裁剪區域'}")
 
         # 光照度監控配置
-        self.enable_illumination_monitoring = ENABLE_ILLUMINATION_MONITORING
-        self.illumination_warning_threshold = ILLUMINATION_WARNING_THRESHOLD
-        self.illumination_pause_threshold = ILLUMINATION_PAUSE_THRESHOLD
-        self.illumination_check_interval = ILLUMINATION_CHECK_INTERVAL
+        self.enable_illumination_monitoring = config.enable_illumination_monitoring
+        self.illumination_warning_threshold = config.illumination_warning_threshold
+        self.illumination_pause_threshold = config.illumination_pause_threshold
+        self.illumination_check_interval = config.illumination_check_interval
         self.last_illumination_check = 0.0
         self.current_illumination = 0
         self.illumination_paused = False
