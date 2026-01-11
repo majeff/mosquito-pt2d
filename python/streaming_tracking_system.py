@@ -674,40 +674,7 @@ class StreamingTrackingSystem:
             logger.info(f"[檢測] ID:{track_id} | 信心: {confidence:.3f} | {' | '.join(filter_info)} {speed_info}")
 
     def _draw_system_info(self, frame: np.ndarray, detections: list, illumination_info: dict):
-        """在畫面上繪製系統資訊"""
-        y_pos = 30
-        line_height = 35
-
-        # 唯一目標數
-        cv2.putText(frame, f"Unique Targets: {self.stats['unique_targets']}", (10, y_pos),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        y_pos += line_height
-
-        # 追蹤狀態
-        if not self.has_pt:
-            tracking_text = "NONE"
-            tracking_color = (128, 128, 128)
-        elif self.stats['tracking_active']:
-            tracking_text = "TRACKING"
-            tracking_color = (0, 255, 0)
-        else:
-            tracking_text = "STANDBY"
-            tracking_color = (128, 128, 128)
-
-        cv2.putText(frame, f"Status: {tracking_text}", (10, y_pos),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, tracking_color, 2)
-        y_pos += line_height
-
-        # FPS
-        elapsed = time.time() - self.stats['start_time']
-        fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
-        cv2.putText(frame, f"FPS: {fps:.1f}", (10, y_pos),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-
-        # 系統資訊（右下角）
-        line_height = 20
-        info_y = frame.shape[0] - 80
-
+        """在畫面上繪製系統資訊（只保留時間戳）"""
         # 時間（右下角最下方）
         current_time = time.strftime("%H:%M:%S")
         time_font_size = 0.35
@@ -717,26 +684,6 @@ class StreamingTrackingSystem:
         time_y = frame.shape[0] - 10
         cv2.putText(frame, current_time, (time_x, time_y),
                    cv2.FONT_HERSHEY_SIMPLEX, time_font_size, (200, 200, 200), time_thickness)
-
-        # 光照度（右下角向上）
-        # Debug: 輸出光照度狀態
-        if illumination_info['illumination'] < 50:  # 只在光線較暗時輸出
-            logger.debug(f"Illumination: {illumination_info['illumination']}, Status: {illumination_info['status']}")
-
-        illumination_color = (0, 255, 0)  # 綠色：正常
-        if illumination_info['status'] == 'paused':
-            illumination_color = (0, 0, 255)  # 紅色：暫停
-        elif illumination_info['status'] == 'warning':
-            illumination_color = (0, 165, 255)  # 橙色：警告
-        elif illumination_info['status'] == 'resumed':
-            illumination_color = (0, 255, 255)  # 黃色：已恢復
-
-        illumination_text = f"Lux: {illumination_info['illumination']}"
-        illumination_size = cv2.getTextSize(illumination_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)[0]
-        illumination_x = frame.shape[1] - illumination_size[0] - 10
-        illumination_y = frame.shape[0] - 30
-        cv2.putText(frame, illumination_text, (illumination_x, illumination_y),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.35, illumination_color, 1)
 
     def run(self):
         """運行主循環"""
@@ -805,6 +752,32 @@ class StreamingTrackingSystem:
                           f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'} | "
                           f"辨識: {'停用' if ai_paused else '啟用'} | "
                           f"Lux: {lux} ({lux_status})")
+
+                # 更新串流伺服器統計資訊（每幀都更新）
+                elapsed = time.time() - self.stats['start_time']
+                fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
+                illum_info = self.stats.get('last_illumination_info', {})
+                lux = illum_info.get('illumination', 0)
+                lux_status_code = illum_info.get('status', 'unknown')
+
+                # 轉換光照狀態為中文
+                lux_status_map = {
+                    'normal': '正常',
+                    'warning': '偏暗',
+                    'paused': '過暗',
+                    'resumed': '正常',
+                    'unknown': '未知'
+                }
+                lux_status = lux_status_map.get(lux_status_code, '未知')
+
+                if hasattr(self, 'server') and self.server:
+                    self.server.update_stats(
+                        unique_targets=self.stats['unique_targets'],
+                        tracking_active=self.stats['tracking_active'],
+                        fps=fps,
+                        lux=lux,
+                        lux_status=lux_status
+                    )
 
                 # 簡單延時控制幀率
                 time.sleep(config.frame_delay)  # 幀延時
