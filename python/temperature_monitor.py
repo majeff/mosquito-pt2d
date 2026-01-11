@@ -42,27 +42,20 @@ class TemperatureMonitor:
     """系統溫度監控器"""
 
     def __init__(self,
-                 warning_threshold: float = TEMPERATURE_WARNING_THRESHOLD,
-                 pause_threshold: float = TEMPERATURE_PAUSE_THRESHOLD,
-                 resume_threshold: float = TEMPERATURE_RESUME_THRESHOLD,
-                 check_interval: float = TEMPERATURE_CHECK_INTERVAL,
-                 sensor_path: str = TEMPERATURE_SENSOR_PATH):
+                 warning_threshold: float = None,
+                 pause_threshold: float = None,
+                 resume_threshold: float = None,
+                 check_interval: float = None,
+                 sensor_path: str = None):
         """
         初始化溫度監控器
-
-        Args:
-            warning_threshold: 警告溫度閾值（°C）
-            pause_threshold: 暫停辨識溫度閾值（°C）
-            resume_threshold: 恢復辨識溫度閾值（°C）
-            check_interval: 檢查間隔（秒）
-            sensor_path: 溫度感測器路徑
         """
-        # 從配置加載溫度監控參數
-        self.warning_threshold = config.temperature_warning_threshold
-        self.pause_threshold = config.temperature_pause_threshold
-        self.resume_threshold = config.temperature_resume_threshold
-        self.check_interval = config.temperature_check_interval
-        self.sensor_path = Path(config.temperature_sensor_path)
+        # 如果未提供参数，则使用配置文件中的默认值
+        self.warning_threshold = warning_threshold or config.temperature_warning_threshold
+        self.pause_threshold = pause_threshold or config.temperature_pause_threshold
+        self.resume_threshold = resume_threshold or config.temperature_resume_threshold
+        self.check_interval = check_interval or config.temperature_check_interval
+        self.sensor_path = sensor_path or config.temperature_sensor_path
 
         self.is_paused = False
         self.last_temperature = 0.0
