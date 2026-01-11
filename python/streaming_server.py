@@ -257,17 +257,24 @@ class StreamingServer:
 
                 <script src="/static/jquery.min.js"></script>
                 <script>
-                    console.log("jQuery loaded:", typeof $);
+                    console.log("Script loaded at:", new Date().toLocaleTimeString());
 
                     function updateStats() {{
-                        console.log("updateStats called");
+                        console.log("[" + new Date().toLocaleTimeString() + "] updateStats called");
+
+                        if (typeof $ === 'undefined') {{
+                            console.error("jQuery not loaded!");
+                            return;
+                        }}
+
                         $.ajax({{
                             url: "/stats",
                             method: "GET",
                             dataType: "json",
                             cache: false,
+                            timeout: 5000,
                             success: function(data) {{
-                                console.log("Stats data:", data);
+                                console.log("[" + new Date().toLocaleTimeString() + "] Stats received:", data);
 
                                 $("#targets").text(data.unique_targets || 0);
                                 $("#status").text(data.tracking_active ? "啟用" : "停用");
@@ -288,21 +295,25 @@ class StreamingServer:
                                     luxColor = "#FF5555";
                                 }}
                                 $("#lux-status").css("color", luxColor);
-
-                                console.log("Stats updated");
                             }},
                             error: function(xhr, status, error) {{
-                                console.error("Error fetching stats:", error, xhr);
+                                console.error("[" + new Date().toLocaleTimeString() + "] Error:", error, status);
                             }}
                         }});
                     }}
 
-                    console.log("Starting immediate updates...");
-                    $(document).ready(function() {{
-                        console.log("Document ready");
+                    // 立即執行一次
+                    console.log("Calling updateStats immediately...");
+                    updateStats();
+
+                    // 每 1000ms 執行一次
+                    console.log("Setting interval to 1000ms...");
+                    var statsInterval = setInterval(function() {{
+                        console.log("[" + new Date().toLocaleTimeString() + "] Interval tick");
                         updateStats();
-                        setInterval(updateStats, 1000);
-                    }});
+                    }}, 1000);
+
+                    console.log("Interval ID:", statsInterval);
                 </script>
             </body>
             </html>
