@@ -732,52 +732,46 @@ class StreamingTrackingSystem:
                     # 單一串流
                     self.server.update_frame(result)
 
-                # 定期輸出狀態（每 500 幀）
-                if self.stats['total_frames'] % 500 == 0:
+                # 定期輸出狀態和更新串流伺服器統計（每 30 幀 ≈ 1 秒）
+                if self.stats['total_frames'] % 30 == 0:
                     elapsed = time.time() - self.stats['start_time']
                     fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
 
                     # 獲取光照度資訊
                     illum_info = self.stats.get('last_illumination_info', {})
                     lux = illum_info.get('illumination', 0)
-                    lux_status = illum_info.get('status', 'unknown')
+                    lux_status_code = illum_info.get('status', 'unknown')
                     ai_paused = illum_info.get('paused', False)
 
-                    # 獲取弱信心存檔數
-                    saved_samples = getattr(self.detector, 'saved_sample_count', 0)
+                    # 轉換光照狀態為中文
+                    lux_status_map = {
+                        'normal': '正常',
+                        'warning': '偏暗',
+                        'paused': '過暗',
+                        'resumed': '正常',
+                        'unknown': '未知'
+                    }
+                    lux_status = lux_status_map.get(lux_status_code, '未知')
 
-                    logger.info(f"[狀態] FPS: {fps:.1f} | "
-                          f"唯一目標: {self.stats['unique_targets']} | "
-                          f"存檔: {saved_samples} | "
-                          f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'} | "
-                          f"辨識: {'停用' if ai_paused else '啟用'} | "
-                          f"Lux: {lux} ({lux_status})")
+                    # 更新串流伺服器統計資訊
+                    if hasattr(self, 'server') and self.server:
+                        self.server.update_stats(
+                            unique_targets=self.stats['unique_targets'],
+                            tracking_active=self.stats['tracking_active'],
+                            fps=fps,
+                            lux=lux,
+                            lux_status=lux_status
+                        )
 
-                # 更新串流伺服器統計資訊（每幀都更新）
-                elapsed = time.time() - self.stats['start_time']
-                fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
-                illum_info = self.stats.get('last_illumination_info', {})
-                lux = illum_info.get('illumination', 0)
-                lux_status_code = illum_info.get('status', 'unknown')
-
-                # 轉換光照狀態為中文
-                lux_status_map = {
-                    'normal': '正常',
-                    'warning': '偏暗',
-                    'paused': '過暗',
-                    'resumed': '正常',
-                    'unknown': '未知'
-                }
-                lux_status = lux_status_map.get(lux_status_code, '未知')
-
-                if hasattr(self, 'server') and self.server:
-                    self.server.update_stats(
-                        unique_targets=self.stats['unique_targets'],
-                        tracking_active=self.stats['tracking_active'],
-                        fps=fps,
-                        lux=lux,
-                        lux_status=lux_status
-                    )
+                    # 每 500 幀輸出詳細日誌
+                    if self.stats['total_frames'] % 500 == 0:
+                        saved_samples = getattr(self.detector, 'saved_sample_count', 0)
+                        logger.info(f"[狀態] FPS: {fps:.1f} | "
+                              f"唯一目標: {self.stats['unique_targets']} | "
+                              f"存檔: {saved_samples} | "
+                              f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'} | "
+                              f"辨識: {'停用' if ai_paused else '啟用'} | "
+                              f"Lux: {lux} ({lux_status})")
 
                 # 簡單延時控制幀率
                 time.sleep(config.frame_delay)  # 幀延時
