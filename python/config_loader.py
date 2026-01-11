@@ -70,6 +70,8 @@ class ConfigLoader:
 
         # 讀取配置文件
         self.config.read(self.config_path, encoding='utf-8')
+        # 基準目錄（用於解析相對路徑）
+        self._config_base_dir = self.config_path.parent
 
     def _get_local_ip(self):
         """自動偵測本機 IP 地址"""
@@ -89,11 +91,12 @@ class ConfigLoader:
 
     # 內部工具：將相對路徑解析到 sample_collection_dir 之下
     def _resolve_under_sample_base(self, value: str) -> str:
+        # 取樣本根目錄（已保證為絕對路徑）
         base = Path(self.sample_collection_dir)
         p = Path(value)
         if p.is_absolute():
             return str(p)
-        return str(base / p)
+        return str((base / p).resolve())
 
     # AI檢測相關配置
     @property
@@ -268,7 +271,12 @@ class ConfigLoader:
     # 樣本標註相關配置
     @property
     def sample_collection_dir(self):
-        return self.config.get('SAMPLE_ANNOTATION', 'sample_collection_dir', fallback="sample_collection")
+        raw = self.config.get('SAMPLE_ANNOTATION', 'sample_collection_dir', fallback="sample_collection")
+        p = Path(raw)
+        # 將相對路徑錨定到配置檔所在目錄，避免 CWD 影響
+        if not p.is_absolute():
+            p = (self._config_base_dir / p).resolve()
+        return str(p)
 
     @property
     def medium_confidence_dir(self):

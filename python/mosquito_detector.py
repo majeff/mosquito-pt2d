@@ -163,6 +163,7 @@ class MosquitoDetector:
             self.collection_root.mkdir(parents=True, exist_ok=True, mode=0o755)
             Path(MEDIUM_CONFIDENCE_DIR).mkdir(parents=True, exist_ok=True, mode=0o755)
             Path(HIGH_CONFIDENCE_DIR).mkdir(parents=True, exist_ok=True, mode=0o755)
+            logger.info(f"樣本根目錄: {self.collection_root}")
             if self.save_uncertain_samples:
                 logger.info(f"中等信心度樣本儲存目錄: {MEDIUM_CONFIDENCE_DIR}")
                 logger.info(f"信心度範圍: {uncertain_conf_range[0]:.2f} - {uncertain_conf_range[1]:.2f}")
