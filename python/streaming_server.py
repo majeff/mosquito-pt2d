@@ -255,84 +255,49 @@ class StreamingServer:
                     </div>
                 </div>
 
-                <script src="/static/jquery-3.7.1.min.js"></script>
                 <script>
                     console.log("Script loaded at:", new Date().toLocaleTimeString());
-                    console.log("jQuery available:", typeof $ !== 'undefined');
 
                     function updateStats() {{
                         console.log("[" + new Date().toLocaleTimeString() + "] updateStats called");
 
-                        if (typeof $ === 'undefined') {{
-                            console.error("jQuery not loaded! Trying fetch instead...");
-                            fetchStatsWithFetch();
-                            return;
-                        }}
-
-                        $.ajax({{
-                            url: "/stats",
+                        fetch("/stats", {{
                             method: "GET",
-                            dataType: "json",
-                            cache: false,
-                            timeout: 5000,
-                            success: function(data) {{
-                                console.log("[" + new Date().toLocaleTimeString() + "] Stats received:", data);
-
-                                $("#targets").text(data.unique_targets || 0);
-                                $("#status").text(data.tracking_active ? "啟用" : "停用");
-                                $("#fps").text((data.fps || 0).toFixed(1));
-                                $("#lux").text(data.lux || 0);
-                                $("#lux-status").text(data.lux_status || "未知");
-
-                                // Set status color
-                                $("#status").css("color", data.tracking_active ? "#4CAF50" : "#888");
-
-                                // Set lux status color
-                                var luxColor = "#888";
-                                if (data.lux_status === "正常") {{
-                                    luxColor = "#4CAF50";
-                                }} else if (data.lux_status === "偏暗") {{
-                                    luxColor = "#FFA500";
-                                }} else if (data.lux_status === "過暗") {{
-                                    luxColor = "#FF5555";
-                                }}
-                                $("#lux-status").css("color", luxColor);
-                            }},
-                            error: function(xhr, status, error) {{
-                                console.error("[" + new Date().toLocaleTimeString() + "] Error:", error, status);
+                            cache: "no-store",
+                            headers: {{
+                                "Accept": "application/json"
                             }}
+                        }})
+                        .then(response => {{
+                            if (!response.ok) {{
+                                throw new Error("HTTP error, status=" + response.status);
+                            }}
+                            return response.json();
+                        }})
+                        .then(data => {{
+                            console.log("[" + new Date().toLocaleTimeString() + "] Stats received:", data);
+
+                            document.getElementById("targets").textContent = data.unique_targets || 0;
+                            document.getElementById("status").textContent = data.tracking_active ? "啟用" : "停用";
+                            document.getElementById("fps").textContent = (data.fps || 0).toFixed(1);
+                            document.getElementById("lux").textContent = data.lux || 0;
+                            document.getElementById("lux-status").textContent = data.lux_status || "未知";
+
+                            document.getElementById("status").style.color = data.tracking_active ? "#4CAF50" : "#888";
+
+                            var luxColor = "#888";
+                            if (data.lux_status === "正常") {{
+                                luxColor = "#4CAF50";
+                            }} else if (data.lux_status === "偏暗") {{
+                                luxColor = "#FFA500";
+                            }} else if (data.lux_status === "過暗") {{
+                                luxColor = "#FF5555";
+                            }}
+                            document.getElementById("lux-status").style.color = luxColor;
+                        }})
+                        .catch(error => {{
+                            console.error("[" + new Date().toLocaleTimeString() + "] Fetch error:", error);
                         }});
-                    }}
-
-                    // Fallback 方式：使用 fetch API
-                    function fetchStatsWithFetch() {{
-                        console.log("[" + new Date().toLocaleTimeString() + "] Using fetch API...");
-                        fetch("/stats", {{cache: "no-store"}})
-                            .then(response => response.json())
-                            .then(data => {{
-                                console.log("[" + new Date().toLocaleTimeString() + "] Stats received (fetch):", data);
-
-                                document.getElementById("targets").textContent = data.unique_targets || 0;
-                                document.getElementById("status").textContent = data.tracking_active ? "啟用" : "停用";
-                                document.getElementById("fps").textContent = (data.fps || 0).toFixed(1);
-                                document.getElementById("lux").textContent = data.lux || 0;
-                                document.getElementById("lux-status").textContent = data.lux_status || "未知";
-
-                                document.getElementById("status").style.color = data.tracking_active ? "#4CAF50" : "#888";
-
-                                var luxColor = "#888";
-                                if (data.lux_status === "正常") {{
-                                    luxColor = "#4CAF50";
-                                }} else if (data.lux_status === "偏暗") {{
-                                    luxColor = "#FFA500";
-                                }} else if (data.lux_status === "過暗") {{
-                                    luxColor = "#FF5555";
-                                }}
-                                document.getElementById("lux-status").style.color = luxColor;
-                            }})
-                            .catch(error => {{
-                                console.error("[" + new Date().toLocaleTimeString() + "] Fetch error:", error);
-                            }});
                     }}
 
                     // 立即執行一次
@@ -342,7 +307,6 @@ class StreamingServer:
                     // 每 1000ms 執行一次
                     console.log("Setting interval to 1000ms...");
                     var statsInterval = setInterval(function() {{
-                        console.log("[" + new Date().toLocaleTimeString() + "] Interval tick");
                         updateStats();
                     }}, 1000);
 
