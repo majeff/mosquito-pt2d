@@ -233,31 +233,31 @@ class ConfigLoader:
     @property
     def RELOCATION_BASE_DIR(self):
         return self.config.get('SAMPLE_ANNOTATION', 'relocation_base_dir', fallback="./relocated_samples")
-    
+
     @property
     def RELOCATION_MOSQUITO_DIR(self):
         return self.config.get('SAMPLE_ANNOTATION', 'relocation_mosquito_dir', fallback="relocated_samples/mosquito")
-    
+
     @property
     def RELOCATION_NOT_MOSQUITO_DIR(self):
         return self.config.get('SAMPLE_ANNOTATION', 'relocation_not_mosquito_dir', fallback="relocated_samples/not_mosquito")
-    
+
     @property
     def COLAB_NOTEBOOK_DEST_DIR(self):
         return self.config.get('SAMPLE_ANNOTATION', 'colab_notebook_dest_dir', fallback="./colab_notebooks")
-    
+
     @property
     def MEDIUM_CONFIDENCE_DIR(self):
         return self.config.get('SAMPLE_ANNOTATION', 'medium_confidence_dir', fallback="sample_collection/medium_confidence")
-    
+
     @property
     def HIGH_CONFIDENCE_DIR(self):
         return self.config.get('SAMPLE_ANNOTATION', 'high_confidence_dir', fallback="sample_collection/high_confidence")
-    
+
     @property
     def CONFIRMED_MOSQUITO_DIR(self):
         return self.config.get('SAMPLE_ANNOTATION', 'confirmed_mosquito_dir', fallback="sample_collection/confirmed/mosquito")
-    
+
     @property
     def CONFIRMED_NOT_MOSQUITO_DIR(self):
         return self.config.get('SAMPLE_ANNOTATION', 'confirmed_not_mosquito_dir', fallback="sample_collection/confirmed/not_mosquito")
