@@ -95,15 +95,14 @@ def prepare_calibration_dataset(
         print(f"❌ 錯誤: 校準影像目錄不存在: {images_dir}")
         return False
 
-    # 從確認的蚊子樣本中抽取圖片（白名單副檔名）
-    allowed_exts = {'.jpg', '.jpeg', '.png', '.bmp'}
+    # 從確認的蚊子樣本中抽取圖片（只找 image 開頭 .jpeg 副檔名）
     mosquito_images = [
         p for p in images_dir.iterdir()
-        if p.is_file() and p.suffix.lower() in allowed_exts
+        if p.is_file() and p.name.startswith('image') and p.suffix.lower() == '.jpeg'
     ]
     skipped = [
         p for p in images_dir.iterdir()
-        if p.is_file() and p.suffix.lower() not in allowed_exts
+        if p.is_file() and not (p.name.startswith('image') and p.suffix.lower() == '.jpeg')
     ]
 
     if len(mosquito_images) < 10:
@@ -218,14 +217,13 @@ def generate_rknn_model(
 
     # 清理與標準化校準清單
     try:
-        allowed_exts = {'.jpg', '.jpeg', '.png', '.bmp'}
         with dataset_list_path.open('r', encoding='utf-8') as f:
             lines = [ln.strip() for ln in f.readlines() if ln.strip()]
         valid_paths = []
         invalid_paths = []
         for ln in lines:
             p = Path(ln)
-            if p.exists() and p.is_file() and p.suffix.lower() in allowed_exts:
+            if p.exists() and p.is_file() and p.name.startswith('image') and p.suffix.lower() == '.jpeg':
                 valid_paths.append(str(p.resolve()))
             else:
                 invalid_paths.append(ln)

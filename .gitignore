@@ -45,8 +45,8 @@ ENV/
 *.tmp
 *.bak
 *.backup
+sample_collection
+rknn_calibration_list.txt
 
 # Ignore config files
 mosquito.ini
-sample_collection
-rknn_calibration_list.txt
