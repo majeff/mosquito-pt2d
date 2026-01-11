@@ -90,7 +90,12 @@ class StreamingServer:
         self.stats = {
             'total_frames': 0,
             'rtsp_enabled': False,
-            'start_time': time.time()
+            'start_time': time.time(),
+            'unique_targets': 0,
+            'tracking_active': False,
+            'fps': 0.0,
+            'lux': 0,
+            'lux_status': 'Unknown'
         }
 
         # Flask APP
@@ -215,6 +220,37 @@ class StreamingServer:
                         <img src="/video" alt="即時影像串流" onerror="this.src='/static/offline.jpg'">
                     </div>
 
+                    <div class="stats">
+                        <div class="stat-item">
+                            <div class="stat-label">總幀數</div>
+                            <div class="stat-value" id="frames">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">唯一目標</div>
+                            <div class="stat-value" id="targets">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">追蹤狀態</div>
+                            <div class="stat-value" id="status" style="font-size: 18px;">停用</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">FPS</div>
+                            <div class="stat-value" id="fps">0.0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">運行時間</div>
+                            <div class="stat-value" id="uptime" style="font-size: 18px;">00:00:00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">光照 (Lux)</div>
+                            <div class="stat-value" id="lux">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">光照狀態</div>
+                            <div class="stat-value" id="lux-status" style="font-size: 16px;">未知</div>
+                        </div>
+                    </div>
+
                     <div class="info">
                         <h3>📱 手機觀看方式</h3>
                         <p><strong>方式 1：區域網路直連（推薦）</strong></p>
@@ -222,25 +258,8 @@ class StreamingServer:
 
 {external_info}
                         <p style="color: #888; font-size: 12px;">
-                            * 區域網路訪問需確保設備與 Orange Pi 5 在同一網路
+                            * 區域網路訪問需確保設備與辨識主機在同一網路
                         </p>
-
-                        <h3>🎯 串流內容</h3>
-                        <p>✅ <strong>包含完整 AI 即時標註：</strong></p>
-                        <ul>
-                            <li>✅ 檢測邊界框（顏色標示信心度高低）</li>
-                            <li>✅ 類別名稱與信心度百分比</li>
-                            <li>✅ 目標中心點標記</li>
-                            <li>✅ 檢測數量與統計資訊</li>
-                            <li>✅ 追蹤狀態（如啟用追蹤功能）</li>
-                        </ul>
-
-                        <p>🎥 <strong>雙目攝像頭模式：</strong></p>
-                        <ul>
-                            <li>並排顯示：左側 AI 標註 + 右側原始畫面</li>
-                            <li>單一視角：僅顯示 AI 標註畫面</li>
-                            <li>獨立串流：左右攝像頭分別串流（需兩個端口）</li>
-                        </ul>
                     </div>
                 </div>
 
@@ -251,6 +270,26 @@ class StreamingServer:
                             .then(response => response.json())
                             .then(data => {{{{
                                 document.getElementById('frames').textContent = data.total_frames;
+                                document.getElementById('targets').textContent = data.unique_targets;
+                                document.getElementById('status').textContent = data.tracking_active ? '啟用' : '停用';
+                                document.getElementById('fps').textContent = data.fps.toFixed(1);
+                                document.getElementById('lux').textContent = data.lux;
+                                document.getElementById('lux-status').textContent = data.lux_status;
+
+                                // 根據狀態改變顏色
+                                const statusElem = document.getElementById('status');
+                                statusElem.style.color = data.tracking_active ? '#4CAF50' : '#888';
+
+                                const luxStatusElem = document.getElementById('lux-status');
+                                if (data.lux_status === '正常') {{{{
+                                    luxStatusElem.style.color = '#4CAF50';
+                                }}}} else if (data.lux_status === '偏暗') {{{{
+                                    luxStatusElem.style.color = '#FFA500';
+                                }}}} else if (data.lux_status === '過暗') {{{{
+                                    luxStatusElem.style.color = '#FF5555';
+                                }}}} else {{{{
+                                    luxStatusElem.style.color = '#888';
+                                }}}}
 
                                 // 計算運行時間
                                 const uptime = Math.floor(Date.now() / 1000 - data.start_time);
@@ -282,7 +321,12 @@ class StreamingServer:
             """返回統計資訊"""
             return jsonify({
                 'total_frames': self.stats['total_frames'],
-                'start_time': self.stats['start_time']
+                'start_time': self.stats['start_time'],
+                'unique_targets': self.stats['unique_targets'],
+                'tracking_active': self.stats['tracking_active'],
+                'fps': self.stats['fps'],
+                'lux': self.stats['lux'],
+                'lux_status': self.stats['lux_status']
             })
 
         @self.app.route('/favicon.ico')
@@ -337,6 +381,28 @@ class StreamingServer:
             except (BrokenPipeError, IOError):
                 logger.warning("RTSP 推流中斷")
                 self.stats['rtsp_enabled'] = False
+
+    def update_stats(self, unique_targets: int = None, tracking_active: bool = None,
+                    fps: float = None, lux: int = None, lux_status: str = None):
+        """更新統計資訊
+
+        Args:
+            unique_targets: 唯一目標數量
+            tracking_active: 追蹤是否啟用
+            fps: 當前 FPS
+            lux: 光照度
+            lux_status: 光照狀態 ('正常', '偏暗', '過暗', '未知')
+        """
+        if unique_targets is not None:
+            self.stats['unique_targets'] = unique_targets
+        if tracking_active is not None:
+            self.stats['tracking_active'] = tracking_active
+        if fps is not None:
+            self.stats['fps'] = fps
+        if lux is not None:
+            self.stats['lux'] = lux
+        if lux_status is not None:
+            self.stats['lux_status'] = lux_status
 
     def enable_rtsp_push(self, frame_width: int, frame_height: int,
                          bitrate: int = 2000, preset: str = 'ultrafast'):
