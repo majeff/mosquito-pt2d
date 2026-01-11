@@ -29,6 +29,7 @@ import time
 import logging
 from typing import Optional
 from pathlib import Path
+from werkzeug.serving import WSGIRequestHandler
 try:
     from config_loader import config  # 使用新的配置加載模組
     DEFAULT_DEVICE_IP = config.device_ip
@@ -528,7 +529,14 @@ class StreamingServer:
     def _run_server(self):
         """執行 Flask 伺服器"""
         try:
-            self.app.run(host='0.0.0.0', port=self.http_port, threaded=True, debug=False)
+            # 禁用 Werkzeug 請求日誌
+            log = logging.getLogger('werkzeug')
+            log.setLevel(logging.ERROR)
+
+            # 禁用 Flask 應用日誌（除了錯誤）
+            self.app.logger.setLevel(logging.ERROR)
+
+            self.app.run(host='0.0.0.0', port=self.http_port, threaded=True, debug=False, use_reloader=False)
         except Exception as e:
             logger.error(f"串流伺服器錯誤: {e}")
 
