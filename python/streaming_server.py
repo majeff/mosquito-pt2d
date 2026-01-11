@@ -399,14 +399,17 @@ class StreamingServer:
         @self.app.route('/stats')
         def stats():
             """返回統計資訊"""
+            elapsed_time = time.time() - self.stats['start_time']
             response = jsonify({
                 'total_frames': self.stats['total_frames'],
                 'start_time': self.stats['start_time'],
+                'elapsed_time': elapsed_time,
                 'unique_targets': self.stats['unique_targets'],
                 'tracking_active': self.stats['tracking_active'],
                 'fps': self.stats['fps'],
                 'lux': self.stats['lux'],
-                'lux_status': self.stats['lux_status']
+                'lux_status': self.stats['lux_status'],
+                'samples_saved': self.stats.get('samples_saved', 0)
             })
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
             response.headers['Pragma'] = 'no-cache'
