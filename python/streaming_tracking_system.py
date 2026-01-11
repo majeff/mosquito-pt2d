@@ -315,14 +315,14 @@ class StreamingTrackingSystem:
         # 繪製當前時間
         current_time = time.strftime("%Y-%m-%d %H:%M:%S")
         cv2.putText(frame, current_time, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
+
         return frame
 
     def get_system_stats(self) -> dict:
         """獲取系統統計信息（供 HTML 呈現）"""
         elapsed_time = time.time() - self.stats['start_time']
         fps = self.stats['total_frames'] / elapsed_time if elapsed_time > 0 else 0
-        
+
         return {
             'total_frames': self.stats['total_frames'],
             'unique_targets': self.stats['unique_targets'],

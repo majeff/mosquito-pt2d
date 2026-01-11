@@ -149,33 +149,33 @@ class StreamingServer:
                         --text-light: #fff;
                         --text-dim: #888;
                     }}
-                    
+
                     * {{
                         margin: 0;
                         padding: 0;
                         box-sizing: border-box;
                     }}
-                    
+
                     body {{
                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                         background-color: var(--bg-dark);
                         color: var(--text-light);
                         line-height: 1.6;
                     }}
-                    
+
                     .container {{
                         max-width: 1200px;
                         margin: 0 auto;
                         padding: 20px;
                     }}
-                    
+
                     h1 {{
                         text-align: center;
                         color: var(--primary);
                         margin-bottom: 30px;
                         font-size: 2.5em;
                     }}
-                    
+
                     .video-container {{
                         position: relative;
                         width: 100%;
@@ -188,20 +188,20 @@ class StreamingServer:
                         overflow: hidden;
                         box-shadow: 0 8px 32px rgba(76, 175, 80, 0.1);
                     }}
-                    
+
                     .video-container img {{
                         width: 100%;
                         height: 100%;
                         object-fit: contain;
                     }}
-                    
+
                     .stats-grid {{
                         display: grid;
                         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
                         gap: 15px;
                         margin-top: 30px;
                     }}
-                    
+
                     .stat-card {{
                         background-color: var(--bg-card);
                         padding: 20px;
@@ -209,11 +209,11 @@ class StreamingServer:
                         border-left: 4px solid var(--primary);
                         transition: transform 0.2s;
                     }}
-                    
+
                     .stat-card:hover {{
                         transform: translateY(-2px);
                     }}
-                    
+
                     .stat-label {{
                         color: var(--text-dim);
                         font-size: 0.9em;
@@ -221,31 +221,31 @@ class StreamingServer:
                         letter-spacing: 0.5px;
                         margin-bottom: 8px;
                     }}
-                    
+
                     .stat-value {{
                         color: var(--primary);
                         font-size: 2em;
                         font-weight: bold;
                         font-variant-numeric: tabular-nums;
                     }}
-                    
+
                     .info-section {{
                         background-color: var(--bg-card);
                         padding: 25px;
                         border-radius: 8px;
                         margin-top: 30px;
                     }}
-                    
+
                     .info-section h3 {{
                         margin-top: 0;
                         color: var(--primary);
                         margin-bottom: 15px;
                     }}
-                    
+
                     .info-section p {{
                         margin: 10px 0;
                     }}
-                    
+
                     code {{
                         background-color: #1a1a1a;
                         padding: 4px 8px;
@@ -254,7 +254,7 @@ class StreamingServer:
                         font-family: 'Courier New', monospace;
                         font-size: 0.95em;
                     }}
-                    
+
                     .copy-btn {{
                         background-color: var(--primary);
                         color: #000;
@@ -266,17 +266,17 @@ class StreamingServer:
                         margin-left: 10px;
                         transition: background-color 0.2s;
                     }}
-                    
+
                     .copy-btn:hover {{
                         background-color: #45a049;
                     }}
-                    
+
                     .hint {{
                         color: var(--text-dim);
                         font-size: 0.85em;
                         margin-top: 10px;
                     }}
-                    
+
                     .status-indicator {{
                         display: inline-block;
                         width: 12px;
@@ -286,15 +286,15 @@ class StreamingServer:
                         vertical-align: middle;
                         animation: pulse 2s infinite;
                     }}
-                    
+
                     .status-active {{
                         background-color: var(--primary);
                     }}
-                    
+
                     .status-idle {{
                         background-color: var(--text-dim);
                     }}
-                    
+
                     @keyframes pulse {{
                         0%, 100% {{ opacity: 1; }}
                         50% {{ opacity: 0.5; }}
@@ -357,8 +357,8 @@ class StreamingServer:
                             const h = Math.floor(seconds / 3600);
                             const m = Math.floor((seconds % 3600) / 60);
                             const s = Math.floor(seconds % 60);
-                            return String(h).padStart(2, '0') + ':' + 
-                                   String(m).padStart(2, '0') + ':' + 
+                            return String(h).padStart(2, '0') + ':' +
+                                   String(m).padStart(2, '0') + ':' +
                                    String(s).padStart(2, '0');
                         }}
 
@@ -376,7 +376,7 @@ class StreamingServer:
                                     $('#frames').text(data.total_frames || '-');
                                     $('#uptime').text(formatTime(data.elapsed_time || 0));
                                     $('#samples').text(data.samples_saved || '-');
-                                    
+
                                     const isActive = data.tracking_active;
                                     const statusClass = isActive ? 'status-active' : 'status-idle';
                                     const statusText = isActive ? '啟用' : '停用';
