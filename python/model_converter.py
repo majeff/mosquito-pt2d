@@ -442,7 +442,7 @@ def main():
 
     pt_model = Path(args.pt_model).resolve()
     output_dir = Path(args.output_dir).resolve()
-    calib_dir = Path('../sample_collection/confirmed/mosquito').resolve()
+    calib_dir = Path('../sample_collection/calibration').resolve()
 
     # 驗證模型檔案存在
     if not pt_model.exists():
@@ -473,7 +473,7 @@ def main():
 
     # 4. 生成 RKNN
     rknn_path = None
-    if not args.skip_rknn and onnx_path and calib_dir.exists():
+    if not args.skip_rknn and onnx_path:
         rknn_path = generate_rknn_model(onnx_path, calib_dir, output_dir)
 
     # 5. 顯示摘要
