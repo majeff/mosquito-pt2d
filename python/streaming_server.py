@@ -198,16 +198,16 @@ class StreamingServer:
 
                     .stats-grid {{
                         display: grid;
-                        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                        gap: 15px;
-                        margin-top: 30px;
+                        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                        gap: 10px;
+                        margin-top: 20px;
                     }}
 
                     .stat-card {{
                         background-color: var(--bg-card);
-                        padding: 20px;
-                        border-radius: 8px;
-                        border-left: 4px solid var(--primary);
+                        padding: 12px 15px;
+                        border-radius: 6px;
+                        border-left: 3px solid var(--primary);
                         transition: transform 0.2s;
                     }}
 
@@ -217,15 +217,15 @@ class StreamingServer:
 
                     .stat-label {{
                         color: var(--text-dim);
-                        font-size: 0.9em;
+                        font-size: 0.75em;
                         text-transform: uppercase;
                         letter-spacing: 0.5px;
-                        margin-bottom: 8px;
+                        margin-bottom: 5px;
                     }}
 
                     .stat-value {{
                         color: var(--primary);
-                        font-size: 2em;
+                        font-size: 1.6em;
                         font-weight: bold;
                         font-variant-numeric: tabular-nums;
                     }}
@@ -337,7 +337,6 @@ class StreamingServer:
 
                     <div class="info-section">
                         <h3>📱 訪問方式</h3>
-                        <p><strong>本機訪問：</strong> <code>http://localhost:{self.http_port}</code></p>
                         <p><strong>區域網路：</strong> <code>{http_direct_url}</code></p>
 {external_info}
                         <p class="hint">✓ 設備需與監控主機在同一網路上</p>
