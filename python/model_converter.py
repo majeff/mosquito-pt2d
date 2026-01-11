@@ -81,19 +81,22 @@ def install_dependencies(verbose: bool = True) -> bool:
 
 
 def prepare_calibration_dataset(
-    calib_dir: Path,
+    images_dir: Path,
+    list_path: Path,
     num_samples: int = 50,
     verbose: bool = True
 ) -> bool:
-    """準備校準數據集（從 sample_collection/confirmed/mosquito 取資料）"""
+    """準備 RKNN 量化校準清單（不複製影像，僅寫入 dataset.txt）"""
     if verbose:
-        print(f"\n📸 準備校準數據集...")
+        print(f"\n📸 準備校準數據集清單...")
 
-    # 校準圖片來源：sample_collection/confirmed/mosquito (相對於專案根目錄)
-    # 由於執行於 python/ 目錄，需要向上一級
-    mosquito_dir = Path('../sample_collection/confirmed/mosquito').resolve()
+    images_dir = images_dir.resolve()
+    if not images_dir.exists() or not images_dir.is_dir():
+        print(f"❌ 錯誤: 校準影像目錄不存在: {images_dir}")
+        return False
+
     # 從確認的蚊子樣本中抽取圖片
-    mosquito_images = list(mosquito_dir.glob('*.jpg')) + list(mosquito_dir.glob('*.png'))
+    mosquito_images = list(images_dir.glob('*.jpg')) + list(images_dir.glob('*.png'))
 
     if len(mosquito_images) < 10:
         print(f"❌ 錯誤: 蚊子樣本圖片不足 ({len(mosquito_images)} 張)，至少需要 10 張")
@@ -105,14 +108,16 @@ def prepare_calibration_dataset(
     num_samples = min(num_samples, len(mosquito_images))
     calib_samples = random.sample(mosquito_images, num_samples)
 
-    # 複製到校準目錄
-    for img in calib_samples:
-        shutil.copy2(img, calib_dir / img.name)
+    # 寫入校準清單（RKNN 需要 dataset.txt 格式，每行一個影像路徑）
+    list_path.parent.mkdir(parents=True, exist_ok=True)
+    with list_path.open('w', encoding='utf-8') as f:
+        for img in calib_samples:
+            f.write(str(img.resolve()) + "\n")
 
     if verbose:
-        print(f"  ✓ 已準備 {len(calib_samples)} 張校準圖片")
-        print(f"    來源: {mosquito_dir}")
-        print(f"    位置: {calib_dir}")
+        print(f"  ✓ 已建立校準清單: {list_path}")
+        print(f"    來源目錄: {images_dir}")
+        print(f"    影像數量: {len(calib_samples)}")
 
     return True
 
@@ -191,11 +196,11 @@ def export_onnx_model(
 
 def generate_rknn_model(
     onnx_model_path: Path,
-    calib_dir: Path,
+    dataset_list_path: Path,
     rknn_output_dir: Path,
     verbose: bool = True
 ) -> Optional[Path]:
-    """生成 RKNN 模型（Orange Pi 5）"""
+    """生成 RKNN 模型（Orange Pi 5），使用 dataset.txt 清單"""
     if verbose:
         print(f"\n🔧 生成 Orange Pi 5 RKNN 模型...")
 
@@ -203,8 +208,8 @@ def generate_rknn_model(
         print(f"❌ 錯誤: ONNX 模型不存在: {onnx_model_path}")
         return None
 
-    if not calib_dir.exists():
-        print(f"❌ 錯誤: 校準數據集目錄不存在: {calib_dir}")
+    if not dataset_list_path.exists() or not dataset_list_path.is_file():
+        print(f"❌ 錯誤: 校準清單不存在: {dataset_list_path}")
         return None
 
     if RKNN is None:
@@ -235,7 +240,7 @@ def generate_rknn_model(
         # 執行量化
         if verbose:
             print("  執行量化（預計需要 2-5 分鐘）...")
-        ret = rknn.build(do_quantization=True, dataset=str(calib_dir))
+        ret = rknn.build(do_quantization=True, dataset=str(dataset_list_path))
         if ret != 0:
             print("❌ 量化失敗")
             rknn.release()
@@ -437,7 +442,10 @@ def main():
 
     pt_model = Path(args.pt_model).resolve()
     output_dir = Path(args.output_dir).resolve()
-    calib_dir = Path('../sample_collection/calibration').resolve()
+    # 校準影像來源目錄（不複製，只建立清單）
+    images_dir = Path(args.calib_dir).resolve() if args.calib_dir else Path('../sample_collection/confirmed/mosquito').resolve()
+    # 校準清單檔案位置（放在輸出目錄中）
+    dataset_list_path = output_dir / 'rknn_calibration_list.txt'
 
     # 驗證模型檔案存在
     if not pt_model.exists():
@@ -457,9 +465,11 @@ def main():
     if not install_dependencies():
         print("⚠️ 部分依賴安裝失敗，部分功能可能不可用")
 
-    # 2. 準備校準數據集
+    # 2. 準備校準清單（不複製影像）
     if not args.skip_rknn:
-        prepare_calibration_dataset(calib_dir)
+        if not prepare_calibration_dataset(images_dir, dataset_list_path):
+            print("❌ 準備校準清單失敗，無法進行 RKNN 量化")
+            args.skip_rknn = True
 
     # 3. 導出 ONNX
     onnx_path = None
@@ -469,7 +479,7 @@ def main():
     # 4. 生成 RKNN
     rknn_path = None
     if not args.skip_rknn and onnx_path:
-        rknn_path = generate_rknn_model(onnx_path, calib_dir, output_dir)
+        rknn_path = generate_rknn_model(onnx_path, dataset_list_path, output_dir)
 
     # 5. 顯示摘要
     print_summary(output_dir, None, onnx_path, rknn_path)
