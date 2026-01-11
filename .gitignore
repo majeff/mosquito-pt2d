@@ -48,5 +48,4 @@ ENV/
 
 # Ignore config files
 mosquito.ini
-
-sample_collection/*
+sample_collection

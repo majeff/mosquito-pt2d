@@ -17,6 +17,7 @@
 從 mosquito.ini 文件加載配置參數
 """
 
+import os
 import configparser
 import socket
 from pathlib import Path
@@ -25,19 +26,47 @@ from pathlib import Path
 class ConfigLoader:
     """配置加載器"""
 
-    def __init__(self, config_path="mosquito.ini"):
+    def __init__(self, config_path: str | None = None):
         """
         初始化配置加載器
 
         Args:
-            config_path: 配置文件路徑
+            config_path: 配置文件路徑，若為 None 則自動搜尋
         """
-        self.config_path = Path(config_path)
         self.config = configparser.ConfigParser()
 
-        # 檢查配置文件是否存在
-        if not self.config_path.exists():
-            raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
+        # 構建候選路徑（依優先順序）
+        candidates: list[Path] = []
+
+        # 1) 環境變數指定
+        env_path = os.environ.get("MOSQUITO_CONFIG")
+        if env_path:
+            candidates.append(Path(env_path))
+
+        # 2) 參數指定
+        if config_path:
+            candidates.append(Path(config_path))
+
+        # 3) 模組所在目錄（python/）
+        module_dir = Path(__file__).resolve().parent
+        candidates.append(module_dir / "mosquito.ini")
+
+        # 4) 當前工作目錄
+        candidates.append(Path.cwd() / "mosquito.ini")
+
+        # 選擇首個存在的配置文件
+        chosen: Path | None = None
+        for p in candidates:
+            if p.exists():
+                chosen = p
+                break
+
+        if not chosen:
+            # 提示候選路徑，方便除錯
+            hint = " | ".join(str(p) for p in candidates)
+            raise FileNotFoundError(f"配置文件不存在（已嘗試）：{hint}")
+
+        self.config_path = chosen
 
         # 讀取配置文件
         self.config.read(self.config_path, encoding='utf-8')
@@ -57,6 +86,14 @@ class ConfigLoader:
                 return socket.gethostbyname(socket.gethostname())
             except Exception:
                 return "127.0.0.1"
+
+    # 內部工具：將相對路徑解析到 sample_collection_dir 之下
+    def _resolve_under_sample_base(self, value: str) -> str:
+        base = Path(self.sample_collection_dir)
+        p = Path(value)
+        if p.is_absolute():
+            return str(p)
+        return str(base / p)
 
     # AI檢測相關配置
     @property
@@ -215,19 +252,23 @@ class ConfigLoader:
 
     @property
     def medium_confidence_dir(self):
-        return self.config.get('SAMPLE_ANNOTATION', 'medium_confidence_dir', fallback="sample_collection/medium_confidence")
+        raw = self.config.get('SAMPLE_ANNOTATION', 'medium_confidence_dir', fallback="medium_confidence")
+        return self._resolve_under_sample_base(raw)
 
     @property
     def high_confidence_dir(self):
-        return self.config.get('SAMPLE_ANNOTATION', 'high_confidence_dir', fallback="sample_collection/high_confidence")
+        raw = self.config.get('SAMPLE_ANNOTATION', 'high_confidence_dir', fallback="high_confidence")
+        return self._resolve_under_sample_base(raw)
 
     @property
     def confirmed_mosquito_dir(self):
-        return self.config.get('SAMPLE_ANNOTATION', 'confirmed_mosquito_dir', fallback="sample_collection/confirmed/mosquito")
+        raw = self.config.get('SAMPLE_ANNOTATION', 'confirmed_mosquito_dir', fallback="confirmed/mosquito")
+        return self._resolve_under_sample_base(raw)
 
     @property
     def confirmed_not_mosquito_dir(self):
-        return self.config.get('SAMPLE_ANNOTATION', 'confirmed_not_mosquito_dir', fallback="sample_collection/confirmed/not_mosquito")
+        raw = self.config.get('SAMPLE_ANNOTATION', 'confirmed_not_mosquito_dir', fallback="confirmed/not_mosquito")
+        return self._resolve_under_sample_base(raw)
 
     # 樣本標註相關配置 (用於 label_samples.py)
     @property
@@ -248,19 +289,23 @@ class ConfigLoader:
 
     @property
     def MEDIUM_CONFIDENCE_DIR(self):
-        return self.config.get('SAMPLE_ANNOTATION', 'medium_confidence_dir', fallback="sample_collection/medium_confidence")
+        raw = self.config.get('SAMPLE_ANNOTATION', 'medium_confidence_dir', fallback="medium_confidence")
+        return self._resolve_under_sample_base(raw)
 
     @property
     def HIGH_CONFIDENCE_DIR(self):
-        return self.config.get('SAMPLE_ANNOTATION', 'high_confidence_dir', fallback="sample_collection/high_confidence")
+        raw = self.config.get('SAMPLE_ANNOTATION', 'high_confidence_dir', fallback="high_confidence")
+        return self._resolve_under_sample_base(raw)
 
     @property
     def CONFIRMED_MOSQUITO_DIR(self):
-        return self.config.get('SAMPLE_ANNOTATION', 'confirmed_mosquito_dir', fallback="sample_collection/confirmed/mosquito")
+        raw = self.config.get('SAMPLE_ANNOTATION', 'confirmed_mosquito_dir', fallback="confirmed/mosquito")
+        return self._resolve_under_sample_base(raw)
 
     @property
     def CONFIRMED_NOT_MOSQUITO_DIR(self):
-        return self.config.get('SAMPLE_ANNOTATION', 'confirmed_not_mosquito_dir', fallback="sample_collection/confirmed/not_mosquito")
+        raw = self.config.get('SAMPLE_ANNOTATION', 'confirmed_not_mosquito_dir', fallback="confirmed/not_mosquito")
+        return self._resolve_under_sample_base(raw)
 
     # 網路相關配置
     @property

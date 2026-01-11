@@ -33,7 +33,7 @@ from mosquito_detector import MosquitoDetector
 from mosquito_tracker import MosquitoTracker
 from pt2d_controller import PT2DController
 from depth_estimator import DepthEstimator
-from config_loader import config
+from config_loader import config  # 使用新的配置加載模組
 import sys
 import cv2
 import numpy as np
@@ -96,7 +96,7 @@ class StreamingTrackingSystem:
         self.enable_depth = enable_depth and dual_camera  # 深度估計需要雙目攝像頭
         self._running = True  # 運行標誌，用於優雅退出
 
-        # 攝像頭解析度配置（預設值，會在 main() 中被覆蓋）
+        # 攝像頭解析度配置（從 config_loader 讀取）
         self.camera_width = config.camera_dual_width if dual_camera else 1920
         self.camera_height = config.camera_dual_height if dual_camera else 1080
         self.camera_fps = config.camera_dual_fps if dual_camera else 60
@@ -120,7 +120,6 @@ class StreamingTrackingSystem:
         # 單目過濾器追蹤數據（用於時間連續性和運動合理性檢查）
         self.detection_history = {}       # {track_id: {'frames': int, 'positions': deque, 'static_frames': int}}
         from collections import deque
-        self._deque_cls = deque  # 供後續方法使用，避免未定義
 
         # 1. 初始化 AI 檢測器（只創建一次！）
         logger.info("[1/5] 初始化 AI 檢測器...")
@@ -133,13 +132,13 @@ class StreamingTrackingSystem:
 
         self.detector = MosquitoDetector(
             model_path=model_path,
-            confidence_threshold=config.confidence_threshold,
-            imgsz=config.imgsz,
+            confidence_threshold=config.confidence_threshold,  # 使用新配置
+            imgsz=config.imgsz,  # 使用新配置
             save_uncertain_samples=save_samples,
-            uncertain_conf_range=sample_conf_range,
-            save_dir=config.sample_collection_dir,
-            max_samples=config.max_samples,
-            save_interval=config.save_interval,
+            uncertain_conf_range=sample_conf_range,  # 使用傳入的參數
+            save_dir="uncertain_samples",
+            max_samples=config.max_samples,  # 使用新配置
+            save_interval=config.save_interval,  # 使用新配置
             save_annotations=True,
             save_full_frame=False
         )
@@ -150,9 +149,23 @@ class StreamingTrackingSystem:
         # 2. 初始化雲台控制器
         logger.info("[2/5] 初始化雲台控制器...")
         try:
-            self.pt_controller = PT2DController(arduino_port)
+            self.pt_controller = PT2DController(config.arduino_port)
+            # 初始化追蹤器時使用配置的參數
+            logger.info("[3/5] 初始化追蹤器...")
+            if self.has_pt:
+                self.tracker = MosquitoTracker(
+                    arduino_port=config.arduino_port,
+                    camera_left_id=config.left_camera_id,
+                    camera_right_id=config.right_camera_id,
+                    camera_width=self.camera_width,
+                    camera_height=self.camera_height
+                )
+                logger.info(f"      ✓ 追蹤器已就緒")
+            else:
+                self.tracker = None
+                logger.warning(f"      ⚠ 追蹤器未啟用（需要雲台連接）")
             if self.pt_controller.is_connected:
-                logger.info(f"      ✓ Arduino 已連接 ({arduino_port})")
+                logger.info(f"      ✓ Arduino 已連接 ({config.arduino_port})")  # 使用新配置
                 self.has_pt = True
                 self.has_laser = True  # 雲台連接成功時啟用雷射功能
             else:
@@ -169,8 +182,10 @@ class StreamingTrackingSystem:
         logger.info("[3/5] 初始化追蹤器...")
         if self.has_pt:
             self.tracker = MosquitoTracker(
-                detector=self.detector,
-                pt_controller=self.pt_controller
+                arduino_port=config.arduino_port,
+                camera_device_id=config.left_camera_id,  # 使用配置中的left_camera_id作为设备ID
+                camera_width=self.camera_width,  # 使用配置
+                camera_height=self.camera_height  # 使用配置
             )
             logger.info(f"      ✓ 追蹤器已就緒")
         else:
@@ -190,9 +205,9 @@ class StreamingTrackingSystem:
         # 5. 初始化串流伺服器
         logger.info("[5/6] 初始化串流伺服器...")
         self.server = StreamingServer(
-            http_port=http_port,
-            fps=30,
-            rtsp_url=rtsp_url if enable_rtsp else None
+            http_port=config.stream_port,  # 使用新配置
+            fps=config.stream_fps,  # 使用新配置
+            rtsp_url=config.rtsp_url if enable_rtsp else None  # 使用新配置
         )
         self.server.run(threaded=True)
         logger.info(f"      ✓ 串流伺服器已啟動 (端口 {http_port})")
@@ -227,13 +242,13 @@ class StreamingTrackingSystem:
         logger.info("🎉 系統已完全啟動！")
         logger.info("=" * 60)
         # 生成訪問地址
-        device_ip = config.device_ip or "[你的IP]"
+        device_ip = DEFAULT_DEVICE_IP or "[你的IP]"
         local_url = f"http://{device_ip}:{http_port}"
         logger.info(f"📱 本機訪問: {local_url}")
 
         # 如果設置了外部 URL，顯示外部訪問方式
-        if config.external_url:
-            logger.info(f"🌐 遠端訪問: {config.external_url}")
+        if DEFAULT_EXTERNAL_URL:
+            logger.info(f"🌐 遠端訪問: {DEFAULT_EXTERNAL_URL}")
 
         if self.server_right:
             right_url = f"http://{device_ip}:{http_port + 1}"
@@ -337,11 +352,11 @@ class StreamingTrackingSystem:
                             detection['object_size_mm'] = depth_info.get('object_size_mm', 0)
 
                             # 尺寸過濾：只保留合理尺寸的檢測
+                            from config_loader import config  # 使用新的配置加載模組
                             obj_size = depth_info.get('object_size_mm', 0)
                             if config.min_mosquito_size_mm <= obj_size <= config.max_mosquito_size_mm:
                                 valid_detections.append(detection)
-                            else:
-                                logger.debug(f"尺寸過濾: {obj_size:.1f}mm 不在 {config.min_mosquito_size_mm}-{config.max_mosquito_size_mm}mm 範圍")
+
                         else:
                             # 無法估計深度時保留（避免過度過濾）
                             valid_detections.append(detection)
@@ -507,6 +522,7 @@ class StreamingTrackingSystem:
         """
         # 從配置加載篩選參數
         try:
+            from config_loader import config  # 使用新的配置加載模組
             ENABLE_BBOX_SIZE_FILTER = config.enable_bbox_size_filter
             MIN_BBOX_SIZE_PX = config.min_bbox_size_px
             MAX_BBOX_SIZE_PX = config.max_bbox_size_px
@@ -519,7 +535,7 @@ class StreamingTrackingSystem:
             MAX_MOVEMENT_PX_PER_FRAME = config.max_movement_px_per_frame
             MAX_STATIC_FRAMES = config.max_static_frames
             STATIC_THRESHOLD_PX = config.static_threshold_px
-        except AttributeError:
+        except ImportError:
             # 默認值
             ENABLE_BBOX_SIZE_FILTER = True
             MIN_BBOX_SIZE_PX = 10
@@ -533,7 +549,6 @@ class StreamingTrackingSystem:
             MAX_MOVEMENT_PX_PER_FRAME = 150
             MAX_STATIC_FRAMES = 60
             STATIC_THRESHOLD_PX = 5
-        from collections import deque
 
         valid_detections = []
 
@@ -567,7 +582,7 @@ class StreamingTrackingSystem:
                 if track_id not in self.detection_history:
                     self.detection_history[track_id] = {
                         'frames': 1,
-                        'positions': self._deque_cls(maxlen=10),
+                        'positions': deque(maxlen=10),
                         'static_frames': 0
                     }
                     self.detection_history[track_id]['positions'].append(center)
@@ -613,479 +628,14 @@ class StreamingTrackingSystem:
         """輸出檢測物件的詳細資訊"""
         # 從配置加載物理參數
         try:
+            from config_loader import config  # 使用新的配置加載模組
             MIN_MOSQUITO_SIZE_MM = config.min_mosquito_size_mm
             MAX_MOSQUITO_SIZE_MM = config.max_mosquito_size_mm
             MIN_BBOX_SIZE_PX = config.min_bbox_size_px
             MAX_BBOX_SIZE_PX = config.max_bbox_size_px
             MIN_ASPECT_RATIO = config.min_aspect_ratio
             MAX_ASPECT_RATIO = config.max_aspect_ratio
-        except AttributeError:
+        except ImportError:
             # 默認值
             MIN_MOSQUITO_SIZE_MM = 3
             MAX_MOSQUITO_SIZE_MM = 15
-            MIN_BBOX_SIZE_PX = 10
-            MAX_BBOX_SIZE_PX = 200
-            MIN_ASPECT_RATIO = 0.3
-            MAX_ASPECT_RATIO = 3.0
-
-        for detection in detections:
-            track_id = detection.get('track_id', 'N/A')
-            confidence = detection.get('confidence', 0)
-            bbox = detection.get('bbox')
-
-            if not bbox:
-                continue
-
-            x1, y1, x2, y2 = bbox
-            width = x2 - x1
-            height = y2 - y1
-            bbox_size = max(width, height)
-            aspect_ratio = width / max(height, 1)
-
-            # 物理尺寸與距離資訊
-            distance_cm = detection.get('distance_cm', 0)
-            obj_size_mm = detection.get('object_size_mm', 0)
-
-            # 運動資訊
-            speed_info = ""
-            if track_id != 'N/A' and track_id in self.detection_history:
-                history = self.detection_history[track_id]
-                positions = history['positions']
-                if len(positions) >= 2:
-                    prev_pos = positions[-2]
-                    curr_pos = positions[-1]
-                    movement = np.sqrt((curr_pos[0] - prev_pos[0])**2 + (curr_pos[1] - prev_pos[1])**2)
-                    speed_info = f"| 速度: {movement:.1f}px/幀"
-
-                static_frames = history.get('static_frames', 0)
-                if static_frames > 0:
-                    speed_info += f" (靜止{static_frames}幀)"
-
-            # 過濾器資訊
-            filter_info = []
-            filter_info.append(f"框: {bbox_size}px/{MIN_BBOX_SIZE_PX}-{MAX_BBOX_SIZE_PX}px")
-            filter_info.append(f"寬高比: {aspect_ratio:.2f}/{MIN_ASPECT_RATIO}-{MAX_ASPECT_RATIO}")
-
-            if distance_cm > 0 and obj_size_mm > 0:
-                filter_info.append(f"距離: {distance_cm:.1f}cm")
-                filter_info.append(f"尺寸: {obj_size_mm:.1f}mm/{MIN_MOSQUITO_SIZE_MM}-{MAX_MOSQUITO_SIZE_MM}mm")
-
-            # 輸出詳細日誌
-            logger.info(f"[檢測] ID:{track_id} | 信心: {confidence:.3f} | {' | '.join(filter_info)} {speed_info}")
-
-    def _draw_system_info(self, frame: np.ndarray, detections: list, illumination_info: dict):
-        """在畫面上繪製系統資訊（只保留時間戳）"""
-        # 時間（右下角最下方）
-        current_time = time.strftime("%H:%M:%S")
-        time_font_size = 0.35
-        time_thickness = 1
-        time_size = cv2.getTextSize(current_time, cv2.FONT_HERSHEY_SIMPLEX, time_font_size, time_thickness)[0]
-        time_x = frame.shape[1] - time_size[0] - 10
-        time_y = frame.shape[0] - 10
-        cv2.putText(frame, current_time, (time_x, time_y),
-                   cv2.FONT_HERSHEY_SIMPLEX, time_font_size, (200, 200, 200), time_thickness)
-
-    def run(self):
-        """運行主循環"""
-        # 設置信號處理器，確保 Ctrl+C 能立即被捕捉
-        def signal_handler(signum, frame):
-            logger.info("\n\n🛑 用戶中斷 (Ctrl+C)")
-            self._running = False
-            # 強制退出（如果正在執行阻塞操作）
-            sys.exit(0)
-
-        signal.signal(signal.SIGINT, signal_handler)
-
-        # 開啟攝像頭
-        cap = cv2.VideoCapture(self.camera_id)
-
-        # 設置攝像頭解析度（使用檢測到的最佳配置）
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.camera_width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.camera_height)
-        cap.set(cv2.CAP_PROP_FPS, self.camera_fps)
-
-        if not cap.isOpened():
-            logger.error("✗ 無法開啟攝像頭")
-            return
-
-        logger.info(f"✓ 攝像頭已開啟 (ID: {self.camera_id})")
-        logger.info(f"✓ 解析度: {self.camera_width}×{self.camera_height}@{self.camera_fps}fps")
-
-        try:
-            while self._running:  # 使用執行標誌控制迴圈
-                ret, frame = cap.read()
-                if not ret:
-                    logger.error("✗ 無法讀取影像")
-                    break
-
-                # ⚡ 處理影像（每幀只執行一次 AI 檢測）
-                result = self.process_frame(frame)
-
-                # 更新串流
-                if self.stream_mode == "dual_stream" and isinstance(result, tuple):
-                    # 雙串流模式
-                    self.server.update_frame(result[0])
-                    if self.server_right:
-                        self.server_right.update_frame(result[1])
-                    # 不需要本地顯示（headless mode）
-                else:
-                    # 單一串流
-                    self.server.update_frame(result)
-
-                # 定期輸出狀態和更新串流伺服器統計（每 30 幀 ≈ 1 秒）
-                if self.stats['total_frames'] % 30 == 0:
-                    elapsed = time.time() - self.stats['start_time']
-                    fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
-
-                    # 獲取光照度資訊
-                    illum_info = self.stats.get('last_illumination_info', {})
-                    lux = illum_info.get('illumination', 0)
-                    lux_status_code = illum_info.get('status', 'unknown')
-                    ai_paused = illum_info.get('paused', False)
-
-                    # 轉換光照狀態為中文
-                    lux_status_map = {
-                        'normal': '正常',
-                        'warning': '偏暗',
-                        'paused': '過暗',
-                        'resumed': '正常',
-                        'unknown': '未知'
-                    }
-                    lux_status = lux_status_map.get(lux_status_code, '未知')
-
-                    # 更新串流伺服器統計資訊
-                    if hasattr(self, 'server') and self.server:
-                        self.server.update_stats(
-                            unique_targets=self.stats['unique_targets'],
-                            tracking_active=self.stats['tracking_active'],
-                            fps=fps,
-                            lux=lux,
-                            lux_status=lux_status
-                        )
-
-                    # 每 500 幀輸出詳細日誌
-                    if self.stats['total_frames'] % 500 == 0:
-                        saved_samples = getattr(self.detector, 'saved_sample_count', 0)
-                        logger.info(f"[狀態] FPS: {fps:.1f} | "
-                              f"唯一目標: {self.stats['unique_targets']} | "
-                              f"存檔: {saved_samples} | "
-                              f"追蹤: {'啟用' if self.stats['tracking_active'] else '停用'} | "
-                              f"辨識: {'停用' if ai_paused else '啟用'} | "
-                              f"Lux: {lux} ({lux_status})")
-
-                # 簡單延時控制幀率
-                time.sleep(config.frame_delay)  # 幀延時
-
-        except Exception as e:
-            logger.error(f"\n❌ 發生錯誤: {e}")
-
-            traceback.print_exc()
-            self._running = False
-
-        finally:
-            # 清理資源（確保執行）
-            logger.info("\n⏳ 正在關閉系統...")
-            self._cleanup(cap)
-
-    def _cleanup(self, cap):
-        """清理所有資源（優雅關閉）"""
-        logger.info("   → 釋放攝像頭...")
-        try:
-            cap.release()
-        except:
-            pass
-
-        logger.info("   → 關閉串流伺服器...")
-        try:
-            if self.server:
-                self.server.shutdown()
-        except:
-            pass
-
-        try:
-            if self.server_right:
-                self.server_right.shutdown()
-        except:
-            pass
-
-        logger.info("   → 關閉雲台...")
-        try:
-            if self.pt_controller:
-                self.pt_controller.close()
-        except:
-            pass
-
-        logger.info("   → 關閉追蹤器...")
-        try:
-            if self.tracker:
-                if hasattr(self.tracker, 'stop'):
-                    self.tracker.stop()
-        except:
-            pass
-
-        logger.info("   → 關閉檢測器...")
-        try:
-            if self.detector:
-                if hasattr(self.detector, 'cleanup'):
-                    self.detector.cleanup()
-        except:
-            pass
-
-        # 顯示統計
-        logger.info("=" * 60)
-        logger.info("📊 系統統計")
-        logger.info("=" * 60)
-        logger.info(f"總幀數: {self.stats['total_frames']}")
-        logger.info(f"唯一目標: {self.stats['unique_targets']}")
-        if hasattr(self.detector, 'saved_sample_count'):
-            logger.info(f"已儲存樣本: {self.detector.saved_sample_count}")
-        elapsed = time.time() - self.stats['start_time']
-        if elapsed > 0:
-            logger.info(f"運行時間: {elapsed:.1f} 秒")
-            logger.info(f"平均 FPS: {self.stats['total_frames'] / elapsed:.1f}")
-        logger.info("=" * 60)
-        logger.info("✅ 系統已關閉")
-
-
-def detect_best_camera_config(camera_id: int = 0) -> dict:
-    """
-    自動檢測攝像頭並選擇最佳配置
-
-    嘗試常見解析度（從高到低），選擇相機支援的最高解析度：
-    - 3840×1080 @ 60fps (雙目 Full HD)
-    - 1920×1080 @ 60fps (單目 Full HD)
-    - 1280×720 @ 60fps (HD)
-    - 640×480 @ 30fps (VGA, fallback)
-
-    Args:
-        camera_id: 攝像頭 ID
-
-    Returns:
-        dict: {
-            'width': int,
-            'height': int,
-            'fps': int,
-            'is_dual': bool,
-            'resolution_name': str
-        }
-    """
-    # 常見解析度配置（從高到低優先級）
-    resolutions = [
-        {'width': 3840, 'height': 1080, 'fps': 60, 'name': '雙目 Full HD (3840×1080@60fps)', 'is_dual': True},
-        {'width': 1920, 'height': 1080, 'fps': 60, 'name': '單目 Full HD (1920×1080@60fps)', 'is_dual': False},
-        {'width': 1280, 'height': 720, 'fps': 60, 'name': 'HD (1280×720@60fps)', 'is_dual': False},
-        {'width': 1280, 'height': 720, 'fps': 30, 'name': 'HD (1280×720@30fps)', 'is_dual': False},
-        {'width': 640, 'height': 480, 'fps': 30, 'name': 'VGA (640×480@30fps)', 'is_dual': False},
-    ]
-
-    logger.info(f"🔍 正在檢測攝像頭 {camera_id} 的最佳配置...")
-
-    best_config = None
-
-    for config in resolutions:
-        cap = cv2.VideoCapture(camera_id)
-        if not cap.isOpened():
-            continue
-
-        # 嘗試設置解析度
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, config['width'])
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config['height'])
-        cap.set(cv2.CAP_PROP_FPS, config['fps'])
-
-        # 讀取一幀驗證
-        ret, frame = cap.read()
-        cap.release()
-
-        if ret and frame is not None:
-            actual_width = frame.shape[1]
-            actual_height = frame.shape[0]
-
-            # 檢查是否成功設置為目標解析度（容許小幅偏差）
-            width_match = abs(actual_width - config['width']) <= 10
-            height_match = abs(actual_height - config['height']) <= 10
-
-            if width_match and height_match:
-                best_config = {
-                    'width': actual_width,
-                    'height': actual_height,
-                    'fps': config['fps'],
-                    'is_dual': config['is_dual'],
-                    'resolution_name': config['name']
-                }
-                logger.info(f"✅ 找到支援的解析度: {config['name']}")
-                logger.info(f"   實際解析度: {actual_width}×{actual_height}")
-                break
-            else:
-                logger.debug(f"⚠️  {config['name']} 不支援 (實際: {actual_width}×{actual_height})")
-
-    # 如果沒有找到任何支援的解析度，使用預設值
-    if best_config is None:
-        logger.warning(f"⚠️  無法檢測到支援的解析度，使用預設配置")
-        best_config = {
-            'width': 640,
-            'height': 480,
-            'fps': 30,
-            'is_dual': False,
-            'resolution_name': 'VGA (640×480@30fps) - 預設'
-        }
-
-    return best_config
-
-
-def detect_dual_camera(camera_id: int = 0) -> bool:
-    """
-    自動檢測是否為雙目攝像頭（舊版相容函數）
-
-    建議使用 detect_best_camera_config() 來獲取完整配置
-
-    Args:
-        camera_id: 攝像頭 ID
-
-    Returns:
-        True: 雙目攝像頭（寬度 >= 2560）
-        False: 單目攝像頭
-    """
-    config = detect_best_camera_config(camera_id)
-    return config['is_dual']
-
-
-def main():
-    """主程式入口（參數型）"""
-    parser = argparse.ArgumentParser(
-        description='🦟 蚊子追蹤系統 + 手機串流',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-範例:
-  # 自動檢測模式（推薦）
-  python streaming_tracking_system.py
-
-  # 指定單目模式
-  python streaming_tracking_system.py --single
-
-  # 指定雙目模式
-  python streaming_tracking_system.py --dual
-
-  # 自定義串口和串流模式
-  python streaming_tracking_system.py --port COM3 --mode side_by_side
-
-  # 自定義 RTSP 推流地址
-  python streaming_tracking_system.py --rtsp-url rtsp://192.168.1.100:8554/mosquito
-
-  # 停用 RTSP 推流
-  python streaming_tracking_system.py --no-rtsp
-        """
-    )
-
-    # 串口參數
-    parser.add_argument('--port', '-p', type=str, default=config.arduino_port,
-                       help=f'Arduino 串口 (預設: {config.arduino_port})')
-
-    # 攝像頭參數
-    parser.add_argument('--camera', '-c', type=int, default=config.left_camera_id,
-                       help=f'攝像頭 ID (預設: {config.left_camera_id})')
-
-    camera_group = parser.add_mutually_exclusive_group()
-    camera_group.add_argument('--dual', action='store_true',
-                             help='強制使用雙目模式')
-    camera_group.add_argument('--single', action='store_true',
-                             help='強制使用單目模式')
-
-    # 串流參數
-    parser.add_argument('--mode', '-m', type=str,
-                       choices=['single', 'side_by_side', 'dual_stream'],
-                       default='single',
-                       help='串流模式 (預設: single)')
-
-    parser.add_argument('--port-http', type=int, default=config.stream_port,
-                       help=f'HTTP 串流端口 (預設: {config.stream_port})')
-
-    # 模型參數
-    parser.add_argument('--model', type=str, default='models/mosquito',
-                       help='AI 模型路徑 (預設: models/mosquito)')
-
-    # 樣本儲存參數
-    parser.add_argument('--save-samples', action='store_true',
-                       help='儲存中等信心度樣本')
-    parser.add_argument('--no-save-samples', dest='save_samples', action='store_false',
-                       help='不儲存中等信心度樣本')
-    parser.set_defaults(save_samples=config.save_uncertain_samples)
-
-    # RTSP 推流參數（預設停用）
-    parser.add_argument('--rtsp', action='store_true',
-                       help='啟用 RTSP 推流（預設停用）')
-    parser.add_argument('--rtsp-url', type=str, default=config.rtsp_url,
-                       help=f'RTSP 推流地址 (預設: {config.rtsp_url})')
-    parser.add_argument('--rtsp-bitrate', type=int, default=2000,
-                       help='RTSP 視頻碼率 kbps (預設: 2000，範圍: 1000-3000)')
-
-    args = parser.parse_args()
-
-    logger.info("=" * 60)
-    logger.info("🦟 蚊子追蹤系統 + 手機串流")
-    logger.info("=" * 60)
-
-    # 自動檢測或使用指定的攝像頭模式
-    camera_config = None
-    if args.dual:
-        dual_camera = True
-        camera_width = config.camera_dual_width
-        camera_height = config.camera_dual_height
-        camera_fps = config.camera_dual_fps
-        logger.info("📷 攝像頭模式: 雙目（手動指定）")
-        logger.info(f"   使用配置: {camera_width}×{camera_height}@{camera_fps}fps")
-    elif args.single:
-        dual_camera = False
-        camera_width = 1920
-        camera_height = 1080
-        camera_fps = 60
-        logger.info("📷 攝像頭模式: 單目（手動指定）")
-        logger.info(f"   使用配置: {camera_width}×{camera_height}@{camera_fps}fps")
-    else:
-        logger.info("📷 自動檢測攝像頭最佳配置...")
-        camera_config = detect_best_camera_config(args.camera)
-        dual_camera = camera_config['is_dual']
-        camera_width = camera_config['width']
-        camera_height = camera_config['height']
-        camera_fps = camera_config['fps']
-        logger.info(f"   最佳配置: {camera_config['resolution_name']}")
-
-    # 顯示配置
-    logger.info("⚙️  系統配置:")
-    logger.info(f"   - Arduino 串口: {args.port}")
-    logger.info(f"   - 攝像頭 ID: {args.camera}")
-    logger.info(f"   - 攝像頭模式: {'雙目' if dual_camera else '單目'}")
-    logger.info(f"   - 攝像頭解析度: {camera_width}×{camera_height}@{camera_fps}fps")
-    logger.info(f"   - 串流模式: {args.mode}")
-    logger.info(f"   - HTTP 端口: {args.port_http}")
-    logger.info(f"   - 樣本儲存: {'停用' if not args.save_samples else '啟用'}")
-    logger.info(f"   - RTSP 推流: {'✓ 啟用' if args.rtsp else '✗ 停用 (預設)'}")
-    if args.rtsp:
-        logger.info(f"     → 推流地址: {args.rtsp_url}")
-        logger.info(f"     → 碼率: {args.rtsp_bitrate} kbps")
-    else:
-        logger.info(f"     ℹ️  提示: 使用預設 HTTP-MJPEG 串流（若需 RTSP 請加上 --rtsp 參數）")
-
-    # 創建並運行系統
-    system = StreamingTrackingSystem(
-        arduino_port=args.port,
-        camera_id=args.camera,
-        model_path=args.model,
-        http_port=args.port_http,
-        dual_camera=dual_camera,
-        stream_mode=args.mode,
-        save_samples=args.save_samples,
-        enable_rtsp=args.rtsp,
-        rtsp_url=args.rtsp_url if args.rtsp else None,
-        rtsp_bitrate=args.rtsp_bitrate
-    )
-
-    # 將檢測到的解析度配置應用到系統
-    system.camera_width = camera_width
-    system.camera_height = camera_height
-    system.camera_fps = camera_fps
-
-    system.run()
-
-
-if __name__ == "__main__":
-    main()

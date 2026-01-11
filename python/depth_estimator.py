@@ -31,10 +31,10 @@ class DepthEstimator:
     """雙目深度估計器"""
 
     def __init__(self,
-                 focal_length: float = None,          # 鏡頭焦距 (mm)
-                 baseline: float = None,             # 雙目基線距離 (mm)
+                 focal_length: float = config['DEPTH_FOCAL_LENGTH'],          # 鏡頭焦距 (mm)
+                 baseline: float = config['DEPTH_BASELINE'],             # 雙目基線距離 (mm)
                  image_width: int = 1920,                      # 單眼影像寬度 (pixels)，應傳入實際解析度
-                 sensor_width: float = None,           # 感光元件寬度 (mm)
+                 sensor_width: float = config['DEPTH_SENSOR_WIDTH'],           # 感光元件寬度 (mm)
                  min_disparity: int = 0,              # 最小視差
                  num_disparities: int = 64,           # 視差搜索範圍（必須是16的倍數）
                  block_size: int = 15):               # SAD窗口大小（奇數）
@@ -50,14 +50,13 @@ class DepthEstimator:
             num_disparities: 視差搜索範圍
             block_size: SAD窗口大小
         """
-        # 如果未提供参数，则使用配置文件中的默认值
-        self.focal_length = focal_length or config.depth_focal_length
-        self.baseline = baseline or config.depth_baseline
+        self.focal_length = focal_length
+        self.baseline = baseline
         self.image_width = image_width
-        self.sensor_width = sensor_width or config.depth_sensor_width
+        self.sensor_width = sensor_width
 
         # 計算焦距（以像素為單位）
-        self.focal_length_px = (self.focal_length * image_width) / self.sensor_width
+        self.focal_length_px = (focal_length * image_width) / sensor_width
 
         # 創建立體匹配器（使用Semi-Global Block Matching）
         self.stereo = cv2.StereoSGBM_create(
@@ -74,8 +73,8 @@ class DepthEstimator:
         )
 
         logger.info(f"深度估計器初始化完成")
-        logger.info(f"焦距: {self.focal_length}mm ({self.focal_length_px:.1f}px)")
-        logger.info(f"基線: {self.baseline}mm")
+        logger.info(f"焦距: {focal_length}mm ({self.focal_length_px:.1f}px)")
+        logger.info(f"基線: {baseline}mm")
         logger.info(f"理論測距範圍: {self._calc_min_depth():.2f}m - {self._calc_max_depth():.2f}m")
         logger.info(f"⚠️  實際測距受場景特徵影響（均勻區域可能無法測距）")
 
