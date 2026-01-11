@@ -78,6 +78,7 @@ class StreamingTrackingSystem:
         self.dual_camera = dual_camera
         self.stream_mode = stream_mode
         self.camera_id = camera_id
+        self.http_port = http_port
         self.enable_depth = enable_depth and dual_camera  # 深度估計需要雙目攝像頭
         self._running = True  # 運行標誌，用於優雅退出
 
