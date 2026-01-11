@@ -49,3 +49,4 @@ ENV/
 # Ignore config files
 mosquito.ini
 sample_collection
+rknn_calibration_list.txt

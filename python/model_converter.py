@@ -183,11 +183,7 @@ def export_onnx_model(
         onnx_output_path = onnx_output_dir / 'mosquito_yolov8.onnx'
         onnx.save(model_simplified, str(onnx_output_path))
 
-        # 同時複製一份到 models/ 目錄（如果不同）
-        if onnx_output_dir != Path('models'):
-            models_dir = Path('models')
-            models_dir.mkdir(exist_ok=True)
-            shutil.copy2(onnx_output_path, models_dir / 'mosquito_yolov8.onnx')
+        # 輸出目錄即為最終位置（不再額外複製）
 
         if verbose:
             size_mb = onnx_output_path.stat().st_size / 1024 / 1024
@@ -219,6 +215,37 @@ def generate_rknn_model(
     if not dataset_list_path.exists() or not dataset_list_path.is_file():
         print(f"❌ 錯誤: 校準清單不存在: {dataset_list_path}")
         return None
+
+    # 清理與標準化校準清單
+    try:
+        allowed_exts = {'.jpg', '.jpeg', '.png', '.bmp'}
+        with dataset_list_path.open('r', encoding='utf-8') as f:
+            lines = [ln.strip() for ln in f.readlines() if ln.strip()]
+        valid_paths = []
+        invalid_paths = []
+        for ln in lines:
+            p = Path(ln)
+            if p.exists() and p.is_file() and p.suffix.lower() in allowed_exts:
+                valid_paths.append(str(p.resolve()))
+            else:
+                invalid_paths.append(ln)
+        if invalid_paths:
+            cleaned_path = dataset_list_path.with_suffix('.clean.txt')
+            with cleaned_path.open('w', encoding='utf-8') as f:
+                for vp in valid_paths:
+                    f.write(vp + "\n")
+            if verbose:
+                print(f"  ⚠️ 校準清單含有 {len(invalid_paths)} 個不支援項目，已生成清理後清單: {cleaned_path}")
+            dataset_list_path = cleaned_path
+        else:
+            normalized_path = dataset_list_path.with_suffix('.norm.txt')
+            with normalized_path.open('w', encoding='utf-8') as f:
+                for vp in valid_paths:
+                    f.write(vp + "\n")
+            dataset_list_path = normalized_path
+    except Exception as e:
+        if verbose:
+            print(f"  ⚠️ 清理校準清單時發生例外: {e}，將使用原始清單")
 
     if RKNN is None:
         print("❌ 錯誤: rknn-toolkit2 未安裝")
@@ -268,11 +295,7 @@ def generate_rknn_model(
             print("❌ RKNN 導出失敗")
             return None
 
-        # 同時複製一份到 models/ 目錄（如果不同）
-        if rknn_output_dir != Path('models'):
-            models_dir = Path('models')
-            models_dir.mkdir(exist_ok=True)
-            shutil.copy2(rknn_output_path, models_dir / 'mosquito_yolov8.rknn')
+        # 輸出目錄即為最終位置（不再額外複製）
 
         if verbose:
             size_mb = rknn_output_path.stat().st_size / 1024 / 1024
@@ -413,8 +436,8 @@ def main():
     parser.add_argument(
         '--output-dir',
         type=Path,
-        default=Path('../models').resolve(),
-        help="輸出目錄（預設: ../models）"
+        default=None,
+        help="輸出目錄（預設: 與 .pt 同目錄）"
     )
 
     parser.add_argument(
@@ -449,7 +472,7 @@ def main():
         return False
 
     pt_model = Path(args.pt_model).resolve()
-    output_dir = Path(args.output_dir).resolve()
+    output_dir = Path(args.output_dir).resolve() if args.output_dir else pt_model.parent
     # 校準影像來源目錄（不複製，只建立清單）
     images_dir = Path(args.calib_dir).resolve() if args.calib_dir else Path('../sample_collection/confirmed/mosquito').resolve()
     # 校準清單檔案位置（放在輸出目錄中）
