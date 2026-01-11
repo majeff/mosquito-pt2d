@@ -95,8 +95,16 @@ def prepare_calibration_dataset(
         print(f"❌ 錯誤: 校準影像目錄不存在: {images_dir}")
         return False
 
-    # 從確認的蚊子樣本中抽取圖片
-    mosquito_images = list(images_dir.glob('*.jpg')) + list(images_dir.glob('*.png'))
+    # 從確認的蚊子樣本中抽取圖片（白名單副檔名）
+    allowed_exts = {'.jpg', '.jpeg', '.png', '.bmp'}
+    mosquito_images = [
+        p for p in images_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in allowed_exts
+    ]
+    skipped = [
+        p for p in images_dir.iterdir()
+        if p.is_file() and p.suffix.lower() not in allowed_exts
+    ]
 
     if len(mosquito_images) < 10:
         print(f"❌ 錯誤: 蚊子樣本圖片不足 ({len(mosquito_images)} 張)，至少需要 10 張")
@@ -117,7 +125,7 @@ def prepare_calibration_dataset(
     if verbose:
         print(f"  ✓ 已建立校準清單: {list_path}")
         print(f"    來源目錄: {images_dir}")
-        print(f"    影像數量: {len(calib_samples)}")
+        print(f"    影像數量: {len(calib_samples)} (可用: {len(mosquito_images)}，略過非影像: {len(skipped)})")
 
     return True
 
