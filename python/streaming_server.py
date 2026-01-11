@@ -267,43 +267,66 @@ class StreamingServer:
                     // 定期更新統計資訊
                     function updateStats() {{{{
                         fetch('/stats')
-                            .then(response => response.json())
+                            .then(response => {{{{
+                                if (!response.ok) {{{{
+                                    throw new Error('Network response was not ok');
+                                }}}}
+                                return response.json();
+                            }}}})
                             .then(data => {{{{
-                                document.getElementById('frames').textContent = data.total_frames;
-                                document.getElementById('targets').textContent = data.unique_targets;
+                                console.log('Stats updated:', data);  // 調試用
+
+                                // 更新所有統計數據
+                                document.getElementById('frames').textContent = data.total_frames || 0;
+                                document.getElementById('targets').textContent = data.unique_targets || 0;
                                 document.getElementById('status').textContent = data.tracking_active ? '啟用' : '停用';
-                                document.getElementById('fps').textContent = data.fps.toFixed(1);
-                                document.getElementById('lux').textContent = data.lux;
-                                document.getElementById('lux-status').textContent = data.lux_status;
+                                document.getElementById('fps').textContent = (data.fps || 0).toFixed(1);
+                                document.getElementById('lux').textContent = data.lux || 0;
+                                document.getElementById('lux-status').textContent = data.lux_status || '未知';
 
                                 // 根據狀態改變顏色
                                 const statusElem = document.getElementById('status');
-                                statusElem.style.color = data.tracking_active ? '#4CAF50' : '#888';
+                                if (statusElem) {{{{
+                                    statusElem.style.color = data.tracking_active ? '#4CAF50' : '#888';
+                                }}}}
 
                                 const luxStatusElem = document.getElementById('lux-status');
-                                if (data.lux_status === '正常') {{{{
-                                    luxStatusElem.style.color = '#4CAF50';
-                                }}}} else if (data.lux_status === '偏暗') {{{{
-                                    luxStatusElem.style.color = '#FFA500';
-                                }}}} else if (data.lux_status === '過暗') {{{{
-                                    luxStatusElem.style.color = '#FF5555';
-                                }}}} else {{{{
-                                    luxStatusElem.style.color = '#888';
+                                if (luxStatusElem) {{{{
+                                    if (data.lux_status === '正常') {{{{
+                                        luxStatusElem.style.color = '#4CAF50';
+                                    }}}} else if (data.lux_status === '偏暗') {{{{
+                                        luxStatusElem.style.color = '#FFA500';
+                                    }}}} else if (data.lux_status === '過暗') {{{{
+                                        luxStatusElem.style.color = '#FF5555';
+                                    }}}} else {{{{
+                                        luxStatusElem.style.color = '#888';
+                                    }}}}
                                 }}}}
 
                                 // 計算運行時間
-                                const uptime = Math.floor(Date.now() / 1000 - data.start_time);
-                                const hours = Math.floor(uptime / 3600);
-                                const minutes = Math.floor((uptime % 3600) / 60);
-                                const seconds = uptime % 60;
-                                document.getElementById('uptime').textContent =
-                                    `${{{{hours.toString().padStart(2, '0')}}}}:${{{{minutes.toString().padStart(2, '0')}}}}:${{{{seconds.toString().padStart(2, '0')}}}}`;
+                                if (data.start_time) {{{{
+                                    const uptime = Math.floor(Date.now() / 1000 - data.start_time);
+                                    const hours = Math.floor(uptime / 3600);
+                                    const minutes = Math.floor((uptime % 3600) / 60);
+                                    const seconds = uptime % 60;
+                                    const uptimeElem = document.getElementById('uptime');
+                                    if (uptimeElem) {{{{
+                                        uptimeElem.textContent =
+                                            `${{{{hours.toString().padStart(2, '0')}}}}:${{{{minutes.toString().padStart(2, '0')}}}}:${{{{seconds.toString().padStart(2, '0')}}}}`;
+                                    }}}}
+                                }}}}
+                            }}}})
+                            .catch(error => {{{{
+                                console.error('Error fetching stats:', error);
                             }}}});
                     }}}}
 
-                    // 每秒更新一次
-                    setInterval(updateStats, 1000);
-                    updateStats();
+                    // 頁面加載完成後啟動
+                    window.addEventListener('DOMContentLoaded', function() {{{{
+                        console.log('Starting stats updates...');
+                        updateStats();  // 立即更新一次
+                        setInterval(updateStats, 1000);  // 每秒更新
+                    }}}});
                 </script>
             </body>
             </html>
