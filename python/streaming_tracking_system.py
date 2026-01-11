@@ -259,6 +259,8 @@ class StreamingTrackingSystem:
     def run(self):
         """主運行循環"""
         cap = None
+        frame_count = 0
+        start_time = None
         try:
             # 打開攝像頭
             cap = cv2.VideoCapture(self.camera_id)
@@ -272,7 +274,7 @@ class StreamingTrackingSystem:
             cap.set(cv2.CAP_PROP_FPS, self.camera_fps)
 
             logger.info(f"🎥 攝像頭已開啟 (解析度: {self.camera_width}x{self.camera_height}, FPS: {self.camera_fps})")
-            logger.info(f"📡 串流服務已啟動 http://{self.server.config.device_ip}:{self.http_port}")
+            logger.info(f"📡 串流服務已啟動 http://{self.server.device_ip}:{self.http_port}")
 
             frame_count = 0
             start_time = time.time()
