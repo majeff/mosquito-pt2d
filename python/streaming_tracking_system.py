@@ -97,9 +97,9 @@ class StreamingTrackingSystem:
         self._running = True  # 運行標誌，用於優雅退出
 
         # 攝像頭解析度配置（預設值，會在 main() 中被覆蓋）
-        self.camera_width = CAMERA_DUAL_WIDTH if dual_camera else 1920
-        self.camera_height = CAMERA_DUAL_HEIGHT if dual_camera else 1080
-        self.camera_fps = CAMERA_DUAL_FPS if dual_camera else 60
+        self.camera_width = config.camera_dual_width if dual_camera else 1920
+        self.camera_height = config.camera_dual_height if dual_camera else 1080
+        self.camera_fps = config.camera_dual_fps if dual_camera else 60
 
         # 統計資訊
         self.stats = {
@@ -807,7 +807,7 @@ class StreamingTrackingSystem:
                           f"Lux: {lux} ({lux_status})")
 
                 # 簡單延時控制幀率
-                time.sleep(FRAME_DELAY)  # 幀延時
+                time.sleep(config.frame_delay)  # 幀延時
 
         except Exception as e:
             logger.error(f"\n❌ 發生錯誤: {e}")
