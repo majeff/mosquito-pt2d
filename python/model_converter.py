@@ -2,15 +2,14 @@
 模型格式轉換工具 - 將 YOLOv8 模型轉換為多平台格式
 
 支援轉換：
-- PyTorch (.pt) → 保存備份
 - ONNX (.onnx) - 通用格式，使用 onnxsim 簡化
 - RKNN (.rknn) - Orange Pi 5 (RK3588 NPU) 格式
 
 用法:
-    python model_converter.py
+    python model_converter.py --pt-model ../models/mosquito_yolov8.pt
 
     自訂路徑:
-        python model_converter.py --pt-model /path/to/model.pt --calib-dir /path/to/calibration
+        python model_converter.py --pt-model /path/to/model.pt --output-dir /path/to/output
 """
 
 import argparse
@@ -90,17 +89,9 @@ def prepare_calibration_dataset(
     if verbose:
         print(f"\n📸 準備校準數據集...")
 
-    # 校準圖片來源：sample_collection/confirmed/mosquito
-    mosquito_dir = Path('sample_collection/confirmed/mosquito')
-
-    if not mosquito_dir.exists():
-        print(f"❌ 錯誤: 蚊子樣本目錄不存在: {mosquito_dir}")
-        print(f"   請確認已執行 label_samples.py 並標註樣本")
-        return False
-
-    # 建立校準目錄
-    calib_dir.mkdir(parents=True, exist_ok=True)
-
+    # 校準圖片來源：sample_collection/confirmed/mosquito (相對於專案根目錄)
+    # 由於執行於 python/ 目錄，需要向上一級
+    mosquito_dir = Path('../sample_collection/confirmed/mosquito').resolve()
     # 從確認的蚊子樣本中抽取圖片
     mosquito_images = list(mosquito_dir.glob('*.jpg')) + list(mosquito_dir.glob('*.png'))
 
@@ -366,32 +357,19 @@ def print_summary(
     print("="*60)
 
     print("\n✅ 已生成的模型:")
-    if pt_path and pt_path.exists():
-        size = pt_path.stat().st_size / 1024 / 1024
-        print(f"  📄 PyTorch: {pt_path.name} ({size:.2f} MB)")
     if onnx_path and onnx_path.exists():
         size = onnx_path.stat().st_size / 1024 / 1024
         print(f"  📄 ONNX: {onnx_path.name} ({size:.2f} MB)")
     if rknn_path and rknn_path.exists():
         size = rknn_path.stat().st_size / 1024 / 1024
         print(f"  📄 RKNN (Orange Pi 5): {rknn_path.name} ({size:.2f} MB)")
-    if bin_path and bin_path.exists():
-        size = bin_path.stat().st_size / 1024 / 1024
-        print(f"  📄 BIN (RDK X5): {bin_path.name} ({size:.2f} MB)")
 
     print(f"\n📁 輸出目錄: {output_dir}")
 
     print("\n📥 下一步:")
-    print("  1. 等待 Google Drive 同步完成")
-    print("  2. 執行 deploy_model.py 將模型複製到專案目錄")
-    print("  3. 在目標平台上運行追蹤系統:")
+    print("  在目標平台上運行追蹤系統:")
     if rknn_path and rknn_path.exists():
         print("     - Orange Pi 5: python streaming_tracking_system.py")
-    if bin_path and bin_path.exists():
-        print("     - RDK X5: python streaming_tracking_system.py")
-
-    print("\n" + "="*60)
-
 
 def main():
     """主程式"""
@@ -417,18 +395,15 @@ def main():
     parser.add_argument(
         '--pt-model',
         type=Path,
-        default=Path('models/mosquito_yolov8.pt'),
-        help="PyTorch 模型路徑 (預設: models/mosquito_yolov8.pt)"
+        default=None,
+        help="PyTorch 模型路徑 (必須指定)"
     )
 
     parser.add_argument(
         '--output-dir',
         type=Path,
-        default=Path('./models'),
-        help="輸出目錄（預設: ./models）"
-    )
-
-    parser.add_argument(
+        default=Path('../models').resolve(),
+        help="輸出目錄（預設: ../models）"
         '--training-dataset',
         type=Path,
         help="訓練數據集目錄（已棄用，校準圖像現在來自 sample_collection/confirmed/mosquito）"
@@ -455,18 +430,20 @@ def main():
     args = parser.parse_args()
 
     # 本地模式
-    pt_model = args.pt_model
-    output_dir = args.output_dir
-    calib_dir = args.calib_dir or (output_dir / 'calibration_images')
-
-    # 驗證必要檔案
-    if pt_model.exists():
-        pass  # 檔案存在，繼續
-    else:
+    if args.pt_model is None:
+        print("❌ 錯誤: 必須指定 PyTorch 模型路徑 (--pt-model)")
+        return False
+    
+    pt_model = Path(args.pt_model).resolve()
+    output_dir = Path(args.output_dir).resolve()
+    calib_dir = Path(args.calib_dir).resolve() if args.calib_dir else (output_dir / 'calibration_images')
+    
+    # 驗證模型檔案存在
+    if not pt_model.exists():
         print(f"❌ 錯誤: PyTorch 模型不存在: {pt_model}")
         print(f"   請確認模型路徑正確，或使用 --pt-model 指定")
         return False
-
+    
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print("="*60)
@@ -479,33 +456,22 @@ def main():
     if not install_dependencies():
         print("⚠️ 部分依賴安裝失敗，部分功能可能不可用")
 
-    # 2. 備份 PyTorch 模型
-    pt_backup = backup_pytorch_model(pt_model, output_dir)
-
-    # 3. 準備校準數據集
+    # 2. 準備校準數據集
     if not args.skip_rknn:
         prepare_calibration_dataset(calib_dir)
 
-    # 4. 導出 ONNX
+    # 3. 導出 ONNX
     onnx_path = None
     if not args.skip_onnx:
         onnx_path = export_onnx_model(pt_model, output_dir)
 
-    # 5. 生成 RKNN
+    # 4. 生成 RKNN
     rknn_path = None
     if not args.skip_rknn and onnx_path and calib_dir.exists():
         rknn_path = generate_rknn_model(onnx_path, calib_dir, output_dir)
 
-    # 6. 建立備份
-    print(f"\n📦 建立備份壓縮檔...")
-    create_backup_zip(output_dir)
-
-    # 7. 顯示摘要
-    print_summary(output_dir, pt_backup, onnx_path, rknn_path)
-
-    return True
-
-
+    # 5. 顯示摘要
+    print_summary(output_dir, None, onnx_path, rknn_path)
 if __name__ == '__main__':
     try:
         success = main()
