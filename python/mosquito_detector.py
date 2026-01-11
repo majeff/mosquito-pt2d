@@ -458,6 +458,12 @@ class MosquitoDetector:
         """
         # 依設定判斷是否需要保存（中等或高信心度）
         confidence = detection.get('confidence', 0.0)
+
+        # 過濾異常信心度值（排除 confidence == 1.0）
+        if confidence >= 1.0:
+            logger.debug(f"已跳過信心度=1.0的異常檢測樣本")
+            return
+
         is_medium = self.save_uncertain_samples and (self.uncertain_conf_range[0] <= confidence <= self.uncertain_conf_range[1])
         is_high = self.save_high_confidence and (confidence > self.high_conf_threshold)
 

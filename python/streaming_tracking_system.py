@@ -516,6 +516,39 @@ class StreamingTrackingSystem:
             if len([d for d in detections if d.get('confidence', 0) >= 1.0]) > 0:
                 logger.debug(f"已過濾 {len([d for d in detections if d.get('confidence', 0) >= 1.0])} 個信心度=1.0的異常檢測")
 
+        # 過濾全白區域檢測（誤檢過曝區域）
+        if detections:
+            filtered_detections = []
+            white_threshold = 240  # 白色像素閾值
+            white_ratio_threshold = 0.7  # 白色像素比例閾值 70%
+
+            for detection in detections:
+                bbox = detection.get('bbox')
+                if bbox:
+                    x1, y1, x2, y2 = bbox
+                    # 確保座標在影像範圍內
+                    x1, y1 = max(0, x1), max(0, y1)
+                    x2, y2 = min(left_frame.shape[1], x2), min(left_frame.shape[0], y2)
+
+                    if x2 > x1 and y2 > y1:
+                        # 提取檢測框區域
+                        roi = left_frame[y1:y2, x1:x2]
+                        # 轉換為灰度
+                        gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                        # 計算白色像素比例
+                        white_pixels = np.sum(gray_roi >= white_threshold)
+                        total_pixels = gray_roi.size
+                        white_ratio = white_pixels / total_pixels if total_pixels > 0 else 0
+
+                        if white_ratio < white_ratio_threshold:
+                            filtered_detections.append(detection)
+                        else:
+                            logger.debug(f"已過濾全白區域檢測 (白色比例: {white_ratio:.2%})")
+                else:
+                    filtered_detections.append(detection)
+
+            detections = filtered_detections
+
         # 追蹤唯一目標
         if detections:
             self._update_unique_targets(detections)
