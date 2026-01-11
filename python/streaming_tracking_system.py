@@ -129,6 +129,19 @@ class StreamingTrackingSystem:
         logger.info(f"  save_annotations: {config.save_annotations}")
         logger.info(f"  save_full_frame: {config.save_full_frame}")
 
+        logger.info("\n[SAMPLE_ANNOTATION]")
+        logger.info(f"  sample_collection_dir: {config.sample_collection_dir}")
+        logger.info(f"  medium_confidence_dir: {config.medium_confidence_dir}")
+        logger.info(f"  high_confidence_dir: {config.high_confidence_dir}")
+        logger.info(f"  confirmed_mosquito_dir: {config.confirmed_mosquito_dir}")
+        logger.info(f"  confirmed_not_mosquito_dir: {config.confirmed_not_mosquito_dir}")
+
+        logger.info("\n[SAMPLE_LABELING]")
+        logger.info(f"  relocation_base_dir: {config.RELOCATION_BASE_DIR}")
+        logger.info(f"  relocation_mosquito_dir: {config.RELOCATION_MOSQUITO_DIR}")
+        logger.info(f"  relocation_not_mosquito_dir: {config.RELOCATION_NOT_MOSQUITO_DIR}")
+        logger.info(f"  colab_notebook_dest_dir: {config.COLAB_NOTEBOOK_DEST_DIR}")
+
         logger.info("\n[NETWORK]")
         logger.info(f"  device_ip: {config.device_ip}")
         logger.info(f"  external_url: {config.external_url}")
