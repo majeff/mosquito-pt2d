@@ -1034,7 +1034,7 @@ def test_mosquito_detector():
         detector = MosquitoDetector(
             model_path='models/mosquito',  # 自動選擇硬體加速格式
             confidence_threshold=0.3,
-            imgsz=DEFAULT_IMGSZ  # 從 config.py 讀取，可統一修改
+            imgsz=config.imgsz  # 從 mosquito.ini 配置文件讀取，可統一修改
         )
 
         frame_count = 0

@@ -45,6 +45,11 @@ class PT2DController:
         self.timeout = timeout if timeout is not None else config.arduino_timeout
         self.ser = None
         self.is_connected = False
+        
+        # 從配置文件讀取舵機ID
+        self.pan_servo_id = getattr(config, 'pan_servo_id', 1)  # 默認為1
+        self.tilt_servo_id = getattr(config, 'tilt_servo_id', 2)  # 默認為2
+        
         self.servo_enabled = False  # 初始為禁用，只有在成功初始化後才啟用
 
         # 角度限制（初始值，會由 Arduino 動態設置）
@@ -112,6 +117,13 @@ class PT2DController:
                                 tilt_id = data.get('tilt_id', 0)
                                 if pan_id > 0 and tilt_id > 0:
                                     logger.info(f"偵測到舵機 ID: Pan={pan_id}, Tilt={tilt_id}")
+
+                                    # 確保從配置文件讀取的ID與Arduino報告的ID一致
+                                    if pan_id != self.pan_servo_id:
+                                        logger.warning(f"配置文件中的Pan ID({self.pan_servo_id})與Arduino報告的({pan_id})不一致，使用配置文件中的值")
+                                    
+                                    if tilt_id != self.tilt_servo_id:
+                                        logger.warning(f"配置文件中的Tilt ID({self.tilt_servo_id})與Arduino報告的({tilt_id})不一致，使用配置文件中的值")
 
                             # 解析角度限制
                             if 'pan_min' in data:
@@ -556,7 +568,7 @@ class PT2DController:
             target_pan: 目標 Pan 角度
             target_tilt: 目標 Tilt 角度
             tolerance: 允許誤差，默認 2 度
-            timeout: 超時時間，默認 10 秒
+            timeout: 超時時間，默認為 10 秒
 
         Returns:
             是否成功到達

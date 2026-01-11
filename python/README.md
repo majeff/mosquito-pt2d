@@ -11,10 +11,9 @@
 - `laser_controller.py` - 雷射控制模組
 - `stereo_camera.py` - 單一雙目攝像頭模組
 - `streaming_tracking_system.py` - 一體化系統（AI+追蹤+串流，推薦主程式）
-- `config_loader.py` - 配置參數加載模組（從 INI 檔案加載參數）
 
 ### 配置檔案
-- `mosquito.ini` - 系統配置檔案（實際運行時的配置）
+- `mosquito.ini` - 系統主要配置文件（實際運行時的配置）
 - `mosquito_sample.ini` - 配置檔案範本（包含詳細參數說明）
 
 ### 模型改進工具（簡化流程）

@@ -337,54 +337,16 @@ python streaming_tracking_system.py --help
 
 ### 配置參數
 
-系統參數統一在 [python/config.py](python/config.py) 中管理，方便集中修改：
+系統參數統一在 [python/mosquito.ini](python/mosquito.ini) 中管理，方便集中修改：
 
 ```
-# ============================================
-# AI 檢測參數
-# ============================================
-DEFAULT_IMGSZ = 640                      # 輸入解析度（320/416/640，預設 640）
-DEFAULT_CONFIDENCE_THRESHOLD = 0.4       # 信心度閾值（0.3-0.7）
-DEFAULT_IOU_THRESHOLD = 0.45             # IoU 閾值
-
-# ============================================
-# 追蹤參數
-# ============================================
-DEFAULT_PAN_GAIN = 0.15                  # Pan 增益（控制靈敏度）
-DEFAULT_TILT_GAIN = 0.15                 # Tilt 增益（控制靈敏度）
-DEFAULT_NO_DETECTION_TIMEOUT = 3.0       # 無偵測超時（秒）
-DEFAULT_TARGET_LOCK_DISTANCE = 100       # 目標鎖定距離（像素）
-
-# ============================================
-# 攝像頭參數（自動檢測）
-# ============================================
-# ⚠️ 系統啟動時會自動檢測並選擇最佳配置
-# 以下常數僅在手動指定 --dual 時使用
-CAMERA_DUAL_WIDTH = 3840                 # 雙目攝像頭寬度
-CAMERA_DUAL_HEIGHT = 1080                # 雙目攝像頭高度
-CAMERA_DUAL_FPS = 60                     # 雙目攝像頭 FPS
-
-# ============================================
-# 硬體參數
-# ============================================
-DEFAULT_ARDUINO_PORT = '/dev/ttyUSB0'    # Linux/Orange Pi
-# DEFAULT_ARDUINO_PORT = 'COM3'          # Windows
-DEFAULT_LEFT_CAMERA_ID = 0
-DEFAULT_RIGHT_CAMERA_ID = 1
-
-# ============================================
-# 控制參數
-# ============================================
-DEFAULT_BEEP_COOLDOWN = 2.0              # 蜂鳴器冷卻時間（秒）
-DEFAULT_LASER_COOLDOWN = 0.5             # 雷射冷卻時間（秒）
+# 網路配置
+device_ip = "192.168.1.100"              # 內網 IP
+external_url = "https://mosquito.ma7.in"  # 外部訪問 URL
+rtsp_url = "rtsp://0.0.0.0:8554/mosquito" # RTSP 推流地址
 ```
 
-**修改方式**：編輯 `python/config.py` 即可統一調整所有模組的參數。
-
-**常用調整**：
-- **提升速度**：將 `DEFAULT_IMGSZ` 改為 `320`（犧牲精度）
-- **提升精度**：將 `DEFAULT_IMGSZ` 改為 `800` 或 `1280`（降低速度）
-- **調整追蹤靈敏度**：修改 `DEFAULT_PAN_GAIN` 和 `DEFAULT_TILT_GAIN`
+更多配置說明請參考 [REFERENCE.md](REFERENCE.md)。
 
 ---
 
@@ -1051,14 +1013,16 @@ vlc rtsp://mosquito.ma7.in:8554/mosquito
 
 ### Python 配置更新
 
-更新 [python/config.py](python/config.py)：
+更新 [python/mosquito.ini](python/mosquito.ini)：
 
 ```
 # 網路配置
-DEFAULT_DEVICE_IP = "192.168.1.100"              # 內網 IP
-DEFAULT_EXTERNAL_URL = "https://mosquito.ma7.in"  # 外部訪問 URL
-DEFAULT_RTSP_URL = "rtsp://0.0.0.0:8554/mosquito" # RTSP 推流地址
+device_ip = "192.168.1.100"              # 內網 IP
+external_url = "https://mosquito.ma7.in"  # 外部訪問 URL
+rtsp_url = "rtsp://0.0.0.0:8554/mosquito" # RTSP 推流地址
 ```
+
+更多配置說明請參考 [REFERENCE.md](REFERENCE.md)。
 
 ### 效能優化建議
 
@@ -1154,7 +1118,7 @@ location /nginx_status {
    # Linux/Orange Pi: /dev/ttyUSB0, /dev/ttyACM0 等
    # Windows: COM3, COM4 等
    arduino_port = /dev/ttyUSB0
-   
+
    [CAMERA]
    # 雙目攝像頭預設設定
    # 寬度，範圍: 640-7680 (8K)，建議值: 3840 (4K)

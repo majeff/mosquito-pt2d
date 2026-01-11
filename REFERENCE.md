@@ -146,7 +146,7 @@ Z = (f × B) / d
 
 ### 模型搜尋優先順序
 
-```python
+``python
 # mosquito_detector.py 自動模型搜尋邏輯
 優先順序:
 1. .bin (RDK X5 BPU) ← 最快
@@ -250,38 +250,40 @@ Arduino GND ──→ 雷射頭 GND
 
 ### 系統配置參數
 
-```python
-# 所有模組應使用統一參數
+所有參數應在 [mosquito.ini](python/mosquito.ini) 中配置，以下是主要配置項說明：
 
-# 攝像頭
-CAMERA_WIDTH = 1920
-CAMERA_HEIGHT = 1080
-CAMERA_FPS = 60
+**AI 檢測參數** (`[AI_DETECTION]` section):
+- `imgsz` = 640 (AI 模型輸入尺寸)
+- `confidence_threshold` = 0.4 (信心度閾值)
+- `iou_threshold` = 0.45 (NMS IOU 閾值)
+- `detection_mode` = tiling (檢測模式)
+- `tile_overlap` = 0.25 (分塊檢測重疊率)
 
-# AI 檢測
-AI_CONFIDENCE_THRESHOLD = 0.4
-AI_IMGSZ = 640
-AI_CONF_RANGE_LOW = 0.35
-AI_CONF_RANGE_HIGH = 0.65
+**攝像頭參數** (`[CAMERA]` section):
+- `camera_dual_width` = 3840 (雙目攝像頭總寬度)
+- `camera_dual_height` = 1080 (雙目攝像頭總高度)
+- `camera_dual_fps` = 60 (攝像頭幀率)
 
-# 深度估計
-FOCAL_LENGTH_MM = 3.0
-BASELINE_MM = 120.0
-STEREO_IMAGE_WIDTH = 1920
+**深度估計參數** (`[DEPTH_ESTIMATION]` section):
+- `depth_focal_length` = 3.0 (焦距，毫米)
+- `depth_baseline` = 120.0 (基線距離，毫米)
 
-# Arduino 通訊
-ARDUINO_BAUDRATE = 115200
-ARDUINO_TIMEOUT_MS = 1000
-DEFAULT_ARDUINO_PORT = '/dev/ttyUSB0'  # Linux
-# DEFAULT_ARDUINO_PORT = 'COM3'         # Windows
+**串口通訊參數** (`[SERIAL]` section):
+- `arduino_baudrate` = 115200 (串口波特率)
+- `arduino_timeout` = 1.0 (串口超時時間，秒)
 
-# 舵機配置
-SERVO_ID_PAN = 1
-SERVO_ID_TILT = 2
-SERVO_MIN_ANGLE = 0
-SERVO_MAX_ANGLE = 180
-SERVO_CENTER = 90
-```
+**硬體參數** (`[HARDWARE]` section):
+- `arduino_port` = /dev/ttyUSB0 (Arduino 端口)
+- `left_camera_id` = 0 (左攝像頭 ID)
+- `right_camera_id` = 1 (右攝像頭 ID)
+- `pan_servo_id` = 1 (Pan 軸舵機 ID)
+- `tilt_servo_id` = 2 (Tilt 軸舵機 ID)
+
+**追蹤參數** (`[TRACKING]` section):
+- `pan_gain` = 0.15 (水平軸增益)
+- `tilt_gain` = 0.15 (垂直軸增益)
+- `no_detection_timeout` = 3.0 (無檢測超時時間)
+- `target_lock_distance` = 100 (目標鎖定距離，像素)
 
 ---
 
@@ -290,12 +292,12 @@ SERVO_CENTER = 90
 在各文檔中遇到重複內容時，應使用以下格式進行交叉引用：
 
 ### 格式 1: 簡短參考
-```markdown
+```
 攝像頭規格: 詳見 [REFERENCE.md - 攝像頭技術參數](#攝像頭技術參數)
 ```
 
 ### 格式 2: 詳細說明 + 參考
-```markdown
+```
 ### AI 推理
 
 本系統使用 YOLOv8 進行蚊子檢測。
@@ -306,7 +308,7 @@ SERVO_CENTER = 90
 ```
 
 ### 格式 3: 指向明確文檔章節
-```markdown
+```
 詳見 [硬體連接標準](#硬體連接標準) 或閱讀完整 [hardware.md](docs/hardware.md)
 ```
 

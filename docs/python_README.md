@@ -112,6 +112,15 @@ sudo python3 mosquito_tracker.py
 
 ## 📦 模組說明
 
+### 0. `config_loader.py` - 系統配置載入器
+
+負責載入和管理所有系統參數配置。
+
+**主要功能:**
+- 集中管理系統所有配置參數
+- 提供預設值和類型檢查
+- 支援配置覆寫和環境變數
+
 ### 1. `stereo_camera.py` - 雙目攝像頭模組
 
 負責雙 1080p USB 攝像頭的影像擷取。
@@ -376,6 +385,7 @@ ENABLE_ILLUMINATION_MONITORING = True      # 啟用光照監測
 ILLUMINATION_WARNING_THRESHOLD = 60        # 警告光照值（0-255）
 ILLUMINATION_PAUSE_THRESHOLD = 40          # 暫停/恢復 AI 檢測光照值
 ILLUMINATION_CHECK_INTERVAL = 5.0          # 光照檢測間隔（秒）
+
 ```
 
 ### AI 模型優化設定
@@ -434,14 +444,23 @@ sudo python3 -c "import OPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.setup(5
 
 ### 光照度智能監測參數
 
-在 `config.py` 中調整光照度監測設定:
+在 `mosquito.ini` 中調整光照度監測設定:
 
-```python
-# 光照度監測配置
-ENABLE_ILLUMINATION_MONITORING = True      # 是否啟用光照監測
-ILLUMINATION_WARNING_THRESHOLD = 60        # 警告光照值（0-255 灰階值）
-ILLUMINATION_PAUSE_THRESHOLD = 40          # 暫停/恢復 AI 檢測的光照閾值
-ILLUMINATION_CHECK_INTERVAL = 5.0          # 光照狀態檢查間隔（秒）
+``ini
+[ILLUMINATION_MONITORING]
+# 是否啟用光照度監控
+enable_illumination_monitoring = true
+
+# 光照度警告閾值（亮度值 0-255 範圍）
+# 低於此值時在螢幕提示光照不足
+illumination_warning_threshold = 60
+
+# 光照度暫停閾值（亮度值 0-255 範圍）
+# 低於此值時暫停 AI 檢測，高於此值時恢復 AI 檢測
+illumination_pause_threshold = 40
+
+# 光照度檢查間隔（秒）- 每 N 秒檢查一次亮度
+illumination_check_interval = 5.0
 ```
 
 **光照度監測工作原理：**

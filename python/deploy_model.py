@@ -39,9 +39,9 @@ import argparse
 
 try:
      from config_loader import config  # 使用新的配置加载模块
-except Exception as e:
-    print(f"[ERROR] 無法載入 config_loader.py: {e}")
-    sys.exit(1)
+except ImportError as e:
+        print(f"[ERROR] 無法載入配置模組: {e}")
+        sys.exit(1)
 
 
 def backup_existing_models(local_models_dir: Path):

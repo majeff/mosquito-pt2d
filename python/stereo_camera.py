@@ -93,7 +93,7 @@ def list_available_cameras(max_test: int = 5) -> List[dict]:
     return available
 
 
-class SingleStereoCamera:
+class StereoCamera:
     """單一雙目 USB 攝像頭類"""
 
     def __init__(self, camera_id: int = 0, width: int = 3840, height: int = 1080, fps: int = 60):
@@ -157,7 +157,7 @@ class SingleStereoCamera:
             self.cap.set(cv2.CAP_PROP_FPS, self.fps)
             
             self.is_opened = True
-            logger.info(f"單一雙目攝像頭已開啟 (ID: {self.camera_id}, 分辨率: {self.width}x{self.height})")
+            logger.info(f"StereoCamera 已開啟 (ID: {self.camera_id}, 分辨率: {self.width}x{self.height})")
             logger.info(f"解析度: {self.width}x{self.height}, FPS: {self.fps}")
             return True
 

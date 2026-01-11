@@ -62,8 +62,8 @@ class StreamingTrackingSystem:
                  http_port: int = 5000,
                  dual_camera: bool = True,
                  stream_mode: str = "single",
-                 save_samples: bool = DEFAULT_SAVE_UNCERTAIN_SAMPLES,
-                 sample_conf_range: tuple = DEFAULT_UNCERTAIN_CONF_RANGE,
+                 save_samples: bool = None,
+                 sample_conf_range: tuple = None,
                  enable_depth: bool = True,
                  enable_rtsp: bool = False,
                  rtsp_url: str = None,
@@ -123,12 +123,19 @@ class StreamingTrackingSystem:
 
         # 1. 初始化 AI 檢測器（只創建一次！）
         logger.info("[1/5] 初始化 AI 檢測器...")
+
+        # 如果未指定參數，則使用配置文件中的值
+        if save_samples is None:
+            save_samples = config.save_uncertain_samples
+        if sample_conf_range is None:
+            sample_conf_range = config.uncertain_conf_range
+
         self.detector = MosquitoDetector(
             model_path=model_path,
             confidence_threshold=config.confidence_threshold,  # 使用新配置
             imgsz=config.imgsz,  # 使用新配置
             save_uncertain_samples=save_samples,
-            uncertain_conf_range=config.uncertain_conf_range,  # 使用新配置
+            uncertain_conf_range=sample_conf_range,  # 使用傳入的參數
             save_dir="uncertain_samples",
             max_samples=config.max_samples,  # 使用新配置
             save_interval=config.save_interval,  # 使用新配置
