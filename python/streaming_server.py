@@ -315,6 +315,10 @@ class StreamingServer:
                             <div class="stat-value" id="targets">-</div>
                         </div>
                         <div class="stat-card">
+                            <div class="stat-label">中信心度樣本</div>
+                            <div class="stat-value" id="samples">-</div>
+                        </div>
+                        <div class="stat-card">
                             <div class="stat-label">追蹤狀態</div>
                             <div class="stat-value" id="status">
                                 <span class="status-indicator status-idle"></span>停用
@@ -327,18 +331,6 @@ class StreamingServer:
                         <div class="stat-card">
                             <div class="stat-label">光照 (Lux)</div>
                             <div class="stat-value" id="lux">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">總幀數</div>
-                            <div class="stat-value" id="frames">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">運行時間</div>
-                            <div class="stat-value" id="uptime">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">中信心度樣本</div>
-                            <div class="stat-value" id="samples">-</div>
                         </div>
                     </div>
 
@@ -371,11 +363,9 @@ class StreamingServer:
                                 timeout: 5000,
                                 success: function(data) {{
                                     $('#targets').text(data.unique_targets || '-');
+                                    $('#samples').text(data.samples_saved || '-');
                                     $('#fps').text((data.fps || 0).toFixed(1));
                                     $('#lux').text(data.lux || '-');
-                                    $('#frames').text(data.total_frames || '-');
-                                    $('#uptime').text(formatTime(data.elapsed_time || 0));
-                                    $('#samples').text(data.samples_saved || '-');
 
                                     const isActive = data.tracking_active;
                                     const statusClass = isActive ? 'status-active' : 'status-idle';
