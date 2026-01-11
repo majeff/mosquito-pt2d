@@ -354,6 +354,17 @@ class StreamingTrackingSystem:
                         status = "🔴 錯誤" if error_count > 0 else "🟢 正常"
                         logger.debug(f"{status} FPS: {fps:.1f}, 幀數: {frame_count}, 目標: {self.stats.get('unique_targets', 0)}")
 
+                        # 同步統計信息到串流伺服器
+                        illumination_info = self.stats.get('last_illumination_info', {})
+                        self.server.update_stats(
+                            unique_targets=self.stats.get('unique_targets', 0),
+                            tracking_active=self.stats.get('tracking_active', False),
+                            fps=fps,
+                            lux=illumination_info.get('lux', 0),
+                            lux_status=illumination_info.get('status', 'Unknown'),
+                            samples_saved=self.stats.get('samples_saved', 0)
+                        )
+
                 except KeyboardInterrupt:
                     logger.info("\n⏹️  收到中斷信號，正在關閉...")
                     self._running = False

@@ -95,7 +95,8 @@ class StreamingServer:
             'tracking_active': False,
             'fps': 0.0,
             'lux': 0,
-            'lux_status': 'Unknown'
+            'lux_status': 'Unknown',
+            'samples_saved': 0
         }
 
         # Flask APP
@@ -381,8 +382,8 @@ class StreamingServer:
                         // 立即執行一次
                         updateStats();
 
-                        // 每 1000ms 執行一次
-                        setInterval(updateStats, 1000);
+                        // 每 5000ms 執行一次
+                        setInterval(updateStats, 5000);
                     }});
                 </script>
             </body>
@@ -470,7 +471,7 @@ class StreamingServer:
                 self.stats['rtsp_enabled'] = False
 
     def update_stats(self, unique_targets: int = None, tracking_active: bool = None,
-                    fps: float = None, lux: int = None, lux_status: str = None):
+                    fps: float = None, lux: int = None, lux_status: str = None, samples_saved: int = None):
         """更新統計資訊
 
         Args:
@@ -479,6 +480,7 @@ class StreamingServer:
             fps: 當前 FPS
             lux: 光照度
             lux_status: 光照狀態 ('正常', '偏暗', '過暗', '未知')
+            samples_saved: 已保存樣本數
         """
         if unique_targets is not None:
             self.stats['unique_targets'] = unique_targets
@@ -490,6 +492,8 @@ class StreamingServer:
             self.stats['lux'] = lux
         if lux_status is not None:
             self.stats['lux_status'] = lux_status
+        if samples_saved is not None:
+            self.stats['samples_saved'] = samples_saved
 
     def enable_rtsp_push(self, frame_width: int, frame_height: int,
                          bitrate: int = 2000, preset: str = 'ultrafast'):
