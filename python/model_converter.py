@@ -433,17 +433,17 @@ def main():
     if args.pt_model is None:
         print("❌ 錯誤: 必須指定 PyTorch 模型路徑 (--pt-model)")
         return False
-    
+
     pt_model = Path(args.pt_model).resolve()
     output_dir = Path(args.output_dir).resolve()
     calib_dir = Path(args.calib_dir).resolve() if args.calib_dir else (output_dir / 'calibration_images')
-    
+
     # 驗證模型檔案存在
     if not pt_model.exists():
         print(f"❌ 錯誤: PyTorch 模型不存在: {pt_model}")
         print(f"   請確認模型路徑正確，或使用 --pt-model 指定")
         return False
-    
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print("="*60)
