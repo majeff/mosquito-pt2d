@@ -1,19 +1,3 @@
-"""
-完整蚊子追蹤系統 + 手機串流
-整合 AI 檢測、雲台追蹤、影像串流於一體
-
-⚠️ 這是唯一需要運行的程式！
-- ✅ 包含 AI 檢測 (MosquitoDetector)
-- ✅ 包含雲台控制 (PT2DController)
-- ✅ 包含追蹤邏輯 (MosquitoTracker)
-- ✅ 包含影像串流 (StreamingServer)
-- ✅ AI 負載不會重複（每幀只檢測一次）
-- ✅ 支援雙目攝像頭
-
-使用方式：
-    python streaming_tracking_system.py
-"""
-
 # Copyright 2025 Arduino PT2D Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +18,7 @@ from mosquito_tracker import MosquitoTracker
 from pt2d_controller import PT2DController
 from depth_estimator import DepthEstimator
 from config_loader import config  # 使用新的配置加載模組
+from collections import deque
 import sys
 import cv2
 import numpy as np
@@ -43,6 +28,10 @@ import signal
 import logging
 import traceback
 from pathlib import Path
+
+# 設備訪問 IP 配置
+DEFAULT_DEVICE_IP = "127.0.0.1"  # 本地 IP（通常是 localhost）
+DEFAULT_EXTERNAL_URL = None  # 遠端訪問 URL（可選）
 
 # 配置 logging
 logging.basicConfig(
@@ -119,7 +108,6 @@ class StreamingTrackingSystem:
 
         # 單目過濾器追蹤數據（用於時間連續性和運動合理性檢查）
         self.detection_history = {}       # {track_id: {'frames': int, 'positions': deque, 'static_frames': int}}
-        from collections import deque
 
         # 1. 初始化 AI 檢測器（只創建一次！）
         logger.info("[1/5] 初始化 AI 檢測器...")
@@ -242,17 +230,14 @@ class StreamingTrackingSystem:
         logger.info("🎉 系統已完全啟動！")
         logger.info("=" * 60)
         # 生成訪問地址
-        device_ip = DEFAULT_DEVICE_IP or "[你的IP]"
-        local_url = f"http://{device_ip}:{http_port}"
+        local_url = f"http://localhost:{config.stream_port}"
         logger.info(f"📱 本機訪問: {local_url}")
-
-        # 如果設置了外部 URL，顯示外部訪問方式
-        if DEFAULT_EXTERNAL_URL:
-            logger.info(f"🌐 遠端訪問: {DEFAULT_EXTERNAL_URL}")
+        logger.info(f"📱 遠端訪問: http://<你的設備IP>:{config.stream_port}")
 
         if self.server_right:
-            right_url = f"http://{device_ip}:{http_port + 1}"
+            right_url = f"http://localhost:{config.stream_port + 1}"
             logger.info(f"📱 右側視角（本機）: {right_url}")
+            logger.info(f"📱 右側視角（遠端）: http://<你的設備IP>:{config.stream_port + 1}")
 
         logger.info("ℹ️  系統配置:")
         logger.info(f"   - AI 檢測: ✓ 啟用 ({self.detector.backend.upper()})")
@@ -271,6 +256,75 @@ class StreamingTrackingSystem:
         logger.info("🎮 控制方式:")
         logger.info("   Ctrl+C - 退出系統")
         logger.info("   (通過瀏覽器訪問 HTTP 串流查看影像)")
+
+    def run(self):
+        """主運行循環"""
+        try:
+            # 打開攝像頭
+            cap = cv2.VideoCapture(self.camera_id)
+            if not cap.isOpened():
+                logger.error(f"❌ 無法打開攝像頭 {self.camera_id}")
+                return
+
+            # 設置攝像頭參數
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.camera_width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.camera_height)
+            cap.set(cv2.CAP_PROP_FPS, self.camera_fps)
+
+            logger.info(f"🎥 攝像頭已開啟 (解析度: {self.camera_width}x{self.camera_height}, FPS: {self.camera_fps})")
+
+            frame_count = 0
+            start_time = time.time()
+
+            while self._running:
+                ret, frame = cap.read()
+                if not ret:
+                    logger.warning("⚠️  無法讀取幀")
+                    break
+
+                frame_count += 1
+
+                # 處理幀
+                result = self.process_frame(frame)
+
+                # 發送到串流伺服器
+                if isinstance(result, tuple):
+                    # 雙串流模式
+                    self.server.update_frame(result[0])
+                    if self.server_right:
+                        self.server_right.update_frame(result[1])
+                else:
+                    self.server.update_frame(result)
+
+                # 定期輸出統計信息
+                if frame_count % 30 == 0:
+                    elapsed = time.time() - start_time
+                    fps = frame_count / elapsed
+                    logger.debug(f"📊 FPS: {fps:.1f}, 幀數: {frame_count}, 獨立目標: {self.stats['unique_targets']}")
+
+        except Exception as e:
+            logger.error(f"❌ 運行循環錯誤: {e}")
+            traceback.print_exc()
+        finally:
+            self._running = False
+            if 'cap' in locals():
+                cap.release()
+            logger.info("🛑 系統已停止")
+
+    def _draw_system_info(self, frame: np.ndarray, detections: list, illumination_info: dict) -> np.ndarray:
+        """繪製系統信息到幀上"""
+        # 繪製檢測目標數
+        num_detections = len(detections) if detections else 0
+        text = f"Detections: {num_detections} | Targets: {self.stats['unique_targets']}"
+        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+        # 繪製追蹤狀態
+        if self.stats['tracking_active']:
+            cv2.putText(frame, "Tracking: ACTIVE", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        else:
+            cv2.putText(frame, "Tracking: IDLE", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+
+        return frame
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -638,7 +692,8 @@ class StreamingTrackingSystem:
         except ImportError:
             # 默認值
             MIN_MOSQUITO_SIZE_MM = 3
-            MAX_MOSQUITO_SIZE_MM = 15            MIN_BBOX_SIZE_PX = 10
+            MAX_MOSQUITO_SIZE_MM = 15
+            MIN_BBOX_SIZE_PX = 10
             MAX_BBOX_SIZE_PX = 200
             MIN_ASPECT_RATIO = 0.3
             MAX_ASPECT_RATIO = 3.0
@@ -650,72 +705,68 @@ class StreamingTrackingSystem:
             height = y2 - y1
             conf = detection.get('confidence', 0)
             track_id = detection.get('track_id')
+            distance_cm = detection.get('distance_cm', None)
+            obj_size_mm = detection.get('object_size_mm', None)
 
-            logger.info(f"�˴����� #{track_id if track_id else '?'}: "
-                       f"��m=({x1},{y1})-({x2},{y2}), "
-                       f"�j�p={width}x{height}px, "
-                       f"�H�߫�={conf:.2%}")
+            logger.info(f"檢測結果: track_id={track_id}, 信心度={conf:.2f}, 位置=({x1},{y1}), 尺寸={width}x{height}"
+                       + (f", 距離={distance_cm:.1f}cm, 尺寸={obj_size_mm:.1f}mm" if distance_cm and obj_size_mm else ""))
 
 
 def main():
-    """�D�{���J�f"""
+    """蚊子追蹤系統主程序"""
     parser = argparse.ArgumentParser(
-        description="�A�l�l�ܨt�� + �����y��X",
+        description="蚊子追蹤系統 - 整合 AI 檢測、串流與控制",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-�d��:
-  # �򥻨ϥΡ]�۰��˴����/���ء^
+使用範例:
   python streaming_tracking_system.py
-
-  # ���w��ؼҦ�
-  python streaming_tracking_system.py --single
-
-  # ���w���ؼҦ�
-  python streaming_tracking_system.py --dual
-
-  # �۩w�q��f�M��y�Ҧ�
-  python streaming_tracking_system.py --port /dev/ttyUSB0 --mode side_by_side
+  python streaming_tracking_system.py --port /dev/ttyUSB0 --camera 0
+  python streaming_tracking_system.py --single --no-save-samples
         """
     )
 
-    parser.add_argument('--port', '-p', type=str,
-                       default='/dev/ttyUSB0' if sys.platform.startswith('linux') else 'COM3',
-                       help='Arduino ��f')
+    # 添加命令行參數
+    parser.add_argument('--port', '-p', type=str, default=config.arduino_port,
+                       help='Arduino 串口 (預設: %(default)s)')
     parser.add_argument('--camera', '-c', type=int, default=0,
-                       help='�ṳ�Y ID')
-    parser.add_argument('--model', type=str, default="models/mosquito",
-                       help='AI �ҫ����|')
-    parser.add_argument('--port-http', type=int, default=5000,
-                       help='HTTP ��y�ݤf')
+                       help='攝像頭 ID (預設: %(default)s)')
+    parser.add_argument('--model', '-m', type=str, default="models/mosquito",
+                       help='AI 模型路徑 (預設: %(default)s)')
+    parser.add_argument('--port-http', type=int, default=config.stream_port,
+                       help='HTTP 串流端口 (預設: %(default)s)')
+    parser.add_argument('--mode', type=str, default="single",
+                       choices=["single", "side_by_side", "dual_stream"],
+                       help='串流模式 (預設: %(default)s)')
     parser.add_argument('--single', action='store_true',
-                       help='�j��ϥγ�ؼҦ�')
+                       help='單目模式 (禁用雙目深度估計)')
     parser.add_argument('--dual', action='store_true',
-                       help='�j��ϥ����ؼҦ�')
-    parser.add_argument('--mode', '-m', type=str,
-                       choices=['side_by_side', 'single', 'dual_stream'],
-                       default='single',
-                       help='��y�Ҧ�')
+                       help='強制啟用雙目模式')
     parser.add_argument('--no-save-samples', action='store_true',
-                       help='���μ˥��x�s')
+                       help='禁用不確定樣本儲存')
     parser.add_argument('--enable-rtsp', action='store_true',
-                       help='�ҥ� RTSP ���y�]�ݭn MediaMTX�^')
-    parser.add_argument('--rtsp-url', type=str,
-                       default="rtsp://0.0.0.0:8554/mosquito",
-                       help='RTSP ���y�a�}')
+                       help='啟用 RTSP 推流')
+    parser.add_argument('--rtsp-url', type=str, default=None,
+                       help='RTSP 推流地址')
     parser.add_argument('--rtsp-bitrate', type=int, default=2000,
-                       help='RTSP ���W�X�v (kbps)')
+                       help='RTSP 碼率 (kbps, 預設: %(default)s)')
 
     args = parser.parse_args()
 
-    # �M�w�ṳ�Y�Ҧ�
+    # 檢查參數衝突
     if args.single and args.dual:
-        logger.error(" ����P�ɫ��w --single �M --dual")
+        logger.error("❌ 錯誤: --single 和 --dual 不能同時使用")
         sys.exit(1)
 
-    dual_camera = not args.single if args.dual else None  # None = �۰��˴�
+    # 判斷攝像頭模式
+    if args.single:
+        dual_camera = False
+    elif args.dual:
+        dual_camera = True
+    else:
+        dual_camera = None  # 自動判斷
 
     try:
-        # �Ыبt�ι��
+        # 初始化並運行系統
         system = StreamingTrackingSystem(
             arduino_port=args.port,
             camera_id=args.camera,
@@ -729,13 +780,13 @@ def main():
             rtsp_bitrate=args.rtsp_bitrate
         )
 
-        # �B��t��
+        # 啟動系統
         system.run()
 
     except KeyboardInterrupt:
-        logger.info("\n ���줤�_�H��")
+        logger.info("\n🛑 用戶已中止系統")
     except Exception as e:
-        logger.error(f" �t�ο��~: {e}")
+        logger.error(f"❌ 系統錯誤: {e}")
         traceback.print_exc()
         sys.exit(1)
 
