@@ -211,11 +211,6 @@ def generate_rknn_model(
         print("❌ 錯誤: rknn-toolkit2 未安裝")
         return None
 
-    # 檢查架構
-    if platform.machine() != 'x86_64':
-        print(f"⚠️ 警告: 當前架構為 {platform.machine()}，RKNN 轉換需要 x86_64")
-        print("   部分平台不支援 RKNN 生成")
-
     try:
         if verbose:
             print("  初始化 RKNN...")
