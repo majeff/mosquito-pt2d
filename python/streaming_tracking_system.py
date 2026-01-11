@@ -29,10 +29,6 @@ import logging
 import traceback
 from pathlib import Path
 
-# 設備訪問 IP 配置
-DEFAULT_DEVICE_IP = "127.0.0.1"  # 本地 IP（通常是 localhost）
-DEFAULT_EXTERNAL_URL = None  # 遠端訪問 URL（可選）
-
 # 配置 logging
 logging.basicConfig(
     level=logging.INFO,
@@ -230,14 +226,17 @@ class StreamingTrackingSystem:
         logger.info("🎉 系統已完全啟動！")
         logger.info("=" * 60)
         # 生成訪問地址
-        local_url = f"http://localhost:{config.stream_port}"
-        logger.info(f"📱 本機訪問: {local_url}")
-        logger.info(f"📱 遠端訪問: http://<你的設備IP>:{config.stream_port}")
+        device_ip = config.device_ip
+        device_url = f"http://{device_ip}:{config.stream_port}"
+        logger.info(f"📱 設備訪問: {device_url}")
+        if config.external_url:
+            logger.info(f"🌐 遠端訪問: {config.external_url}")
 
         if self.server_right:
-            right_url = f"http://localhost:{config.stream_port + 1}"
-            logger.info(f"📱 右側視角（本機）: {right_url}")
-            logger.info(f"📱 右側視角（遠端）: http://<你的設備IP>:{config.stream_port + 1}")
+            right_device_url = f"http://{device_ip}:{config.stream_port + 1}"
+            logger.info(f"📱 右側視角（設備）: {right_device_url}")
+            if config.external_url:
+                logger.info(f"🌐 右側視角（遠端）: {config.external_url}")
 
         logger.info("ℹ️  系統配置:")
         logger.info(f"   - AI 檢測: ✓ 啟用 ({self.detector.backend.upper()})")
@@ -312,19 +311,29 @@ class StreamingTrackingSystem:
             logger.info("🛑 系統已停止")
 
     def _draw_system_info(self, frame: np.ndarray, detections: list, illumination_info: dict) -> np.ndarray:
-        """繪製系統信息到幀上"""
-        # 繪製檢測目標數
-        num_detections = len(detections) if detections else 0
-        text = f"Detections: {num_detections} | Targets: {self.stats['unique_targets']}"
-        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-        # 繪製追蹤狀態
-        if self.stats['tracking_active']:
-            cv2.putText(frame, "Tracking: ACTIVE", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        else:
-            cv2.putText(frame, "Tracking: IDLE", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
-
+        """繪製時間到幀上"""
+        # 繪製當前時間
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        cv2.putText(frame, current_time, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        
         return frame
+
+    def get_system_stats(self) -> dict:
+        """獲取系統統計信息（供 HTML 呈現）"""
+        elapsed_time = time.time() - self.stats['start_time']
+        fps = self.stats['total_frames'] / elapsed_time if elapsed_time > 0 else 0
+        
+        return {
+            'total_frames': self.stats['total_frames'],
+            'unique_targets': self.stats['unique_targets'],
+            'tracking_active': self.stats['tracking_active'],
+            'samples_saved': self.stats['samples_saved'],
+            'elapsed_time': elapsed_time,
+            'fps': fps,
+            'illumination_info': self.stats.get('last_illumination_info', {}),
+            'active_tracks': len(self.active_tracks),
+            'system_time': time.strftime("%Y-%m-%d %H:%M:%S")
+        }
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
         """

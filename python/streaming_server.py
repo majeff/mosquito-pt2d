@@ -134,183 +134,266 @@ class StreamingServer:
 
             html = f"""
             <!DOCTYPE html>
-            <html>
+            <html lang="zh-TW">
             <head>
                 <title>🦟 蚊子追蹤系統 - 即時監控</title>
                 <link rel="icon" type="image/svg+xml" href="/favicon.ico">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <meta charset="UTF-8">
+                <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
                 <style>
-                    body {{
-                        font-family: Arial, sans-serif;
-                        margin: 0;
-                        padding: 20px;
-                        background-color: #1a1a1a;
-                        color: #fff;
+                    :root {{
+                        --primary: #4CAF50;
+                        --bg-dark: #1a1a1a;
+                        --bg-card: #2d2d2d;
+                        --text-light: #fff;
+                        --text-dim: #888;
                     }}
+                    
+                    * {{
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                    }}
+                    
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        background-color: var(--bg-dark);
+                        color: var(--text-light);
+                        line-height: 1.6;
+                    }}
+                    
                     .container {{
                         max-width: 1200px;
                         margin: 0 auto;
+                        padding: 20px;
                     }}
+                    
                     h1 {{
                         text-align: center;
-                        color: #4CAF50;
+                        color: var(--primary);
+                        margin-bottom: 30px;
+                        font-size: 2.5em;
                     }}
+                    
                     .video-container {{
                         position: relative;
                         width: 100%;
+                        aspect-ratio: 16 / 9;
                         max-width: 960px;
                         margin: 20px auto;
                         background-color: #000;
-                        border: 2px solid #4CAF50;
-                        border-radius: 8px;
+                        border: 3px solid var(--primary);
+                        border-radius: 12px;
                         overflow: hidden;
+                        box-shadow: 0 8px 32px rgba(76, 175, 80, 0.1);
                     }}
-                    img {{
+                    
+                    .video-container img {{
                         width: 100%;
-                        height: auto;
-                        display: block;
+                        height: 100%;
+                        object-fit: contain;
                     }}
-                    .stats {{
-                        background-color: #2d2d2d;
-                        padding: 15px;
+                    
+                    .stats-grid {{
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                        gap: 15px;
+                        margin-top: 30px;
+                    }}
+                    
+                    .stat-card {{
+                        background-color: var(--bg-card);
+                        padding: 20px;
                         border-radius: 8px;
-                        margin-top: 20px;
+                        border-left: 4px solid var(--primary);
+                        transition: transform 0.2s;
                     }}
-                    .stat-item {{
-                        display: inline-block;
-                        margin: 10px 20px;
+                    
+                    .stat-card:hover {{
+                        transform: translateY(-2px);
                     }}
+                    
                     .stat-label {{
-                        color: #888;
-                        font-size: 12px;
+                        color: var(--text-dim);
+                        font-size: 0.9em;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                        margin-bottom: 8px;
                     }}
+                    
                     .stat-value {{
-                        color: #4CAF50;
-                        font-size: 24px;
+                        color: var(--primary);
+                        font-size: 2em;
                         font-weight: bold;
+                        font-variant-numeric: tabular-nums;
                     }}
-                    .info {{
-                        background-color: #2d2d2d;
-                        padding: 15px;
+                    
+                    .info-section {{
+                        background-color: var(--bg-card);
+                        padding: 25px;
                         border-radius: 8px;
-                        margin-top: 20px;
+                        margin-top: 30px;
                     }}
-                    .info h3 {{
+                    
+                    .info-section h3 {{
                         margin-top: 0;
-                        color: #4CAF50;
+                        color: var(--primary);
+                        margin-bottom: 15px;
                     }}
+                    
+                    .info-section p {{
+                        margin: 10px 0;
+                    }}
+                    
                     code {{
                         background-color: #1a1a1a;
-                        padding: 2px 6px;
-                        border-radius: 3px;
-                        color: #4CAF50;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        color: var(--primary);
+                        font-family: 'Courier New', monospace;
+                        font-size: 0.95em;
                     }}
-                    .offline {{
-                        text-align: center;
-                        padding: 50px;
-                        color: #888;
+                    
+                    .copy-btn {{
+                        background-color: var(--primary);
+                        color: #000;
+                        border: none;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 0.85em;
+                        margin-left: 10px;
+                        transition: background-color 0.2s;
+                    }}
+                    
+                    .copy-btn:hover {{
+                        background-color: #45a049;
+                    }}
+                    
+                    .hint {{
+                        color: var(--text-dim);
+                        font-size: 0.85em;
+                        margin-top: 10px;
+                    }}
+                    
+                    .status-indicator {{
+                        display: inline-block;
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 50%;
+                        margin-right: 8px;
+                        vertical-align: middle;
+                        animation: pulse 2s infinite;
+                    }}
+                    
+                    .status-active {{
+                        background-color: var(--primary);
+                    }}
+                    
+                    .status-idle {{
+                        background-color: var(--text-dim);
+                    }}
+                    
+                    @keyframes pulse {{
+                        0%, 100% {{ opacity: 1; }}
+                        50% {{ opacity: 0.5; }}
                     }}
                 </style>
             </head>
             <body>
                 <div class="container">
-                    <h1>🦟 蚊子追蹤系統 - 即時監控</h1>
+                    <h1>🦟 蚊子追蹤系統</h1>
 
                     <div class="video-container">
-                        <img src="/video" alt="即時影像串流" onerror="this.src='/static/offline.jpg'">
+                        <img id="stream" src="/video" alt="即時影像串流" onerror="this.alt='串流連線中斷'">
                     </div>
 
-                    <div class="stats">
-                        <div class="stat-item">
+                    <div class="stats-grid" id="stats-grid">
+                        <div class="stat-card">
                             <div class="stat-label">唯一目標</div>
-                            <div class="stat-value" id="targets">0</div>
+                            <div class="stat-value" id="targets">-</div>
                         </div>
-                        <div class="stat-item">
+                        <div class="stat-card">
                             <div class="stat-label">追蹤狀態</div>
-                            <div class="stat-value" id="status" style="font-size: 18px;">停用</div>
+                            <div class="stat-value" id="status">
+                                <span class="status-indicator status-idle"></span>停用
+                            </div>
                         </div>
-                        <div class="stat-item">
+                        <div class="stat-card">
                             <div class="stat-label">FPS</div>
-                            <div class="stat-value" id="fps">0.0</div>
+                            <div class="stat-value" id="fps">-</div>
                         </div>
-                        <div class="stat-item">
+                        <div class="stat-card">
                             <div class="stat-label">光照 (Lux)</div>
-                            <div class="stat-value" id="lux">0</div>
+                            <div class="stat-value" id="lux">-</div>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-label">光照狀態</div>
-                            <div class="stat-value" id="lux-status" style="font-size: 16px;">未知</div>
+                        <div class="stat-card">
+                            <div class="stat-label">總幀數</div>
+                            <div class="stat-value" id="frames">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">運行時間</div>
+                            <div class="stat-value" id="uptime">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">中信心度樣本</div>
+                            <div class="stat-value" id="samples">-</div>
                         </div>
                     </div>
 
-                    <div class="info">
-                        <h3>📱 手機觀看方式</h3>
-                        <p><strong>方式 1：區域網路直連（推薦）</strong></p>
-                        <p>在手機瀏覽器輸入：<code>{http_direct_url}</code></p>
-
+                    <div class="info-section">
+                        <h3>📱 訪問方式</h3>
+                        <p><strong>本機訪問：</strong> <code>http://localhost:{self.http_port}</code></p>
+                        <p><strong>區域網路：</strong> <code>{http_direct_url}</code></p>
 {external_info}
-                        <p style="color: #888; font-size: 12px;">
-                            * 區域網路訪問需確保設備與辨識主機在同一網路
-                        </p>
+                        <p class="hint">✓ 設備需與監控主機在同一網路上</p>
                     </div>
                 </div>
 
                 <script>
-                    console.log("Script loaded at:", new Date().toLocaleTimeString());
+                    $(document).ready(function() {{
+                        function formatTime(seconds) {{
+                            const h = Math.floor(seconds / 3600);
+                            const m = Math.floor((seconds % 3600) / 60);
+                            const s = Math.floor(seconds % 60);
+                            return String(h).padStart(2, '0') + ':' + 
+                                   String(m).padStart(2, '0') + ':' + 
+                                   String(s).padStart(2, '0');
+                        }}
 
-                    function updateStats() {{
-                        console.log("[" + new Date().toLocaleTimeString() + "] updateStats called");
+                        function updateStats() {{
+                            $.ajax({{
+                                url: '/stats',
+                                type: 'GET',
+                                cache: false,
+                                dataType: 'json',
+                                timeout: 5000,
+                                success: function(data) {{
+                                    $('#targets').text(data.unique_targets || '-');
+                                    $('#fps').text((data.fps || 0).toFixed(1));
+                                    $('#lux').text(data.lux || '-');
+                                    $('#frames').text(data.total_frames || '-');
+                                    $('#uptime').text(formatTime(data.elapsed_time || 0));
+                                    $('#samples').text(data.samples_saved || '-');
+                                    
+                                    const isActive = data.tracking_active;
+                                    const statusClass = isActive ? 'status-active' : 'status-idle';
+                                    const statusText = isActive ? '啟用' : '停用';
+                                    $('#status').html('<span class="status-indicator ' + statusClass + '"></span>' + statusText);
+                                }},
+                                error: function(jqXHR, textStatus, errorThrown) {{
+                                    console.warn('Stats update failed:', textStatus);
+                                }}
+                            }});
+                        }}
 
-                        fetch("/stats", {{
-                            method: "GET",
-                            cache: "no-store",
-                            headers: {{
-                                "Accept": "application/json"
-                            }}
-                        }})
-                        .then(response => {{
-                            if (!response.ok) {{
-                                throw new Error("HTTP error, status=" + response.status);
-                            }}
-                            return response.json();
-                        }})
-                        .then(data => {{
-                            console.log("[" + new Date().toLocaleTimeString() + "] Stats received:", data);
-
-                            document.getElementById("targets").textContent = data.unique_targets || 0;
-                            document.getElementById("status").textContent = data.tracking_active ? "啟用" : "停用";
-                            document.getElementById("fps").textContent = (data.fps || 0).toFixed(1);
-                            document.getElementById("lux").textContent = data.lux || 0;
-                            document.getElementById("lux-status").textContent = data.lux_status || "未知";
-
-                            document.getElementById("status").style.color = data.tracking_active ? "#4CAF50" : "#888";
-
-                            var luxColor = "#888";
-                            if (data.lux_status === "正常") {{
-                                luxColor = "#4CAF50";
-                            }} else if (data.lux_status === "偏暗") {{
-                                luxColor = "#FFA500";
-                            }} else if (data.lux_status === "過暗") {{
-                                luxColor = "#FF5555";
-                            }}
-                            document.getElementById("lux-status").style.color = luxColor;
-                        }})
-                        .catch(error => {{
-                            console.error("[" + new Date().toLocaleTimeString() + "] Fetch error:", error);
-                        }});
-                    }}
-
-                    // 立即執行一次
-                    console.log("Calling updateStats immediately...");
-                    updateStats();
-
-                    // 每 1000ms 執行一次
-                    console.log("Setting interval to 1000ms...");
-                    var statsInterval = setInterval(function() {{
+                        // 立即執行一次
                         updateStats();
-                    }}, 1000);
 
-                    console.log("Interval ID:", statsInterval);
+                        // 每 1000ms 執行一次
+                        setInterval(updateStats, 1000);
+                    }});
                 </script>
             </body>
             </html>
