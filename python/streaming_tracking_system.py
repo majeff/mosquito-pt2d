@@ -258,6 +258,7 @@ class StreamingTrackingSystem:
 
     def run(self):
         """主運行循環"""
+        cap = None
         try:
             # 打開攝像頭
             cap = cv2.VideoCapture(self.camera_id)
@@ -271,41 +272,110 @@ class StreamingTrackingSystem:
             cap.set(cv2.CAP_PROP_FPS, self.camera_fps)
 
             logger.info(f"🎥 攝像頭已開啟 (解析度: {self.camera_width}x{self.camera_height}, FPS: {self.camera_fps})")
+            logger.info(f"📡 串流服務已啟動 http://{self.server.config.device_ip}:{self.http_port}")
 
             frame_count = 0
             start_time = time.time()
+            error_count = 0
+            max_consecutive_errors = 10
+            last_error_time = None
+            last_frame = None
+
+            self._running = True
 
             while self._running:
-                ret, frame = cap.read()
-                if not ret:
-                    logger.warning("⚠️  無法讀取幀")
+                try:
+                    ret, frame = cap.read()
+                    if not ret:
+                        logger.warning("⚠️  無法讀取幀")
+                        break
+
+                    frame_count += 1
+                    last_frame = frame.copy()  # 保存備份以供錯誤恢復
+
+                    # 處理幀
+                    try:
+                        result = self.process_frame(frame)
+
+                        # 成功恢復
+                        if error_count > 0:
+                            logger.info(f"✓ 已恢復正常 (錯誤計數重置)")
+                        error_count = 0
+                        last_error_time = None
+
+                    except Exception as process_error:
+                        error_count += 1
+                        current_time = time.time()
+                        error_msg = str(process_error)
+
+                        # 分類錯誤類型
+                        if "RKNN" in error_msg or "推理" in error_msg or "empty" in error_msg:
+                            logger.warning(f"⚠️  AI 推理失敗 ({error_count}/{max_consecutive_errors}): {error_msg[:60]}")
+                        else:
+                            logger.warning(f"⚠️  幀處理錯誤 ({error_count}/{max_consecutive_errors}): {error_msg[:60]}")
+
+                        # 檢查是否需要中止
+                        if error_count >= max_consecutive_errors:
+                            if last_error_time and (current_time - last_error_time) < 5:
+                                # 短時間內連續發生同一錯誤
+                                logger.error(f"❌ 連續 {max_consecutive_errors} 次錯誤且短時間內重複，系統停止")
+                                break
+                            else:
+                                # 重置並繼續嘗試
+                                logger.warning(f"⚠️  達到錯誤閾值，嘗試恢復...")
+                                error_count = 0
+                                last_error_time = current_time
+
+                        # 使用上一幀作為後備（避免完全卡頓）
+                        if last_frame is not None:
+                            result = last_frame.copy()
+                            # 添加錯誤提示文本
+                            cv2.putText(result, "ERROR - 推理失敗", (50, 50),
+                                      cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 2)
+                        else:
+                            continue
+
+                    # 發送到串流伺服器
+                    if isinstance(result, tuple):
+                        # 雙串流模式
+                        self.server.update_frame(result[0])
+                        if self.server_right:
+                            self.server_right.update_frame(result[1])
+                    else:
+                        self.server.update_frame(result)
+
+                    # 定期輸出統計信息
+                    if frame_count % 30 == 0:
+                        elapsed = time.time() - start_time
+                        fps = frame_count / elapsed
+                        status = "🔴 錯誤" if error_count > 0 else "🟢 正常"
+                        logger.debug(f"{status} FPS: {fps:.1f}, 幀數: {frame_count}, 目標: {self.stats.get('unique_targets', 0)}")
+
+                except KeyboardInterrupt:
+                    logger.info("\n⏹️  收到中斷信號，正在關閉...")
+                    self._running = False
+                    break
+                except Exception as e:
+                    logger.error(f"❌ 幀循環未預期的錯誤: {e}")
                     break
 
-                frame_count += 1
-
-                # 處理幀
-                result = self.process_frame(frame)
-
-                # 發送到串流伺服器
-                if isinstance(result, tuple):
-                    # 雙串流模式
-                    self.server.update_frame(result[0])
-                    if self.server_right:
-                        self.server_right.update_frame(result[1])
-                else:
-                    self.server.update_frame(result)
-
-                # 定期輸出統計信息
-                if frame_count % 30 == 0:
-                    elapsed = time.time() - start_time
-                    fps = frame_count / elapsed
-                    logger.debug(f"📊 FPS: {fps:.1f}, 幀數: {frame_count}, 獨立目標: {self.stats['unique_targets']}")
-
+        except KeyboardInterrupt:
+            logger.info("\n⏹️  系統被用戶中止")
         except Exception as e:
             logger.error(f"❌ 運行循環錯誤: {e}")
             traceback.print_exc()
         finally:
             self._running = False
+            if cap is not None:
+                cap.release()
+                logger.info("✓ 攝像頭資源已釋放")
+
+            if frame_count > 0:
+                elapsed = time.time() - start_time
+                total_fps = frame_count / elapsed
+                logger.info(f"📊 會話結束 - 總幀數: {frame_count}, 平均 FPS: {total_fps:.1f}, 耗時: {elapsed:.1f}s")
+
+            logger.info("🛑 系統已停止")
             if 'cap' in locals():
                 cap.release()
             logger.info("🛑 系統已停止")
@@ -774,6 +844,17 @@ def main():
     else:
         dual_camera = None  # 自動判斷
 
+    system = None
+
+    def signal_handler(sig, frame):
+        """信號處理器（Ctrl+C）"""
+        logger.info("\n⏹️  收到中斷信號...")
+        if system:
+            system._running = False
+
+    # 註冊信號處理器
+    signal.signal(signal.SIGINT, signal_handler)
+
     try:
         # 初始化並運行系統
         system = StreamingTrackingSystem(
@@ -793,11 +874,13 @@ def main():
         system.run()
 
     except KeyboardInterrupt:
-        logger.info("\n🛑 用戶已中止系統")
+        logger.info("\n🛑 系統已中止")
     except Exception as e:
         logger.error(f"❌ 系統錯誤: {e}")
         traceback.print_exc()
         sys.exit(1)
+    finally:
+        logger.info("✓ 程序退出")
 
 
 if __name__ == "__main__":

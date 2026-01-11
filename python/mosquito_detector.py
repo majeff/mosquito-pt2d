@@ -789,6 +789,9 @@ class MosquitoDetector:
         img = cv2.resize(frame, (self.imgsz, self.imgsz))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+        # 資訊日誌：記錄預處理後的影像統計
+        logger.debug(f"📊 預處理後影像統計 - min: {img.min()}, max: {img.max()}, mean: {img.mean():.2f}")
+
         # 添加 batch 維度：(H, W, C) -> (1, H, W, C)
         img = np.expand_dims(img, axis=0)
 
@@ -799,27 +802,49 @@ class MosquitoDetector:
             # 讓 KeyboardInterrupt 正常傳播，觸發優雅關閉
             raise
         except Exception as e:
-            logger.error(f"RKNN 推理失敗: {e}")
+            logger.error(f"❌ RKNN 推理異常: {type(e).__name__} - {e}")
             return [], frame
 
-        if outputs is None or len(outputs) == 0:
-            logger.warning("RKNN 推理返回空結果")
+        # 驗證輸出完整性
+        if outputs is None:
+            logger.warning("⚠️  RKNN 推理返回 None")
             return [], frame
 
-        # 檢查輸出是否有效
+        if len(outputs) == 0:
+            logger.warning("⚠️  RKNN 推理返回空列表")
+            return [], frame
+
+        # 檢查第一個輸出張量
         try:
-            if len(outputs[0].shape) == 0 or outputs[0].size == 0:
-                logger.warning("RKNN 推理輸出為空張量")
+            first_output = outputs[0]
+            if first_output is None:
+                logger.warning("⚠️  RKNN 第一個輸出為 None")
                 return [], frame
+
+            if hasattr(first_output, 'shape'):
+                logger.debug(f"📦 RKNN 輸出形狀: {first_output.shape}, dtype: {first_output.dtype}")
+
+                if len(first_output.shape) == 0 or first_output.size == 0:
+                    logger.warning("⚠️  RKNN 推理輸出為空張量")
+                    return [], frame
+            else:
+                logger.warning(f"⚠️  RKNN 輸出不是 ndarray: {type(first_output)}")
+                return [], frame
+
         except KeyboardInterrupt:
             # 讓 KeyboardInterrupt 正常傳播
             raise
         except Exception as e:
-            logger.warning(f"檢查 RKNN 輸出失敗: {e}")
+            logger.warning(f"⚠️  檢查 RKNN 輸出失敗: {e}")
             return [], frame
 
         # 後處理（假設 YOLO 輸出格式）
-        detections = self._parse_yolo_output(outputs[0], frame.shape[:2])
+        try:
+            detections = self._parse_yolo_output(outputs[0], frame.shape[:2])
+            logger.debug(f"✓ 推理成功 - 檢測到 {len(detections)} 個目標")
+        except Exception as e:
+            logger.error(f"❌ 後處理失敗: {e}")
+            return [], frame
 
         return detections, frame
 
