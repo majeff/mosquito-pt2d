@@ -264,87 +264,81 @@ class StreamingServer:
                 </div>
 
                 <script>
-                    console.log('Script loaded');  // 最早的调试消息
+                    console.log("Script loaded");
 
-                    // 定期更新統計資訊
-                    function updateStats() {
-                        console.log('updateStats called');
-                        fetch('/stats')
-                            .then(response => {
-                                console.log('Response received:', response.status);
-                                if (!response.ok) {
-                                    throw new Error('Network response was not ok: ' + response.status);
-                                }
+                    function updateStats() {{
+                        console.log("updateStats called");
+                        fetch("/stats")
+                            .then(response => {{
+                                console.log("Response received:", response.status);
+                                if (!response.ok) {{
+                                    throw new Error("Network response was not ok: " + response.status);
+                                }}
                                 return response.json();
-                            })
-                            .then(data => {
-                                console.log('Stats data:', data);
+                            }})
+                            .then(data => {{
+                                console.log("Stats data:", data);
 
-                                // 更新所有統計數據
-                                const frames = document.getElementById('frames');
-                                const targets = document.getElementById('targets');
-                                const status = document.getElementById('status');
-                                const fps = document.getElementById('fps');
-                                const lux = document.getElementById('lux');
-                                const luxStatus = document.getElementById('lux-status');
-                                const uptime = document.getElementById('uptime');
+                                const frames = document.getElementById("frames");
+                                const targets = document.getElementById("targets");
+                                const status = document.getElementById("status");
+                                const fps = document.getElementById("fps");
+                                const lux = document.getElementById("lux");
+                                const luxStatus = document.getElementById("lux-status");
+                                const uptime = document.getElementById("uptime");
 
                                 if (frames) frames.textContent = data.total_frames || 0;
                                 if (targets) targets.textContent = data.unique_targets || 0;
-                                if (status) status.textContent = data.tracking_active ? '啟用' : '停用';
+                                if (status) status.textContent = data.tracking_active ? "啟用" : "停用";
                                 if (fps) fps.textContent = (data.fps || 0).toFixed(1);
                                 if (lux) lux.textContent = data.lux || 0;
-                                if (luxStatus) luxStatus.textContent = data.lux_status || '未知';
+                                if (luxStatus) luxStatus.textContent = data.lux_status || "未知";
 
-                                // 根據狀態改變顏色
-                                if (status) {
-                                    status.style.color = data.tracking_active ? '#4CAF50' : '#888';
-                                }
+                                if (status) {{
+                                    status.style.color = data.tracking_active ? "#4CAF50" : "#888";
+                                }}
 
-                                if (luxStatus) {
-                                    if (data.lux_status === '正常') {
-                                        luxStatus.style.color = '#4CAF50';
-                                    } else if (data.lux_status === '偏暗') {
-                                        luxStatus.style.color = '#FFA500';
-                                    } else if (data.lux_status === '過暗') {
-                                        luxStatus.style.color = '#FF5555';
-                                    } else {
-                                        luxStatus.style.color = '#888';
-                                    }
-                                }
+                                if (luxStatus) {{
+                                    if (data.lux_status === "正常") {{
+                                        luxStatus.style.color = "#4CAF50";
+                                    }} else if (data.lux_status === "偏暗") {{
+                                        luxStatus.style.color = "#FFA500";
+                                    }} else if (data.lux_status === "過暗") {{
+                                        luxStatus.style.color = "#FF5555";
+                                    }} else {{
+                                        luxStatus.style.color = "#888";
+                                    }}
+                                }}
 
-                                // 計算運行時間
-                                if (data.start_time && uptime) {
+                                if (data.start_time && uptime) {{
                                     const elapsed = Math.floor(Date.now() / 1000 - data.start_time);
                                     const hours = Math.floor(elapsed / 3600);
                                     const minutes = Math.floor((elapsed % 3600) / 60);
                                     const seconds = elapsed % 60;
                                     uptime.textContent =
-                                        hours.toString().padStart(2, '0') + ':' +
-                                        minutes.toString().padStart(2, '0') + ':' +
-                                        seconds.toString().padStart(2, '0');
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error fetching stats:', error);
-                            });
-                    }
+                                        hours.toString().padStart(2, "0") + ":" +
+                                        minutes.toString().padStart(2, "0") + ":" +
+                                        seconds.toString().padStart(2, "0");
+                                }}
+                            }})
+                            .catch(error => {{
+                                console.error("Error fetching stats:", error);
+                            }});
+                    }}
 
-                    // 立即開始更新，不等待頁面加載完成
-                    console.log('Starting immediate updates...');
+                    console.log("Starting immediate updates...");
                     updateStats();
                     const interval = setInterval(updateStats, 1000);
 
-                    // 為保險起見，也在頁面加載完成時再次檢查
-                    if (document.readyState === 'loading') {
-                        document.addEventListener('DOMContentLoaded', function() {
-                            console.log('DOMContentLoaded fired');
+                    if (document.readyState === "loading") {{
+                        document.addEventListener("DOMContentLoaded", function() {{
+                            console.log("DOMContentLoaded fired");
                             updateStats();
-                        });
-                    } else {
-                        console.log('Document already loaded');
+                        }});
+                    }} else {{
+                        console.log("Document already loaded");
                         updateStats();
-                    }
+                    }}
                 </script>
             </body>
             </html>
