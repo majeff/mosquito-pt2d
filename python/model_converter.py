@@ -442,7 +442,7 @@ def main():
 
     pt_model = Path(args.pt_model).resolve()
     output_dir = Path(args.output_dir).resolve()
-    calib_dir = Path(args.calib_dir).resolve() if args.calib_dir else (output_dir / 'calibration_images')
+    calib_dir = Path(args.calib_dir).resolve() if args.calib_dir else (output_dir / '../calibration_images')
 
     # 驗證模型檔案存在
     if not pt_model.exists():
