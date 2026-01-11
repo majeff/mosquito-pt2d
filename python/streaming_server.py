@@ -29,7 +29,6 @@ import time
 import logging
 from typing import Optional
 from pathlib import Path
-from werkzeug.serving import WSGIRequestHandler
 try:
     from config_loader import config  # 使用新的配置加載模組
     DEFAULT_DEVICE_IP = config.device_ip
@@ -266,6 +265,7 @@ class StreamingServer:
                             url: "/stats",
                             method: "GET",
                             dataType: "json",
+                            cache: false,
                             success: function(data) {{
                                 console.log("Stats data:", data);
 
@@ -292,7 +292,7 @@ class StreamingServer:
                                 console.log("Stats updated");
                             }},
                             error: function(xhr, status, error) {{
-                                console.error("Error fetching stats:", error);
+                                console.error("Error fetching stats:", error, xhr);
                             }}
                         }});
                     }}
@@ -318,7 +318,7 @@ class StreamingServer:
         @self.app.route('/stats')
         def stats():
             """返回統計資訊"""
-            return jsonify({
+            response = jsonify({
                 'total_frames': self.stats['total_frames'],
                 'start_time': self.stats['start_time'],
                 'unique_targets': self.stats['unique_targets'],
@@ -327,6 +327,10 @@ class StreamingServer:
                 'lux': self.stats['lux'],
                 'lux_status': self.stats['lux_status']
             })
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            return response
 
         @self.app.route('/favicon.ico')
         def favicon():
