@@ -126,11 +126,7 @@ class StreamingServer:
             external_info = ""
             if self.external_url:
                 external_info = f"""
-                        <p><strong>方式 3：外部訪問（透過 Nginx Reverse Proxy）</strong></p>
-                        <p>從外部網路訪問：<code>{self.external_url}</code></p>
-                        <p style="color: #888; font-size: 12px;">
-                            * 需要 Nginx 配置 reverse proxy 指向本機 {self.http_port} 端口
-                        </p>
+                        <p><strong>外部網路：</strong><code>{self.external_url}</code></p>
                 """
 
             html = f"""
@@ -339,7 +335,6 @@ class StreamingServer:
                         <h3>📱 訪問方式</h3>
                         <p><strong>區域網路：</strong> <code>{http_direct_url}</code></p>
 {external_info}
-                        <p class="hint">✓ 設備需與監控主機在同一網路上</p>
                     </div>
                 </div>
 
