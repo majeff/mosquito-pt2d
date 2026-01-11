@@ -31,10 +31,10 @@ class DepthEstimator:
     """雙目深度估計器"""
 
     def __init__(self,
-                 focal_length: float = config['DEPTH_FOCAL_LENGTH'],          # 鏡頭焦距 (mm)
-                 baseline: float = config['DEPTH_BASELINE'],             # 雙目基線距離 (mm)
+                 focal_length: float = config.depth_focal_length,          # 鏡頭焦距 (mm)
+                 baseline: float = config.depth_baseline,             # 雙目基線距離 (mm)
                  image_width: int = 1920,                      # 單眼影像寬度 (pixels)，應傳入實際解析度
-                 sensor_width: float = config['DEPTH_SENSOR_WIDTH'],           # 感光元件寬度 (mm)
+                 sensor_width: float = config.depth_sensor_width,           # 感光元件寬度 (mm)
                  min_disparity: int = 0,              # 最小視差
                  num_disparities: int = 64,           # 視差搜索範圍（必須是16的倍數）
                  block_size: int = 15):               # SAD窗口大小（奇數）
