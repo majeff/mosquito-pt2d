@@ -283,6 +283,7 @@ class StreamingTrackingSystem:
             max_consecutive_errors = 10
             last_error_time = None
             last_frame = None
+            actual_resolution_logged = False
 
             self._running = True
 
@@ -292,6 +293,29 @@ class StreamingTrackingSystem:
                     if not ret:
                         logger.warning("⚠️  無法讀取幀")
                         break
+
+                    # 第一幀時自動辨識實際解析度
+                    if not actual_resolution_logged:
+                        actual_height, actual_width = frame.shape[:2]
+                        actual_fps = cap.get(cv2.CAP_PROP_FPS)
+                        if actual_width > 0 and actual_height > 0:
+                            logger.info(f"📸 攝像頭實際解析度: {actual_width}x{actual_height} @ {actual_fps:.1f} FPS")
+
+                            # 自動判斷是否為雙目攝像頭（寬度大於高度的 2 倍通常是雙目）
+                            aspect_ratio = actual_width / actual_height
+                            if aspect_ratio >= 3.0:  # 例如 2560x720 = 3.56, 3840x720 = 5.33
+                                detected_dual = True
+                                logger.info(f"🔍 自動檢測: 雙目攝像頭 (寬高比 {aspect_ratio:.2f})")
+                            else:
+                                detected_dual = False
+                                logger.info(f"🔍 自動檢測: 單目攝像頭 (寬高比 {aspect_ratio:.2f})")
+
+                            # 如果初始化時設置為 None（自動判斷），則更新
+                            if self.dual_camera != detected_dual:
+                                logger.warning(f"⚠️  配置為 {'雙目' if self.dual_camera else '單目'}，但檢測為 {'雙目' if detected_dual else '單目'}")
+                                logger.warning(f"    建議檢查 --single 或 --dual 參數設置")
+
+                        actual_resolution_logged = True
 
                     frame_count += 1
                     last_frame = frame.copy()  # 保存備份以供錯誤恢復
