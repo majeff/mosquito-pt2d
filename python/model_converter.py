@@ -100,6 +100,24 @@ def prepare_calibration_dataset(
         p for p in images_dir.iterdir()
         if p.is_file() and p.name.startswith('image') and p.suffix.lower() == '.jpeg'
     ]
+    
+    # 先處理檔名中有空格的檔案，重新命名移除空格
+    renamed_count = 0
+    for img in mosquito_images[:]:  # 使用副本遍歷
+        if ' ' in img.name:
+            new_name = img.name.replace(' ', '')
+            new_path = img.parent / new_name
+            if not new_path.exists():
+                img.rename(new_path)
+                renamed_count += 1
+                # 更新列表中的路徑
+                mosquito_images[mosquito_images.index(img)] = new_path
+                if verbose:
+                    print(f"  ✓ 已重命名: {img.name} → {new_name}")
+    
+    if renamed_count > 0 and verbose:
+        print(f"  已處理 {renamed_count} 個含空格的檔名")
+    
     skipped = [
         p for p in images_dir.iterdir()
         if p.is_file() and not (p.name.startswith('image') and p.suffix.lower() == '.jpeg')
