@@ -215,6 +215,14 @@ class ConfigLoader:
     def left_camera_id(self):
         return self.config.getint('HARDWARE', 'left_camera_id', fallback=0)
 
+    @property
+    def pan_servo_id(self):
+        return self.config.getint('HARDWARE', 'pan_servo_id', fallback=1)
+
+    @property
+    def tilt_servo_id(self):
+        return self.config.getint('HARDWARE', 'tilt_servo_id', fallback=2)
+
     # 這裏移除了 right_camera_id 屬性，因為我們不再支援獨立攝像頭模式
 
     # 警報相關配置
