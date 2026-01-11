@@ -128,6 +128,18 @@ class ConfigLoader:
     def max_mosquito_size_mm(self):
         return self.config.getint('AI_DETECTION', 'max_mosquito_size_mm', fallback=15)
 
+    @property
+    def enable_white_pixel_filter(self):
+        return self.config.getboolean('AI_DETECTION', 'enable_white_pixel_filter', fallback=True)
+
+    @property
+    def white_pixel_threshold(self):
+        return self.config.getint('AI_DETECTION', 'white_pixel_threshold', fallback=240)
+
+    @property
+    def white_pixel_ratio_threshold(self):
+        return self.config.getfloat('AI_DETECTION', 'white_pixel_ratio_threshold', fallback=0.7)
+
     # 單目過濾器相關配置
     @property
     def enable_bbox_size_filter(self):
