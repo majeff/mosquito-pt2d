@@ -83,9 +83,15 @@ class StreamingTrackingSystem:
         self._running = True  # 運行標誌，用於優雅退出
 
         # 攝像頭解析度配置（從 config_loader 讀取）
-        self.camera_width = config.camera_dual_width if dual_camera else 1920
-        self.camera_height = config.camera_dual_height if dual_camera else 1080
-        self.camera_fps = config.camera_dual_fps if dual_camera else 60
+        # 如果 dual_camera 是 None（自動判斷），預設先使用雙目設定
+        if dual_camera is None or dual_camera:
+            self.camera_width = config.camera_dual_width
+            self.camera_height = config.camera_dual_height
+            self.camera_fps = config.camera_dual_fps
+        else:
+            self.camera_width = 1920
+            self.camera_height = 1080
+            self.camera_fps = 60
 
         # 統計資訊
         self.stats = {
@@ -310,8 +316,11 @@ class StreamingTrackingSystem:
                                 detected_dual = False
                                 logger.info(f"🔍 自動檢測: 單目攝像頭 (寬高比 {aspect_ratio:.2f})")
 
-                            # 如果初始化時設置為 None（自動判斷），則更新
-                            if self.dual_camera != detected_dual:
+                            # 如果初始化時設置為 None（自動判斷），則更新 dual_camera
+                            if self.dual_camera is None:
+                                self.dual_camera = detected_dual
+                                logger.info(f"✓ 自動設定為 {'雙目' if detected_dual else '單目'} 模式")
+                            elif self.dual_camera != detected_dual:
                                 logger.warning(f"⚠️  配置為 {'雙目' if self.dual_camera else '單目'}，但檢測為 {'雙目' if detected_dual else '單目'}")
                                 logger.warning(f"    建議檢查 --single 或 --dual 參數設置")
 
