@@ -638,4 +638,107 @@ class StreamingTrackingSystem:
         except ImportError:
             # é»˜èªå€¼
             MIN_MOSQUITO_SIZE_MM = 3
-            MAX_MOSQUITO_SIZE_MM = 15
+            MAX_MOSQUITO_SIZE_MM = 15            MIN_BBOX_SIZE_PX = 10
+            MAX_BBOX_SIZE_PX = 200
+            MIN_ASPECT_RATIO = 0.3
+            MAX_ASPECT_RATIO = 3.0
+
+        for detection in detections:
+            bbox = detection.get('bbox', [0, 0, 0, 0])
+            x1, y1, x2, y2 = bbox
+            width = x2 - x1
+            height = y2 - y1
+            conf = detection.get('confidence', 0)
+            track_id = detection.get('track_id')
+
+            logger.info(f"ÀË´úª«¥ó #{track_id if track_id else '?'}: "
+                       f"¦ì¸m=({x1},{y1})-({x2},{y2}), "
+                       f"¤j¤p={width}x{height}px, "
+                       f"«H¤ß«×={conf:.2%}")
+
+
+def main():
+    """¥Dµ{¦¡¤J¤f"""
+    parser = argparse.ArgumentParser(
+        description="°A¤l°lÂÜ¨t²Î + ¤â¾÷¦ê¬y¾ã¦X",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+½d¨Ò:
+  # °ò¥»¨Ï¥Î¡]¦Û°ÊÀË´ú³æ¥Ø/Âù¥Ø¡^
+  python streaming_tracking_system.py
+
+  # «ü©w³æ¥Ø¼Ò¦¡
+  python streaming_tracking_system.py --single
+
+  # «ü©wÂù¥Ø¼Ò¦¡
+  python streaming_tracking_system.py --dual
+
+  # ¦Û©w¸q¦ê¤f©M¦ê¬y¼Ò¦¡
+  python streaming_tracking_system.py --port /dev/ttyUSB0 --mode side_by_side
+        """
+    )
+
+    parser.add_argument('--port', '-p', type=str,
+                       default='/dev/ttyUSB0' if sys.platform.startswith('linux') else 'COM3',
+                       help='Arduino ¦ê¤f')
+    parser.add_argument('--camera', '-c', type=int, default=0,
+                       help='Äá¹³ÀY ID')
+    parser.add_argument('--model', type=str, default="models/mosquito",
+                       help='AI ¼Ò«¬¸ô®|')
+    parser.add_argument('--port-http', type=int, default=5000,
+                       help='HTTP ¦ê¬yºİ¤f')
+    parser.add_argument('--single', action='store_true',
+                       help='±j¨î¨Ï¥Î³æ¥Ø¼Ò¦¡')
+    parser.add_argument('--dual', action='store_true',
+                       help='±j¨î¨Ï¥ÎÂù¥Ø¼Ò¦¡')
+    parser.add_argument('--mode', '-m', type=str,
+                       choices=['side_by_side', 'single', 'dual_stream'],
+                       default='single',
+                       help='¦ê¬y¼Ò¦¡')
+    parser.add_argument('--no-save-samples', action='store_true',
+                       help='°±¥Î¼Ë¥»Àx¦s')
+    parser.add_argument('--enable-rtsp', action='store_true',
+                       help='±Ò¥Î RTSP ±À¬y¡]»İ­n MediaMTX¡^')
+    parser.add_argument('--rtsp-url', type=str,
+                       default="rtsp://0.0.0.0:8554/mosquito",
+                       help='RTSP ±À¬y¦a§}')
+    parser.add_argument('--rtsp-bitrate', type=int, default=2000,
+                       help='RTSP µøÀW½X²v (kbps)')
+
+    args = parser.parse_args()
+
+    # ¨M©wÄá¹³ÀY¼Ò¦¡
+    if args.single and args.dual:
+        logger.error(" ¤£¯à¦P®É«ü©w --single ©M --dual")
+        sys.exit(1)
+
+    dual_camera = not args.single if args.dual else None  # None = ¦Û°ÊÀË´ú
+
+    try:
+        # ³Ğ«Ø¨t²Î¹ê¨Ò
+        system = StreamingTrackingSystem(
+            arduino_port=args.port,
+            camera_id=args.camera,
+            model_path=args.model,
+            http_port=args.port_http,
+            dual_camera=dual_camera,
+            stream_mode=args.mode,
+            save_samples=not args.no_save_samples,
+            enable_rtsp=args.enable_rtsp,
+            rtsp_url=args.rtsp_url,
+            rtsp_bitrate=args.rtsp_bitrate
+        )
+
+        # ¹B¦æ¨t²Î
+        system.run()
+
+    except KeyboardInterrupt:
+        logger.info("\n ¦¬¨ì¤¤Â_«H¸¹")
+    except Exception as e:
+        logger.error(f" ¨t²Î¿ù»~: {e}")
+        traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
