@@ -200,6 +200,14 @@ class ConfigLoader:
     def save_interval(self):
         return self.config.getfloat('SAMPLE_COLLECTION', 'save_interval', fallback=3.0)
 
+    @property
+    def save_annotations(self):
+        return self.config.getboolean('SAMPLE_COLLECTION', 'save_annotations', fallback=True)
+
+    @property
+    def save_full_frame(self):
+        return self.config.getboolean('SAMPLE_COLLECTION', 'save_full_frame', fallback=False)
+
     # 樣本標註相關配置
     @property
     def sample_collection_dir(self):
