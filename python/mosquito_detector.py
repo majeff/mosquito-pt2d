@@ -449,7 +449,7 @@ class MosquitoDetector:
             'message': message
         }
 
-    def _save_uncertain_sample(self, frame: np.ndarray, detection: Dict):
+    def _save_sample(self, frame: np.ndarray, detection: Dict):
         """
         儲存樣本圖片（中等或高信心度，依設定判斷）並可選生成 YOLO 格式標註文件
 
@@ -607,7 +607,7 @@ class MosquitoDetector:
             # 儲存樣本（中/高信心度由 _save_uncertain_sample 判斷）
             if (self.save_uncertain_samples or self.save_high_confidence) and detections:
                 for detection in detections:
-                    self._save_uncertain_sample(frame, detection)
+                    self._save_sample(frame, detection)
 
             return detections, result_frame, illumination_info
 
@@ -892,10 +892,8 @@ class MosquitoDetector:
         for detection in output:
             objectness = detection[4]
 
-            # ⚠️ 重要：確保 objectness 在 [0, 1] 範圍內
-            # 有些模型輸出未經 sigmoid，需要手動處理
-            if objectness > 1.0:
-                objectness = 1.0 / (1.0 + np.exp(-objectness))  # sigmoid
+            # ⚠️ 重要：統一使用 sigmoid 將 objectness 壓到 [0, 1]
+            objectness = 1.0 / (1.0 + np.exp(-objectness))  # sigmoid
 
             if objectness < self.confidence_threshold:
                 continue
@@ -916,9 +914,8 @@ class MosquitoDetector:
 
             # 類別概率（同樣需要確保在 [0, 1] 範圍）
             class_scores = detection[5:]
-            # 對類別分數應用 sigmoid（如果需要）
-            if np.max(class_scores) > 1.0:
-                class_scores = 1.0 / (1.0 + np.exp(-class_scores))
+            # 對類別分數統一應用 sigmoid，避免部分裝置輸出 logits 導致過高
+            class_scores = 1.0 / (1.0 + np.exp(-class_scores))
 
             class_id = int(np.argmax(class_scores))
             confidence = float(objectness * class_scores[class_id])
@@ -934,6 +931,15 @@ class MosquitoDetector:
                     'class_name': f'class_{class_id}',
                     'center': (int(x_center), int(y_center))
                 })
+
+        # 追加偵測信心度統計（debug 用）
+        if logger.isEnabledFor(logging.DEBUG) and detections:
+            confs = [d['confidence'] for d in detections]
+            logger.debug(
+                "偵測信心度統計: n=%d, min=%.3f, p50=%.3f, p90=%.3f, max=%.3f",
+                len(confs), float(np.min(confs)), float(np.percentile(confs, 50)),
+                float(np.percentile(confs, 90)), float(np.max(confs))
+            )
 
         return detections
 

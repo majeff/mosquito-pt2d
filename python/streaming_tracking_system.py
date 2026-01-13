@@ -1011,6 +1011,7 @@ def main():
                        help='AI 模型路徑 (預設: %(default)s)')
     parser.add_argument('--port-http', type=int, default=config.stream_port,
                        help='HTTP 串流端口 (預設: %(default)s)')
+    parser.add_argument('--debug', action='store_true', help='啟用 DEBUG 日誌')
     parser.add_argument('--mode', type=str, default="single",
                        choices=["single", "side_by_side", "dual_stream"],
                        help='串流模式 (預設: %(default)s)')
@@ -1028,6 +1029,14 @@ def main():
                        help='RTSP 碼率 (kbps, 預設: %(default)s)')
 
     args = parser.parse_args()
+
+    # 啟用 DEBUG 日誌
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger(__name__).setLevel(logging.DEBUG)
+        logging.getLogger('mosquito_detector').setLevel(logging.DEBUG)
+        logging.getLogger('streaming_server').setLevel(logging.DEBUG)
+        logging.debug("DEBUG 日誌已啟用")
 
     # 檢查參數衝突
     if args.single and args.dual:
